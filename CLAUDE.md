@@ -17,6 +17,10 @@ There is no build, lint, or test tooling for the web app.
 - After editing `web/sw.js`, bump `CACHE` (currently `"cuaderno-v3"`) — the service worker only picks up new/changed files on install, and stale caches are only evicted for keys that don't match `CACHE`.
 - Manual testing only: exercise flows in the browser (create/edit/delete a student, cycle topic/semaforo state, log a class/simulacro, export/import JSON, and — if testing sync — the Supabase config/login flow).
 
+## PWA deployment (GitHub Pages)
+
+`.github/workflows/deploy-pages.yml` publishes `web/` to GitHub Pages automatically on every push to `main` that touches `web/**` (via `actions/upload-pages-artifact` + `actions/deploy-pages`). The repo's Settings → Pages → Source must be set to "GitHub Actions" (not "Deploy from a branch") for this to take effect — see `INSTRUCCIONES.md` for the end-user-facing walkthrough.
+
 ## Desktop packaging (Tauri)
 
 `src-tauri/` wraps `web/` as a native Windows/macOS/Linux app — no bundler, no build step for the web files, which remain the single source of truth. `src-tauri/tauri.conf.json` sets `build.frontendDist` to `../web` directly (no `devUrl`, no `beforeDevCommand`/`beforeBuildCommand`).
@@ -33,7 +37,8 @@ There is no build, lint, or test tooling for the web app.
 
 - Capacitor does not serve `web/` live like Tauri does — it **copies** it into `android/app/src/main/assets/public` (gitignored, regenerated) whenever you run `npx cap sync` or `npx cap copy android`. Run that after editing anything in `web/` and before rebuilding the Android app; otherwise the APK ships stale assets.
 - `window.Capacitor` (checked by `IS_NATIVE` in `web/index.html`, alongside `window.__TAURI__`) makes the service worker registration skip itself inside the Android app too.
-- Building an actual APK needs Android Studio (JDK + Android SDK) installed and configured — not yet present in this environment. See the chat history / project notes for the exact remaining steps.
+- Building an APK requires Android Studio (JDK + Android SDK); open the project with `npx cap open android` or directly at `android/`. Verified working: builds and installs on a physical device. Gradle/AGP versions in `android/build.gradle` and `android/gradle/wrapper/gradle-wrapper.properties` are pinned to whatever Android Studio's Upgrade Assistant last set them to — don't hand-edit those versions down, Android Studio will just re-upgrade them on next open.
+- `android/.idea/` is gitignored (IDE/machine-local state — deployment target, run configs, etc.); each contributor's Android Studio regenerates it on first open.
 
 ## Architecture
 

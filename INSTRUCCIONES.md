@@ -71,30 +71,26 @@ tiene riesgo.)
 
 ## PARTE 2 — Publicar la aplicación (GitHub Pages)
 
-### Paso 2.1 — Crear el repositorio y subir los archivos
+El repositorio (`cuaderno-seguimiento` en tu cuenta de GitHub) ya existe y ya
+tiene los archivos de la app dentro de la carpeta `web/`. No hace falta crear
+nada a mano ni arrastrar archivos: cada vez que se suba una actualización al
+repositorio, un robot de GitHub ("GitHub Actions") publica automáticamente el
+contenido de `web/` en tu dirección pública. Solo falta activar esto una vez.
 
-1. Entrá a **https://github.com** con tu cuenta y tocá **New repository**
-   (botón verde, o el "+" arriba a la derecha → "New repository").
-2. **Repository name:** `cuaderno-seguimiento` · **Visibilidad:** Public
-   → **Create repository**.
-3. En la página del repositorio: **"uploading an existing file"** (o
-   Add file → Upload files) y arrastrá estos **5 archivos** de esta carpeta:
-   - `index.html`
-   - `manifest.webmanifest`
-   - `sw.js`
-   - `icon-192.png`
-   - `icon-512.png`
-   (El `supabase-setup.sql` y esta guía no hace falta subirlos.)
-4. Tocá **"Commit changes"**.
+### Paso 2.1 — Activar la publicación automática
 
-### Paso 2.2 — Activar la página
-
-1. En el repositorio: **Settings → Pages** (menú de la izquierda).
-2. En "Build and deployment": **Source: Deploy from a branch** ·
-   **Branch: main** · carpeta **/ (root)** → **Save**.
-3. Esperá 1-2 minutos y recargá esa misma página. Va a aparecer tu dirección:
-   `https://TU-USUARIO.github.io/cuaderno-seguimiento/`
-4. Abrila para probar que carga. Esa dirección es tuya, gratis y permanente.
+1. Entrá a **https://github.com/manugandini53-design/cuaderno-seguimiento**
+   con tu cuenta.
+2. **Settings → Pages** (menú de la izquierda).
+3. En "Build and deployment": **Source: GitHub Actions** (si dice
+   "Deploy from a branch", cambialo a esta opción) → se guarda solo, no hace
+   falta más.
+4. Andá a la pestaña **Actions** (arriba del repositorio). Va a haber una
+   publicación en curso o ya terminada, con un tilde verde ✓.
+5. Esperá a que termine (1-2 minutos) y abrí:
+   `https://manugandini53-design.github.io/cuaderno-seguimiento/`
+6. Esa dirección es tuya, gratis y permanente. Se va a actualizar sola cada
+   vez que haya cambios nuevos en la carpeta `web/` del repositorio.
 
 ---
 
@@ -156,7 +152,9 @@ en la barra de direcciones aparece un ícono de instalar (monitor con flecha)
 
 ## Si algún día te paso una versión nueva de la app
 
-1. En GitHub: entrá al repositorio → Add file → Upload files → subí el
-   `index.html` (y el `sw.js` si te lo paso) nuevo → Commit changes.
+1. La actualización se sube directamente al repositorio (no hace falta que
+   subas nada a mano) y la publicación en tu dirección de GitHub Pages se
+   actualiza sola en 1-2 minutos (podés verlo en la pestaña **Actions** del
+   repositorio, con un tilde verde ✓ cuando termina).
 2. En cada dispositivo, cerrá y abrí la app un par de veces para que tome
    la versión nueva.
