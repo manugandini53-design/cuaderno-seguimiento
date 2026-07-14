@@ -109,7 +109,8 @@
 "use strict";
 /* ============ datos ============ */
 const KEY = "tutoria-seguimiento-v1";
-const SES_KEY = "tutoria-sync-ses";   // sesión iniciada (tokens)
+const SES_KEY = "tutoria-sync-ses";   // sesión iniciada (tokens): cookie de sesión en la web (se borra al cerrar el navegador), localStorage en apps nativas (Tauri/Capacitor)
+const EMAILS_KEY = "tutoria-remembered-emails"; // emails con los que se inició sesión con éxito en este dispositivo — no se borra al cerrar sesión
 // Backend de sincronización: un único proyecto Supabase para todos los usuarios de la app.
 // La anon key es pública por diseño — la seguridad la dan las políticas RLS de la tabla
 // `cuaderno` (cada cuenta solo puede leer/escribir su propia fila; ver supabase-setup.sql).
@@ -171,6 +172,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null,
               showNew:false, confirmDel:false, saveErr:false,
               syncStatus:"idle", syncMsg:"", lastSync:null,
               authMode:"login", authEmail:"", recovery:null,
+              pendingConfirmEmail:null, confirmStatus:"idle", confirmError:"",
               reportMsg:"", reportStatus:"idle", reportError:"",
               reportes:[], reportFilter:"pendiente", reportesLoaded:false, reportesError:"" };
 
@@ -424,6 +426,8 @@ function vDetalle(){
 
 function vAuth(){
   const mode = state.authMode||"login", isLogin = mode==="login";
+  const remembered = getRememberedEmails();
+  const emailVal = state.authEmail || remembered[0] || "";
   return `<div style="max-width:360px;margin:64px auto 0">
     <div style="text-align:center;margin-bottom:20px">
       <div class="eyebrow">Clases particulares</div>
@@ -435,7 +439,9 @@ function vAuth(){
         ${tabbtn("auth-mode-signup",!isLogin,"Crear cuenta")}
       </div>
       <div class="field"><div class="flabel">Correo</div>
-        <input id="auth-email" type="email" autocomplete="username" value="${esc(state.authEmail||"")}"></div>
+        <input id="auth-email" type="email" autocomplete="username" list="remembered-emails" value="${esc(emailVal)}">
+        <datalist id="remembered-emails">${remembered.map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
+      </div>
       <div class="field" style="margin-top:8px"><div class="flabel">Contraseña${isLogin?"":" (mínimo 6 caracteres)"}</div>
         <input id="auth-pass" type="password" autocomplete="${isLogin?"current-password":"new-password"}"></div>
       <button class="primary" style="margin:14px 0 0;margin-left:0;width:100%" data-a="${isLogin?"auth-login":"auth-signup"}">${isLogin?"Iniciar sesión":"Crear cuenta"}</button>
@@ -443,6 +449,28 @@ function vAuth(){
       <div class="hint" id="authMsg" style="margin-top:10px;min-height:16px"></div>
     </div>
   </div>`;
+}
+
+function vConfirmEmail(){
+  return `<div style="max-width:360px;margin:64px auto 0">
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="eyebrow">Clases particulares</div>
+      <h1 style="font-size:22px">Revisá tu correo</h1>
+    </div>
+    <div class="formcard">
+      <div style="font-size:13.5px;margin-bottom:10px">Tu cuenta todavía no está confirmada. Te enviamos un correo a
+        <b>${esc(state.pendingConfirmEmail||"")}</b> con un link de confirmación — abrilo para activarla.</div>
+      <button class="primary" style="width:100%;margin-left:0" data-a="resend-confirm" ${state.confirmStatus==="sending"?"disabled":""}>Reenviar correo</button>
+      <button class="chip" style="margin-top:10px;border:none;background:none;padding:2px 0;color:var(--muted)" data-a="back-to-login">← Volver a iniciar sesión</button>
+      <div class="hint" id="confirmMsg" style="margin-top:10px;min-height:16px;color:${state.confirmStatus==="error"?"var(--red)":state.confirmStatus==="ok"?"var(--green)":"var(--faint)"}">${esc(confirmStatusText())}</div>
+    </div>
+  </div>`;
+}
+function confirmStatusText(){
+  if(state.confirmStatus==="sending") return "Enviando…";
+  if(state.confirmStatus==="ok") return "Listo, te reenviamos el correo.";
+  if(state.confirmStatus==="error") return state.confirmError||"No se pudo reenviar el correo.";
+  return "";
 }
 
 function vSetPassword(){
@@ -579,6 +607,10 @@ function render(){
     return;
   }
   if(!getSes()){
+    if(state.pendingConfirmEmail){
+      document.getElementById("app").innerHTML = vConfirmEmail();
+      return;
+    }
     document.getElementById("app").innerHTML = vAuth();
     const em=document.getElementById("auth-email"); if(em) em.focus();
     return;
@@ -629,8 +661,49 @@ function render(){
 }
 
 /* ============ sincronización (Supabase, prioridad offline) ============ */
-function getSes(){ try{ return JSON.parse(localStorage.getItem(SES_KEY))||null }catch(e){ return null } }
-function setSes(v){ v ? localStorage.setItem(SES_KEY,JSON.stringify(v)) : localStorage.removeItem(SES_KEY); }
+// Cookies de sesión (solo web): sin Expires/Max-Age quedan como "cookie de sesión" del
+// navegador — sobreviven a cerrar la pestaña pero se borran al cerrar el navegador entero.
+function setCookie(name,value){
+  const secure = location.protocol==="https:" ? "; Secure" : "";
+  document.cookie = name+"="+encodeURIComponent(value)+"; path=/; SameSite=Lax"+secure;
+}
+function getCookie(name){
+  const m = document.cookie.match(new RegExp("(?:^|; )"+name+"=([^;]*)"));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function delCookie(name){
+  document.cookie = name+"=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+}
+function getSes(){
+  try{
+    if(IS_NATIVE) return JSON.parse(localStorage.getItem(SES_KEY))||null;
+    let raw = getCookie(SES_KEY);
+    if(!raw){
+      // migración: versiones previas de la web guardaban la sesión en localStorage
+      const legacy = localStorage.getItem(SES_KEY);
+      if(legacy){ setCookie(SES_KEY, legacy); localStorage.removeItem(SES_KEY); raw = legacy; }
+    }
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function setSes(v){
+  if(IS_NATIVE){
+    v ? localStorage.setItem(SES_KEY,JSON.stringify(v)) : localStorage.removeItem(SES_KEY);
+  }else{
+    v ? setCookie(SES_KEY,JSON.stringify(v)) : delCookie(SES_KEY);
+  }
+}
+function getRememberedEmails(){
+  try{ const a=JSON.parse(localStorage.getItem(EMAILS_KEY)); return Array.isArray(a)?a:[]; }
+  catch(e){ return []; }
+}
+function rememberEmail(email){
+  if(!email) return;
+  try{
+    const list=[email, ...getRememberedEmails().filter(e=>e!==email)].slice(0,8);
+    localStorage.setItem(EMAILS_KEY, JSON.stringify(list));
+  }catch(e){}
+}
 
 function jwtSub(tok){
   try{ return JSON.parse(atob(tok.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"))).sub; }
@@ -667,6 +740,14 @@ function friendlyAuthError(err){
 function storeSession(j,email){
   setSes({access:j.access_token,refresh:j.refresh_token,
           exp:Date.now()+((j.expires_in||3600)-60)*1000,email});
+  rememberEmail(email);
+}
+function isEmailNotConfirmedError(err){
+  const m=String((err&&err.message)||err||"").toLowerCase();
+  return m.includes("email not confirmed") || m.includes("email_not_confirmed");
+}
+async function resendConfirmEmail(email){
+  await authFetch("/auth/v1/resend",{type:"signup", email});
 }
 async function doLogin(email,pass){
   const j=await authFetch("/auth/v1/token?grant_type=password",{email,password:pass});
@@ -864,7 +945,13 @@ document.addEventListener("click", (e)=>{
     if(!em||!pw){ authMsgShow("Completá correo y contraseña."); return; }
     authMsgShow("Iniciando sesión…",true);
     doLogin(em,pw).then(()=>{ render(); syncNow(); })
-      .catch(err=>authMsgShow(friendlyAuthError(err)));
+      .catch(err=>{
+        if(isEmailNotConfirmedError(err)){
+          state.pendingConfirmEmail=em; state.confirmStatus="idle"; state.confirmError=""; render();
+        }else{
+          authMsgShow(friendlyAuthError(err));
+        }
+      });
     return;
   }
   else if(a==="auth-signup"){
@@ -876,9 +963,23 @@ document.addEventListener("click", (e)=>{
     authMsgShow("Creando cuenta…",true);
     doSignup(em,pw).then(ok=>{
       if(ok){ render(); syncNow(); }
-      else authMsgShow("Cuenta creada. Te enviamos un correo para confirmarla — abrilo y volvé a iniciar sesión acá.",true);
+      else{ state.pendingConfirmEmail=em; state.confirmStatus="idle"; state.confirmError=""; render(); }
     }).catch(err=>authMsgShow(friendlyAuthError(err)));
     return;
+  }
+  else if(a==="resend-confirm"){
+    const email=state.pendingConfirmEmail; if(!email) return;
+    state.confirmStatus="sending"; render();
+    resendConfirmEmail(email).then(()=>{
+      state.confirmStatus="ok"; render();
+    }).catch(err=>{
+      state.confirmStatus="error"; state.confirmError=friendlyAuthError(err); render();
+    });
+    return;
+  }
+  else if(a==="back-to-login"){
+    state.pendingConfirmEmail=null; state.confirmStatus="idle"; state.confirmError=""; state.authMode="login";
+    render(); return;
   }
   else if(a==="auth-forgot"){
     const em=(document.getElementById("auth-email").value||"").trim();
