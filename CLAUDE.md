@@ -49,7 +49,7 @@ Note: any PWA installed from the site root *before* the landing page existed wil
 
 ## Landing page (`web/index.html`)
 
-Pure static marketing page, entirely separate from the app's code/state — no shared JS, no localStorage use. Links to `./app/` for the web app and to GitHub Releases for native downloads. Its only dynamic behavior: a small inline script calls the public GitHub API (`GET /repos/manugandini53-design/cuaderno-seguimiento/releases/latest`) to populate the Windows download button with the actual latest `.exe` asset URL, version tag, and size, falling back to a link to the releases page if that call fails (offline, rate-limited, no release yet, etc.). Reuses the app's CSS custom properties (colors, font stack) for visual consistency but duplicates them locally, same as every other file in this repo — there's no shared stylesheet.
+Pure static marketing page, entirely separate from the app's code/state — no shared JS, no localStorage use. Links to `./app/` for the web app and to GitHub Releases for native downloads. Its only dynamic behavior: a small inline script calls the public GitHub API (`GET /repos/manugandini53-design/manugandini53-design.github.io/releases/latest`) to populate the Windows download button with the actual latest `.exe` asset URL, version tag, and size, falling back to a link to the releases page if that call fails (offline, rate-limited, no release yet, etc.). Reuses the app's CSS custom properties (colors, font stack) for visual consistency but duplicates them locally, same as every other file in this repo — there's no shared stylesheet.
 
 ## Architecture (`web/app/index.html`)
 

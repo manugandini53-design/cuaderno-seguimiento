@@ -149,7 +149,7 @@
       <div class="dlcard">
         <div class="platform">Windows</div>
         <div class="desc">Aplicación de escritorio instalable, con ícono propio y sin depender del navegador.</div>
-        <a class="btn primary block" id="dl-windows" href="https://github.com/manugandini53-design/cuaderno-seguimiento/releases/latest">Descargar para Windows</a>
+        <a class="btn primary block" id="dl-windows" href="https://github.com/manugandini53-design/manugandini53-design.github.io/releases/latest">Descargar para Windows</a>
         <div class="meta" id="dl-windows-meta">Buscando la última versión…</div>
       </div>
 
@@ -188,7 +188,7 @@ async function loadLatestRelease(){
   const btn = document.getElementById("dl-windows");
   const meta = document.getElementById("dl-windows-meta");
   try{
-    const r = await fetch("https://api.github.com/repos/manugandini53-design/cuaderno-seguimiento/releases/latest");
+    const r = await fetch("https://api.github.com/repos/manugandini53-design/manugandini53-design.github.io/releases/latest");
     if(!r.ok) throw new Error("sin release");
     const j = await r.json();
     const assets = Array.isArray(j.assets) ? j.assets : [];

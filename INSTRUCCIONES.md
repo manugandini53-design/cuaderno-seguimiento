@@ -71,15 +71,15 @@ tiene riesgo.)
 
 ## PARTE 2 — Publicar la aplicación (GitHub Pages)
 
-El repositorio (`cuaderno-seguimiento` en tu cuenta de GitHub) ya existe y ya
-tiene los archivos de la app dentro de la carpeta `web/`. No hace falta crear
+El repositorio (`manugandini53-design.github.io` en tu cuenta de GitHub) ya
+existe y ya tiene los archivos de la app dentro de la carpeta `web/`. No hace falta crear
 nada a mano ni arrastrar archivos: cada vez que se suba una actualización al
 repositorio, un robot de GitHub ("GitHub Actions") publica automáticamente el
 contenido de `web/` en tu dirección pública. Solo falta activar esto una vez.
 
 ### Paso 2.1 — Activar la publicación automática
 
-1. Entrá a **https://github.com/manugandini53-design/cuaderno-seguimiento**
+1. Entrá a **https://github.com/manugandini53-design/manugandini53-design.github.io**
    con tu cuenta.
 2. **Settings → Pages** (menú de la izquierda).
 3. En "Build and deployment": **Source: GitHub Actions** (si dice
@@ -88,7 +88,7 @@ contenido de `web/` en tu dirección pública. Solo falta activar esto una vez.
 4. Andá a la pestaña **Actions** (arriba del repositorio). Va a haber una
    publicación en curso o ya terminada, con un tilde verde ✓.
 5. Esperá a que termine (1-2 minutos) y abrí:
-   `https://manugandini53-design.github.io/cuaderno-seguimiento/`
+   `https://manugandini53-design.github.io/`
 6. Esa dirección es tuya, gratis y permanente. Se va a actualizar sola cada
    vez que haya cambios nuevos en la carpeta `web/` del repositorio.
 
@@ -98,12 +98,12 @@ contenido de `web/` en tu dirección pública. Solo falta activar esto una vez.
 
 ### Paso 3.1 — Instalar
 
-La dirección del Paso 2.1 (`https://manugandini53-design.github.io/cuaderno-seguimiento/`)
-ahora es la página de presentación del producto, no la app instalable — la app
-en sí vive en la subdirección **`.../cuaderno-seguimiento/app/`** (tocá el botón
-"Abrir la aplicación web" desde esa página, o entrá directo a esa URL). Usá
-siempre esa dirección con `/app/` para instalar — instalar desde la raíz no
-funciona.
+La dirección del Paso 2.1 (`https://manugandini53-design.github.io/`) ahora es
+la página de presentación del producto, no la app instalable — la app en sí
+vive en la subdirección **`.../app/`** (tocá el botón "Abrir la aplicación
+web" desde esa página, o entrá directo a `https://manugandini53-design.github.io/app/`).
+Usá siempre esa dirección con `/app/` para instalar — instalar desde la raíz
+no funciona.
 
 **En el celular (Android):** abrí esa dirección (`.../app/`) en **Chrome** →
 menú (⋮) → **"Instalar aplicación"** (o "Agregar a pantalla principal"). Queda
