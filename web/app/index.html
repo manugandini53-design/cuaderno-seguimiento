@@ -986,7 +986,7 @@ function versionIsNewer(remote, current){
   return false;
 }
 async function checkForNewVersion(){
-  if(!IS_NATIVE) return;
+  if(!window.Capacitor) return; // en Tauri el aviso lo reemplaza checkTauriUpdate(), que instala directo
   const last = parseInt(localStorage.getItem(VERSION_CHECK_KEY)||"0",10);
   if(Date.now()-last < VERSION_CHECK_INTERVAL_MS) return;
   try{
@@ -999,6 +999,21 @@ async function checkForNewVersion(){
       render();
     }
   }catch(e){ /* silencioso: sin internet o falla puntual de la API; se reintenta al otro día */ }
+}
+
+/* ============ auto-update real (Windows / Tauri) ============
+   Usa tauri-plugin-updater, expuesto como window.__TAURI__.updater porque
+   app.withGlobalTauri está activo en tauri.conf.json (sin bundler ni import). */
+async function checkTauriUpdate(){
+  if(!window.__TAURI__) return;
+  try{
+    const update = await window.__TAURI__.updater.check();
+    if(!update) return;
+    const instalar = confirm(`Hay una actualización disponible (v${update.version}). ¿Instalar ahora?`);
+    if(!instalar) return;
+    await update.downloadAndInstall();
+    await window.__TAURI__.process.relaunch();
+  }catch(e){ /* silencioso: sin internet, sin release firmado todavía, o falla puntual del endpoint */ }
 }
 
 /* ============ reportar un problema / panel admin ============ */
@@ -1265,6 +1280,7 @@ if(_recovery){ state.recovery=_recovery; history.replaceState(null,"",location.p
 load(); render();
 syncNow();
 checkForNewVersion();
+checkTauriUpdate();
 
 /* PWA: registrar el service worker cuando la app está publicada (no en file://
    ni dentro de un contenedor nativo como Tauri o Capacitor, que ya resuelven

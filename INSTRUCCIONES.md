@@ -79,5 +79,6 @@ cuenta nueva). A partir de ahí, sincroniza sola.
 
 La actualización se publica sola en la dirección de siempre — no hay que
 reinstalar nada para la versión web. Cerrá y volvé a abrir la app un par de
-veces para que tome los cambios. Para Windows, vas a tener que descargar e
-instalar el nuevo instalador cuando esté disponible.
+veces para que tome los cambios. En Windows, la app de escritorio revisa sola
+si hay una versión nueva al abrirse y te pregunta si querés instalarla ahora;
+si aceptás, se actualiza y reinicia sola, sin descargar nada a mano.
