@@ -109,8 +109,12 @@
 "use strict";
 /* ============ datos ============ */
 const KEY = "tutoria-seguimiento-v1";
-const CFG_KEY = "tutoria-sync-cfg";   // URL + clave del proyecto Supabase (por dispositivo)
 const SES_KEY = "tutoria-sync-ses";   // sesión iniciada (tokens)
+// Backend de sincronización: un único proyecto Supabase para todos los usuarios de la app.
+// La anon key es pública por diseño — la seguridad la dan las políticas RLS de la tabla
+// `cuaderno` (cada cuenta solo puede leer/escribir su propia fila; ver supabase-setup.sql).
+const SUPA_URL = "https://iwxsntxkqfqucxhwlfdv.supabase.co";
+const SUPA_ANON_KEY = "sb_publishable_S0zs9qmIRB5RWNZceO5gCg_vI7Hxx1D";
 // Empaquetado nativo: Tauri inyecta window.__TAURI__, Capacitor inyecta window.Capacitor
 const IS_NATIVE = !!(window.__TAURI__ || window.Capacitor);
 const TOPICS = ["Trigonometría","Funciones","Matrices","Determinantes","Vectores","Límites","Derivadas","Integrales"];
@@ -158,7 +162,8 @@ function fmtDate(ds){ if(!ds) return "—";
 let state = { students:[], catalog:defaultCatalog(), editSubjectId:null,
               view:"tablero", selId:null, filter:"activo", tab:"temas",
               showNew:false, confirmDel:false, saveErr:false,
-              syncStatus:"idle", syncMsg:"", lastSync:null };
+              syncStatus:"idle", syncMsg:"", lastSync:null,
+              authMode:"login", authEmail:"", recovery:null };
 
 const subjById = (id) => state.catalog.subjects.find(m=>m.id===id) || null;
 function unitsFor(s){ const m=subjById(s.subjectId); return m ? m.units : Object.keys(s.topics||{}); }
@@ -408,44 +413,57 @@ function vDetalle(){
   return h;
 }
 
-function vSync(){
-  const cfg=getCfg(), ses=getSes();
-  let h = `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
-  <div class="formcard"><div class="ftitle">Sincronización entre dispositivos</div>`;
-  if(!cfg){
-    h += `<div class="hint" style="margin-bottom:10px">Pegá acá los dos valores de tu proyecto de Supabase
-      (INSTRUCCIONES, paso 3). Esto se hace <b>una sola vez por dispositivo</b>.</div>
-    <div class="field"><div class="flabel">Project URL (empieza con https:// y termina en .supabase.co)</div>
-      <input id="cfg-url" placeholder="https://abcdefgh.supabase.co"></div>
-    <div class="field" style="margin-top:8px"><div class="flabel">Clave «anon public» (un texto largo que empieza con eyJ o sb_publishable_)</div>
-      <textarea id="cfg-anon" style="min-height:70px" placeholder="eyJhbGciOi..."></textarea></div>
-    <button class="primary" style="margin:10px 0 0;margin-left:0" data-a="sync-save-cfg">Guardar configuración</button>
-    <div class="hint" id="syncFormMsg" style="margin-top:8px;color:var(--red)"></div>`;
-  } else if(!ses){
-    h += `<div class="hint" style="margin-bottom:10px">Configuración guardada. Ahora iniciá sesión con tu correo y contraseña.
-      Si es la primera vez, tocá «Crear cuenta nueva» (se crea una sola vez; en el otro dispositivo solo iniciás sesión).</div>
-    <div class="frow">
-      <div class="field"><div class="flabel">Correo</div><input id="log-email" type="email" autocomplete="username"></div>
-      <div class="field"><div class="flabel">Contraseña (mínimo 6 caracteres)</div><input id="log-pass" type="password" autocomplete="current-password"></div>
+function vAuth(){
+  const mode = state.authMode||"login", isLogin = mode==="login";
+  return `<div style="max-width:360px;margin:64px auto 0">
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="eyebrow">Clases particulares · matemática</div>
+      <h1 style="font-size:22px">Cuaderno de seguimiento</h1>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-      <button class="primary" style="margin-left:0" data-a="sync-login">Iniciar sesión</button>
-      <button class="chip" data-a="sync-signup">Crear cuenta nueva</button>
-      <button class="chip" data-a="sync-remove-cfg">Quitar configuración</button>
+    <div class="formcard">
+      <div class="tabs" style="margin-bottom:14px">
+        ${tabbtn("auth-mode-login",isLogin,"Iniciar sesión")}
+        ${tabbtn("auth-mode-signup",!isLogin,"Crear cuenta")}
+      </div>
+      <div class="field"><div class="flabel">Correo</div>
+        <input id="auth-email" type="email" autocomplete="username" value="${esc(state.authEmail||"")}"></div>
+      <div class="field" style="margin-top:8px"><div class="flabel">Contraseña${isLogin?"":" (mínimo 6 caracteres)"}</div>
+        <input id="auth-pass" type="password" autocomplete="${isLogin?"current-password":"new-password"}"></div>
+      <button class="primary" style="margin:14px 0 0;margin-left:0;width:100%" data-a="${isLogin?"auth-login":"auth-signup"}">${isLogin?"Iniciar sesión":"Crear cuenta"}</button>
+      ${isLogin?`<button class="chip" style="margin-top:10px;border:none;background:none;padding:2px 0;color:var(--muted)" data-a="auth-forgot">¿Olvidaste tu contraseña?</button>`:""}
+      <div class="hint" id="authMsg" style="margin-top:10px;min-height:16px"></div>
     </div>
-    <div class="hint" id="syncFormMsg" style="margin-top:8px;color:var(--red)"></div>`;
-  } else {
-    h += `<div style="font-size:13.5px;margin-bottom:6px">Sesión iniciada como <b>${esc(ses.email||"")}</b></div>
-    <div class="hint" style="margin-bottom:10px">La app funciona siempre, con o sin internet. Cuando hay conexión,
-      los cambios se suben solos y se combinan con los del otro dispositivo. Si un mismo alumno se editó
-      en los dos lados, queda la edición más reciente.</div>
+  </div>`;
+}
+
+function vSetPassword(){
+  return `<div style="max-width:360px;margin:64px auto 0">
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="eyebrow">Clases particulares · matemática</div>
+      <h1 style="font-size:22px">Elegí una contraseña nueva</h1>
+    </div>
+    <div class="formcard">
+      <div class="field"><div class="flabel">Contraseña nueva (mínimo 6 caracteres)</div>
+        <input id="newpass1" type="password" autocomplete="new-password"></div>
+      <div class="field" style="margin-top:8px"><div class="flabel">Repetila</div>
+        <input id="newpass2" type="password" autocomplete="new-password"></div>
+      <button class="primary" style="margin:14px 0 0;margin-left:0;width:100%" data-a="auth-set-password">Guardar contraseña</button>
+      <div class="hint" id="authMsg" style="margin-top:10px;min-height:16px"></div>
+    </div>
+  </div>`;
+}
+
+function vCuenta(){
+  const ses=getSes();
+  return `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
+  <div class="formcard"><div class="ftitle">Cuenta</div>
+    <div style="font-size:13.5px;margin-bottom:6px">Conectado como <b>${esc(ses?ses.email:"")}</b></div>
+    <div class="hint" style="margin-bottom:14px">${esc(syncStatusText())}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="primary" style="margin-left:0" data-a="sync-now">Sincronizar ahora</button>
-      <button class="chip" data-a="sync-logout">Cerrar sesión</button>
+      <button class="chip" data-a="sync-now">Sincronizar ahora</button>
+      <button class="danger" data-a="auth-logout">Cerrar sesión</button>
     </div>
-    <div class="hint" id="syncFormMsg" style="margin-top:8px"></div>`;
-  }
-  return h + `</div>`;
+  </div>`;
 }
 
 function vCatalog(){
@@ -507,6 +525,16 @@ function vModal(){
 
 /* ============ render ============ */
 function render(){
+  if(state.recovery){
+    document.getElementById("app").innerHTML = vSetPassword();
+    const p=document.getElementById("newpass1"); if(p) p.focus();
+    return;
+  }
+  if(!getSes()){
+    document.getElementById("app").innerHTML = vAuth();
+    const em=document.getElementById("auth-email"); if(em) em.focus();
+    return;
+  }
   const activos = alive().filter(s=>s.status==="activo").length;
   let h = `<div class="header"><div>
       <div class="eyebrow">Clases particulares · matemática</div>
@@ -519,14 +547,14 @@ function render(){
     <span class="hint" id="syncStatus">${syncStatusText()}</span>
     <span style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="chip ${state.view==="catalog"?"on":""}" data-a="nav-catalog">Materias y carreras</button>
-      <button class="chip ${state.view==="sync"?"on":""}" data-a="nav-sync">Sincronización</button>
+      <button class="chip ${state.view==="cuenta"?"on":""}" data-a="nav-cuenta">Cuenta</button>
     </span>
   </div>`;
   if(state.saveErr) h += `<div class="saveerr">No se pudo guardar el último cambio. Descargá una copia de respaldo por las dudas.</div>`;
   if(state.view==="tablero") h += vTablero();
   if(state.view==="lista") h += vLista();
   if(state.view==="detalle") h += vDetalle();
-  if(state.view==="sync") h += vSync();
+  if(state.view==="cuenta") h += vCuenta();
   if(state.view==="catalog") h += vCatalog();
   if(state.showNew) h += vModal();
   h += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
@@ -549,8 +577,6 @@ function render(){
 }
 
 /* ============ sincronización (Supabase, prioridad offline) ============ */
-function getCfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY))||null }catch(e){ return null } }
-function setCfg(v){ v ? localStorage.setItem(CFG_KEY,JSON.stringify(v)) : localStorage.removeItem(CFG_KEY); }
 function getSes(){ try{ return JSON.parse(localStorage.getItem(SES_KEY))||null }catch(e){ return null } }
 function setSes(v){ v ? localStorage.setItem(SES_KEY,JSON.stringify(v)) : localStorage.removeItem(SES_KEY); }
 
@@ -559,13 +585,32 @@ function jwtSub(tok){
   catch(e){ return null; }
 }
 async function authFetch(path, body){
-  const cfg=getCfg();
-  const r=await fetch(cfg.url+path,{method:"POST",
-    headers:{"Content-Type":"application/json",apikey:cfg.anon},
+  const r=await fetch(SUPA_URL+path,{method:"POST",
+    headers:{"Content-Type":"application/json",apikey:SUPA_ANON_KEY},
     body:JSON.stringify(body)});
   const j=await r.json().catch(()=>({}));
   if(!r.ok) throw new Error(j.msg||j.error_description||j.message||("error "+r.status));
   return j;
+}
+function friendlyAuthError(err){
+  const m=String((err&&err.message)||err||"").toLowerCase();
+  if(!navigator.onLine || m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed"))
+    return "Sin conexión a internet. Probá de nuevo cuando tengas señal.";
+  if(m.includes("invalid login credentials") || m.includes("invalid_grant"))
+    return "Correo o contraseña incorrectos.";
+  if(m.includes("already registered") || m.includes("already exists"))
+    return "Ese correo ya tiene una cuenta. Probá iniciar sesión.";
+  if(m.includes("email not confirmed"))
+    return "Falta confirmar el correo. Revisá tu casilla y tocá el enlace de confirmación.";
+  if(m.includes("password") && (m.includes("character")||m.includes("short")))
+    return "La contraseña tiene que tener al menos 6 caracteres.";
+  if(m.includes("unable to validate email")||(m.includes("email")&&m.includes("invalid")))
+    return "Ese correo no parece válido.";
+  if(m.includes("rate limit"))
+    return "Demasiados intentos. Esperá un minuto y probá de nuevo.";
+  if(m.includes("signups not allowed"))
+    return "La creación de cuentas está deshabilitada por ahora.";
+  return "Ocurrió un error. Probá de nuevo en un momento.";
 }
 function storeSession(j,email){
   setSes({access:j.access_token,refresh:j.refresh_token,
@@ -587,6 +632,22 @@ async function ensureToken(){
   storeSession(j,s.email);
   return getSes();
 }
+async function setNewPassword(pass){
+  const r=await fetch(SUPA_URL+"/auth/v1/user",{method:"PUT",
+    headers:{"Content-Type":"application/json",apikey:SUPA_ANON_KEY,Authorization:"Bearer "+state.recovery.access},
+    body:JSON.stringify({password:pass})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.msg||j.error_description||j.message||("error "+r.status));
+  storeSession({access_token:state.recovery.access, refresh_token:state.recovery.refresh, expires_in:3600}, j.email||"");
+}
+function parseRecoveryHash(){
+  const raw = location.hash.startsWith("#") ? location.hash.slice(1) : "";
+  if(!raw) return null;
+  const p = new URLSearchParams(raw);
+  if(p.get("type")==="recovery" && p.get("access_token"))
+    return { access:p.get("access_token"), refresh:p.get("refresh_token")||"" };
+  return null;
+}
 function mergeStudents(local,remote){
   const m=new Map();
   [...local,...remote].forEach(s=>{
@@ -596,12 +657,11 @@ function mergeStudents(local,remote){
   return [...m.values()];
 }
 function syncStatusText(){
-  if(!getCfg()) return "Sin sincronización — los datos quedan solo en este dispositivo";
-  if(!getSes()) return "Sincronización: falta iniciar sesión";
+  if(!getSes()) return "Sin sesión";
   const st=state.syncStatus;
   if(st==="sync") return "Sincronizando…";
   if(st==="offline") return "Sin conexión — trabajando offline; se sincroniza al volver internet";
-  if(st==="error") return "No se pudo sincronizar"+(state.syncMsg?" ("+esc(state.syncMsg)+")":"")+" — se reintenta solo";
+  if(st==="error") return (state.syncMsg||"No se pudo sincronizar")+" — se reintenta solo";
   if(st==="ok" && state.lastSync)
     return "Sincronizado ✓ "+new Date(state.lastSync).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
   return "Sincronización lista";
@@ -615,18 +675,16 @@ let syncTimer=null, syncing=false;
 function scheduleSync(){ clearTimeout(syncTimer); syncTimer=setTimeout(syncNow,1500); }
 
 async function syncNow(){
-  const cfg=getCfg();
-  if(!cfg){ setStatus("idle"); return; }
-  if(!getSes()){ setStatus("nologin"); return; }
+  if(!getSes()){ setStatus("idle"); return; }
   if(!navigator.onLine){ setStatus("offline"); return; }
   if(syncing){ scheduleSync(); return; }
   syncing=true; setStatus("sync");
   try{
     const s=await ensureToken();
     const uid_=jwtSub(s.access);
-    const h={apikey:cfg.anon, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
     const before=JSON.stringify({a:state.students,b:state.catalog});
-    const r=await fetch(cfg.url+"/rest/v1/cuaderno?select=data",{headers:h});
+    const r=await fetch(SUPA_URL+"/rest/v1/cuaderno?select=data",{headers:h});
     if(!r.ok) throw new Error("lectura "+r.status);
     const rows=await r.json();
     const rd=(rows[0]&&rows[0].data)?rows[0].data:{};
@@ -635,7 +693,7 @@ async function syncNow(){
     if(rd.catalog && Array.isArray(rd.catalog.subjects) &&
        (rd.catalog.updatedAt||0) > (state.catalog.updatedAt||0))
       state.catalog=rd.catalog;
-    const up=await fetch(cfg.url+"/rest/v1/cuaderno",{method:"POST",
+    const up=await fetch(SUPA_URL+"/rest/v1/cuaderno",{method:"POST",
       headers:{...h, Prefer:"resolution=merge-duplicates"},
       body:JSON.stringify([{user_id:uid_, data:{students:merged, catalog:state.catalog}, updated_at:new Date().toISOString()}])});
     if(!up.ok) throw new Error("escritura "+up.status);
@@ -644,21 +702,23 @@ async function syncNow(){
     state.lastSync=Date.now();
     setStatus("ok");
     // re-dibujar solo si la nube trajo cambios (para no interrumpir si estás escribiendo)
-    if(JSON.stringify({a:state.students,b:state.catalog})!==before && state.view!=="sync" && state.view!=="catalog") render();
+    if(JSON.stringify({a:state.students,b:state.catalog})!==before && state.view!=="cuenta" && state.view!=="catalog") render();
   }catch(e){
-    if(String(e.message).includes("no-session")||String(e.message).toLowerCase().includes("refresh")){
-      setSes(null); setStatus("nologin");
+    // offline se chequea primero: una falla de red (incluido el refresh del token) mientras
+    // no hay internet nunca debe cerrar la sesión ni bloquear la app — solo degrada el estado.
+    if(!navigator.onLine){ setStatus("offline"); }
+    else if(String(e.message)==="no-session" || String(e.message).toLowerCase().includes("refresh")){
+      setSes(null); render();
     }
-    else if(!navigator.onLine) setStatus("offline");
-    else setStatus("error", e.message);
+    else setStatus("error", friendlyAuthError(e));
   }finally{ syncing=false; }
 }
 window.addEventListener("online", ()=>syncNow());
 window.addEventListener("offline", ()=>setStatus("offline"));
-setInterval(()=>{ if(getCfg()&&getSes()) syncNow(); }, 5*60*1000);
+setInterval(()=>{ if(getSes()) syncNow(); }, 5*60*1000);
 
-function syncMsgShow(t,ok){
-  const el=document.getElementById("syncFormMsg");
+function authMsgShow(t,ok){
+  const el=document.getElementById("authMsg");
   if(el){ el.textContent=t; el.style.color = ok ? "var(--green)" : "var(--red)"; }
 }
 
@@ -668,7 +728,7 @@ document.addEventListener("click", (e)=>{
   const a = el.dataset.a, s = sel();
   if(a==="nav-tablero"){ state.view="tablero"; state.selId=null; }
   else if(a==="nav-lista"){ state.view="lista"; state.selId=null; }
-  else if(a==="nav-sync"){ state.view="sync"; state.selId=null; }
+  else if(a==="nav-cuenta"){ state.view="cuenta"; state.selId=null; }
   else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; }
   else if(a==="cat-add-career"){
     const v=(document.getElementById("new-career").value||"").trim(); if(!v) return;
@@ -698,35 +758,52 @@ document.addEventListener("click", (e)=>{
     const m=subjById(state.editSubjectId); if(!m) return;
     m.units.splice(+el.dataset.i,1); touchCatalog(); return;
   }
-  else if(a==="sync-save-cfg"){
-    const url=(document.getElementById("cfg-url").value||"").trim().replace(/\/+$/,"");
-    const anon=(document.getElementById("cfg-anon").value||"").trim();
-    if(!url.startsWith("https://")||!anon){ syncMsgShow("Revisá los dos valores: la URL empieza con https:// y la clave no puede estar vacía."); return; }
-    setCfg({url,anon}); render(); return;
-  }
-  else if(a==="sync-login"){
-    const em=(document.getElementById("log-email").value||"").trim();
-    const pw=document.getElementById("log-pass").value||"";
-    if(!em||!pw){ syncMsgShow("Completá correo y contraseña."); return; }
-    syncMsgShow("Iniciando sesión…",true);
+  else if(a==="auth-mode-login"){ state.authMode="login"; }
+  else if(a==="auth-mode-signup"){ state.authMode="signup"; }
+  else if(a==="auth-login"){
+    const em=(document.getElementById("auth-email").value||"").trim();
+    const pw=document.getElementById("auth-pass").value||"";
+    state.authEmail=em;
+    if(!em||!pw){ authMsgShow("Completá correo y contraseña."); return; }
+    authMsgShow("Iniciando sesión…",true);
     doLogin(em,pw).then(()=>{ render(); syncNow(); })
-      .catch(err=>syncMsgShow("No se pudo iniciar sesión: "+err.message));
+      .catch(err=>authMsgShow(friendlyAuthError(err)));
     return;
   }
-  else if(a==="sync-signup"){
-    const em=(document.getElementById("log-email").value||"").trim();
-    const pw=document.getElementById("log-pass").value||"";
-    if(!em||pw.length<6){ syncMsgShow("Completá el correo y una contraseña de al menos 6 caracteres."); return; }
-    syncMsgShow("Creando cuenta…",true);
+  else if(a==="auth-signup"){
+    const em=(document.getElementById("auth-email").value||"").trim();
+    const pw=document.getElementById("auth-pass").value||"";
+    state.authEmail=em;
+    if(!em){ authMsgShow("Ingresá tu correo."); return; }
+    if(pw.length<6){ authMsgShow("La contraseña tiene que tener al menos 6 caracteres."); return; }
+    authMsgShow("Creando cuenta…",true);
     doSignup(em,pw).then(ok=>{
       if(ok){ render(); syncNow(); }
-      else syncMsgShow("Cuenta creada, pero el proyecto pide confirmar el correo. Revisá tu casilla y tocá el enlace, o desactivá «Confirm email» en Supabase (INSTRUCCIONES, paso 2), y después tocá Iniciar sesión.");
-    }).catch(err=>syncMsgShow("No se pudo crear la cuenta: "+err.message));
+      else authMsgShow("Cuenta creada. Te enviamos un correo para confirmarla — abrilo y volvé a iniciar sesión acá.",true);
+    }).catch(err=>authMsgShow(friendlyAuthError(err)));
     return;
   }
-  else if(a==="sync-now"){ syncMsgShow("",true); syncNow(); return; }
-  else if(a==="sync-logout"){ setSes(null); render(); return; }
-  else if(a==="sync-remove-cfg"){ setCfg(null); setSes(null); render(); return; }
+  else if(a==="auth-forgot"){
+    const em=(document.getElementById("auth-email").value||"").trim();
+    if(!em){ authMsgShow("Escribí tu correo arriba y tocá de nuevo el enlace."); return; }
+    authMsgShow("Enviando…",true);
+    authFetch("/auth/v1/recover?redirect_to="+encodeURIComponent(location.origin+location.pathname),{email:em})
+      .then(()=>authMsgShow("Si ese correo tiene una cuenta, te llegó un enlace para elegir una contraseña nueva.",true))
+      .catch(err=>authMsgShow(friendlyAuthError(err)));
+    return;
+  }
+  else if(a==="auth-set-password"){
+    const p1=document.getElementById("newpass1").value||"";
+    const p2=document.getElementById("newpass2").value||"";
+    if(p1.length<6){ authMsgShow("La contraseña tiene que tener al menos 6 caracteres."); return; }
+    if(p1!==p2){ authMsgShow("Las dos contraseñas no coinciden."); return; }
+    authMsgShow("Guardando…",true);
+    setNewPassword(p1).then(()=>{ state.recovery=null; render(); syncNow(); })
+      .catch(err=>authMsgShow(friendlyAuthError(err)));
+    return;
+  }
+  else if(a==="sync-now"){ syncNow(); return; }
+  else if(a==="auth-logout"){ setSes(null); state.view="tablero"; render(); return; }
   else if(a==="open"){ state.view="detalle"; state.selId=el.dataset.id; state.tab="temas"; state.confirmDel=false; }
   else if(a==="back"){ state.view="lista"; state.selId=null; }
   else if(a==="new"){ state.showNew=true; }
@@ -812,6 +889,8 @@ document.addEventListener("change",(e)=>{
   update(s.id,{[el.dataset.f]:el.value});
 });
 
+const _recovery = parseRecoveryHash();
+if(_recovery){ state.recovery=_recovery; history.replaceState(null,"",location.pathname+location.search); }
 load(); render();
 syncNow();
 
