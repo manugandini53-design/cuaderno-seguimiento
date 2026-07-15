@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"Cuaderno de seguimiento" — a product (in Spanish) for a math tutor to track students: exam dates, topic progress, class logs, and mock-exam ("simulacro") results, with accounts and cross-device sync backed by a single shared Supabase project (multi-tenant via RLS — see `web/app/js/config.js`'s `SUPA_URL`/`SUPA_ANON_KEY`). It ships as a PWA, a desktop app via Tauri (packaging lives in a separate repo, `cuaderno-desktop`, currently paused — see below), and (in progress) an Android app via Capacitor.
+"Cuaderno de seguimiento" — a product (in Spanish) for a math tutor to track students: exam dates, topic progress, class logs, and mock-exam ("simulacro") results, with accounts and cross-device sync backed by a single shared Supabase project (multi-tenant via RLS — see `web/app/js/config.js`'s `SUPA_URL`/`SUPA_ANON_KEY`). It ships as a PWA, a desktop app via Tauri (packaging lives in a separate repo, `cuaderno-desktop`, currently paused — see below), and an Android app via Capacitor (packaging lives in a separate repo, `cuaderno-android`, also currently paused — see below).
 
 `web/` is the site published to GitHub Pages, and has two independent, self-contained parts:
 - `web/index.html` — the marketing/landing page (product site root). Static HTML/CSS/JS, no shared state with the app, links to `./app/` and to GitHub Releases for downloads.
-- `web/app/` — the actual application: `index.html` (HTML skeleton only — no inline CSS/JS, see "Architecture" below), `styles.css`, `js/*.js` (vanilla JS split into six classic scripts), `sw.js` (service worker), `manifest.webmanifest` (PWA manifest), `icon-*.png`. This is what the Capacitor build wraps directly, and what the separate `cuaderno-desktop` repo's Tauri build wraps as a sibling-repo directory.
+- `web/app/` — the actual application: `index.html` (HTML skeleton only — no inline CSS/JS, see "Architecture" below), `styles.css`, `js/*.js` (vanilla JS split into six classic scripts), `sw.js` (service worker), `manifest.webmanifest` (PWA manifest), `icon-*.png`. This is what the separate `cuaderno-desktop` (Tauri) and `cuaderno-android` (Capacitor) repos both wrap, each as a sibling-repo directory.
 
-There is no build system, no package manager, and no dependencies for either the landing page or the app — both are hand-authored, self-contained files. `web/` lives outside the repo root (rather than files sitting at the repo root) so that a directory containing only deployable web assets can be pointed at directly — originally so this repo's own `src-tauri/frontendDist` wouldn't sweep in `node_modules/`/`.git/`/`src-tauri/target/`, and now so `cuaderno-desktop`'s `tauri.conf.json` can reference `../../manugandini53-design.github.io/web/app` as a clean sibling path with nothing extra in it.
+There is no build system, no package manager, and no dependencies for either the landing page or the app — both are hand-authored, self-contained files. This repo has no `package.json`/`node_modules` at all any more — both native wrappers that used to need them (`src-tauri/`, `android/`) moved out. `web/` lives outside the repo root (rather than files sitting at the repo root) so that a directory containing only deployable web assets can be pointed at directly — originally so this repo's own `src-tauri/frontendDist` wouldn't sweep in `node_modules/`/`.git/`/`src-tauri/target/`, and now so `cuaderno-desktop`'s `tauri.conf.json` and `cuaderno-android`'s `capacitor.config.json` can each reference this directory as a clean sibling path with nothing extra in it.
 
 ## Running / testing
 
@@ -37,14 +37,14 @@ What stays in *this* repo, because it's part of the app's own JS rather than nat
 - `web/app/js/events.js`'s `checkTauriUpdate()` (called on startup, Tauri-only) calls `window.__TAURI__.updater.check()` — exposed globally because `cuaderno-desktop`'s `tauri.conf.json` sets `app.withGlobalTauri: true`, no bundler/import needed — and if an update is found, asks the user via `confirm()` before downloading, installing, and relaunching. The pre-existing generic "nueva versión disponible" banner (`checkForNewVersion()`) only runs on Capacitor/Android, which still has no in-app updater.
 - The already-published desktop releases (v1.1.0, v1.2.0, with their `.msi`/`setup.exe` installers) live in this repo's GitHub Releases, same as before — they weren't moved or touched, and the updater `endpoints` in `cuaderno-desktop`'s `tauri.conf.json` still point here.
 
-## Android packaging (Capacitor)
+## Android packaging (Capacitor) — moved to its own repo, currently paused
 
-`android/` wraps `web/app/` as a native Android app via Capacitor. `capacitor.config.json` at the repo root sets `webDir: "web/app"` — same source files as the PWA and the Tauri build, no separate copy to maintain by hand.
+The Capacitor/Android wrapper (`android/`, `capacitor.config.json`, and the Android-only `package.json`/`@capacitor/*` dependencies) used to live in this repo but was moved out to its own repo, [`cuaderno-android`](https://github.com/manugandini53-design/cuaderno-android), so its build tooling has its own history separate from the app's. **That repo is currently paused** — its README documents how to resume (cloning both repos as siblings, `npm install`, `npx cap sync`, opening Android Studio) and where the release-signing keystore and its password live. Nothing about `appId` or the Android project structure changed in that move.
 
-- Capacitor does not serve `web/app/` live like Tauri does — it **copies** it into `android/app/src/main/assets/public` (gitignored, regenerated) whenever you run `npx cap sync` or `npx cap copy android`. Run that after editing anything in `web/app/` and before rebuilding the Android app; otherwise the APK ships stale assets.
+What stays in *this* repo, because it's part of the app's own JS rather than native build tooling:
+
 - `window.Capacitor` (checked by `IS_NATIVE` in `web/app/js/config.js`, alongside `window.__TAURI__`) makes the service worker registration skip itself inside the Android app too.
-- Building an APK requires Android Studio (JDK + Android SDK); open the project with `npx cap open android` or directly at `android/`. Verified working: builds and installs on a physical device. Gradle/AGP versions in `android/build.gradle` and `android/gradle/wrapper/gradle-wrapper.properties` are pinned to whatever Android Studio's Upgrade Assistant last set them to — don't hand-edit those versions down, Android Studio will just re-upgrade them on next open.
-- `android/.idea/` is gitignored (IDE/machine-local state — deployment target, run configs, etc.); each contributor's Android Studio regenerates it on first open.
+- No Android APK has been published as a GitHub release yet ("Todavía no está publicada (próximamente)" per `INSTRUCCIONES.md`), so there was nothing to leave behind here the way the Tauri desktop releases were.
 
 ## Landing page (`web/index.html`)
 
