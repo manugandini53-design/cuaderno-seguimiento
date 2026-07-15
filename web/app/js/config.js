@@ -79,3 +79,28 @@ function defaultCatalog(){
     updatedAt:0 };
 }
 const TAREA_META = {hecha:{label:"hecha",fg:"var(--tarea-hecha-fg)"},intentada:{label:"intentada",fg:"var(--tarea-intentada-fg)"},no:{label:"no hecha",fg:"var(--tarea-no-fg)"}};
+// Plantillas de materias: temarios típicos de primer año universitario para no arrancar
+// una materia nueva desde cero. Elegir una precarga estas unidades tal cual — 100% editables
+// después desde el editor de la materia, igual que si las hubiera cargado a mano.
+const SUBJECT_TEMPLATES = [
+  { id:"tpl-analisis-1", name:"Análisis Matemático I", units:[
+    "Números reales y funciones", "Límites y continuidad", "Derivadas",
+    "Aplicaciones de la derivada", "Integrales indefinidas", "Integrales definidas y aplicaciones",
+  ]},
+  { id:"tpl-algebra", name:"Álgebra y Geometría Analítica", units:[
+    "Vectores en el plano y el espacio", "Rectas y planos", "Matrices y determinantes",
+    "Sistemas de ecuaciones lineales", "Espacios vectoriales", "Transformaciones lineales", "Cónicas",
+  ]},
+  { id:"tpl-matematica-ingreso", name:"Matemática básica / ingreso", units:[
+    "Conjuntos numéricos", "Expresiones algebraicas", "Ecuaciones e inecuaciones",
+    "Funciones", "Trigonometría", "Exponencial y logaritmo",
+  ]},
+  { id:"tpl-fisica-1", name:"Física I", units:[
+    "Cinemática", "Leyes de Newton", "Trabajo y energía",
+    "Impulso y cantidad de movimiento", "Dinámica de rotación", "Fluidos",
+  ]},
+  { id:"tpl-quimica-general", name:"Química General", units:[
+    "Estructura atómica", "Tabla periódica y propiedades", "Enlace químico",
+    "Estequiometría", "Gases", "Soluciones", "Reacciones y equilibrio químico",
+  ]},
+];

@@ -723,8 +723,13 @@ function vCatalog(){
       <div class="sub">${m.units.length} unidad${m.units.length===1?"":"es"}</div></div>
     <button class="del" data-a="cat-del-subject" data-id="${m.id}" title="Eliminar materia">×</button></div>`;
   }).join("") || `<div class="empty">Sin materias cargadas.</div>`}
+  <div class="flabel" style="margin-top:12px">Empezar desde una plantilla</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">
+    ${SUBJECT_TEMPLATES.map(t=>`<button class="chip" data-a="cat-add-from-template" data-id="${t.id}">${esc(t.name)}</button>`).join("")}
+  </div>
+  <div class="hint" style="margin-bottom:8px">Crea la materia con las unidades típicas ya cargadas — se editan como cualquier otra.</div>
   <div class="frow" style="margin-top:8px;align-items:flex-end">
-    <div class="field"><input id="new-subject" placeholder="Ej: Álgebra y Geometría Analítica"></div>
+    <div class="field"><input id="new-subject" placeholder="O escribí un nombre nuevo"></div>
     <button class="chip" data-a="cat-add-subject" style="margin-bottom:2px">+ Agregar materia</button></div>
   <div class="hint" style="margin-top:6px">Al crear una materia se abre su editor para cargarle las unidades. Después, al dar de alta un alumno, la elegís de la lista y su grilla de temas se arma sola. Eliminar una materia no borra el avance de los alumnos que la usaban.</div></div>`;
   h += `<div class="formcard"><div class="ftitle">Packs</div>

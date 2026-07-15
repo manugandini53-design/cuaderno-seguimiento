@@ -117,6 +117,13 @@ document.addEventListener("click", (e)=>{
     loadMateriales(m.id);
     touchCatalog(); return;
   }
+  else if(a==="cat-add-from-template"){
+    const t=SUBJECT_TEMPLATES.find(x=>x.id===el.dataset.id); if(!t) return;
+    const m={id:uid(), name:t.name, units:[...t.units]};
+    state.catalog.subjects.push(m); state.editSubjectId=m.id;
+    loadMateriales(m.id);
+    touchCatalog(); return;
+  }
   else if(a==="cat-edit-subject"){
     state.editSubjectId=el.dataset.id; state.editPackId=null;
     loadMateriales(el.dataset.id); return;
