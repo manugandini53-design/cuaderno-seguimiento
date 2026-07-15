@@ -232,6 +232,9 @@ document.addEventListener("click", (e)=>{
   }
   else if(a.startsWith("tab-")){ state.tab=a.slice(4); state.confirmDel=false; }
   else if(a==="filter"){ state.filter=el.dataset.f; }
+  else if(a==="clear-filters"){
+    state.filter="activo"; state.listSearch=""; state.listSubject="todas"; state.listCareer="todas"; state.listSem="todos";
+  }
   else if(a==="cycle-topic" && s){
     const t=el.dataset.t, cur=s.topics[t]||"pendiente";
     const next=TOPIC_CYCLE[(TOPIC_CYCLE.indexOf(cur)+1)%TOPIC_CYCLE.length];
@@ -288,6 +291,13 @@ document.addEventListener("change",(e)=>{
     touchCatalog(); return;
   }
   if(cf && cf.dataset.cf==="stats-subject"){ state.statsSubjectId=cf.value; render(); return; }
+  const lf=e.target.closest("[data-lf]");
+  if(lf){
+    if(lf.dataset.lf==="subject") state.listSubject=lf.value;
+    else if(lf.dataset.lf==="career") state.listCareer=lf.value;
+    else if(lf.dataset.lf==="sem") state.listSem=lf.value;
+    render(); return;
+  }
   const el=e.target.closest("[data-f]"); if(!el) return;
   const s=sel(); if(!s) return;
   if(el.dataset.f==="subjectId"){
@@ -296,6 +306,19 @@ document.addEventListener("change",(e)=>{
     return;
   }
   update(s.id,{[el.dataset.f]:el.value});
+});
+
+// render() rehace todo el innerHTML de #app, así que un input en vivo (buscador de
+// la lista) perdería foco y cursor en cada tecla si no se restauran a mano acá.
+document.addEventListener("input", (e)=>{
+  const el=e.target.closest("[data-live]"); if(!el) return;
+  if(el.dataset.live==="lista-search"){
+    const pos=el.selectionStart;
+    state.listSearch=el.value;
+    render();
+    const ne=document.getElementById("lista-search");
+    if(ne){ ne.focus(); ne.setSelectionRange(pos,pos); }
+  }
 });
 
 /* ============ arranque ============ */

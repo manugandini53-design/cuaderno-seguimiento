@@ -74,17 +74,45 @@ function vTablero(){
   return h;
 }
 
+const SEM_SHORT = {sd:"Sin evaluar", verde:"Verde", amarillo:"Amarillo", rojo:"Rojo"};
+function listFiltersActive(){
+  return !!(state.listSearch || state.listSubject!=="todas" || state.listCareer!=="todas" || state.listSem!=="todos" || state.filter!=="activo");
+}
 function vLista(){
   const order=["activo","pausado","desaprobo","aprobo","dejo","todos"];
+  const q = (state.listSearch||"").trim().toLowerCase();
   const shown = alive()
     .filter(s=>state.filter==="todos"||s.status===state.filter)
+    .filter(s=>!q || s.name.toLowerCase().includes(q))
+    .filter(s=>state.listSubject==="todas"||s.subjectId===state.listSubject)
+    .filter(s=>state.listCareer==="todas"||s.career===state.listCareer)
+    .filter(s=>state.listSem==="todos"||(s.semaforo||"sd")===state.listSem)
     .sort((a,b)=>((a.examDate||"9999").localeCompare(b.examDate||"9999"))||a.name.localeCompare(b.name));
-  let h = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">` +
+
+  let h = `<div class="field" style="margin-bottom:10px">
+    <input id="lista-search" data-live="lista-search" type="text" placeholder="Buscar por nombre…" value="${esc(state.listSearch||"")}"></div>`;
+
+  h += `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">` +
     order.map(f=>{
       const n = f==="todos" ? "" : ` <span style="opacity:.55">${alive().filter(s=>s.status===f).length}</span>`;
       return `<button class="chip ${state.filter===f?"on":""}" data-a="filter" data-f="${f}">${f==="todos"?"Todos":STATUS_META[f].label}${n}</button>`;
     }).join("") +
-    `<span style="flex:1"></span><button class="primary" data-a="new">+ Nuevo</button></div>`;
+    `<select data-lf="subject" style="width:auto">
+      <option value="todas" ${state.listSubject==="todas"?"selected":""}>Todas las materias</option>
+      ${state.catalog.subjects.map(m=>`<option value="${m.id}" ${m.id===state.listSubject?"selected":""}>${esc(m.name)}</option>`).join("")}
+    </select>
+    <select data-lf="career" style="width:auto">
+      <option value="todas" ${state.listCareer==="todas"?"selected":""}>Todas las carreras</option>
+      ${state.catalog.careers.map(c=>`<option value="${esc(c)}" ${c===state.listCareer?"selected":""}>${esc(c)}</option>`).join("")}
+    </select>
+    <select data-lf="sem" style="width:auto">
+      <option value="todos" ${state.listSem==="todos"?"selected":""}>Todo el semáforo</option>
+      ${Object.entries(SEM_SHORT).map(([k,l])=>`<option value="${k}" ${k===state.listSem?"selected":""}>${esc(l)}</option>`).join("")}
+    </select>
+    ${listFiltersActive()?`<button class="chip" data-a="clear-filters">Limpiar filtros</button>`:""}
+    <span style="flex:1"></span><button class="primary" data-a="new">+ Nuevo</button></div>`;
+
+  h += `<div class="hint" style="margin-bottom:10px">${shown.length} resultado${shown.length===1?"":"s"}</div>`;
 
   if(shown.length===0) return h + `<div class="empty">Nadie en esta categoría por ahora.</div>`;
 
