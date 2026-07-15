@@ -31,6 +31,7 @@ function fmtBytes(n){
   if(n<1024*1024) return (n/1024).toFixed(1)+" KB";
   return (n/1024/1024).toFixed(1)+" MB";
 }
+function fmtMoney(n){ return "$"+Math.round(n||0).toLocaleString("es-AR"); }
 
 /* ============ estado ============ */
 let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPackId:null,
@@ -54,7 +55,8 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               materialesSubjectId:null, materialesList:[], materialesLoaded:false, materialesError:"",
               materialesUploading:false, materialesUploadError:"",
               materialesConfirmDelName:null, materialesDeleteStatus:"idle",
-              newVersionTag:null, updateBannerDismissed:false };
+              newVersionTag:null, updateBannerDismissed:false,
+              pagosMonth:null };
 
 const subjById = (id) => state.catalog.subjects.find(m=>m.id===id) || null;
 function unitsFor(s){ const m=subjById(s.subjectId); return m ? m.units : Object.keys(s.topics||{}); }
@@ -95,7 +97,8 @@ function update(id, patch){
 function emptyStudent(){
   return { id:uid(), name:"", career:(state.catalog.careers[0]||"Ingeniería"), subject:"", subjectId:"",
     chair:"", status:"activo", semaforo:"sd", examDate:"", startDate:today(), notes:"",
-    updatedAt:Date.now(), topics:{}, sessions:[], simulacros:[] };
+    updatedAt:Date.now(), topics:{}, sessions:[], simulacros:[],
+    tarifa:"", modalidad:"", pagos:[] };
 }
 
 /* ============ regla: una ficha = un alumno en una materia ============
@@ -167,6 +170,38 @@ function studentAlerts(s){
   const gap = lastDate ? -daysTo(lastDate) : null;
   if(gap!==null && gap>=10) out.push(`Sin clases hace ${gap} días — ¿sigue o pasarlo a pausado?`);
   return out;
+}
+
+/* ============ pagos: opcional por alumno (tarifa + modalidad) ============
+   Sin tarifa cargada, la función de pagos no existe para ese alumno — ni en su
+   ficha, ni en clases, ni en la vista "Pagos". Todo se calcula por mes (YYYY-MM):
+   modalidad "clase" cobra por clase dada ese mes; "mensual" cobra una tarifa fija
+   por mes, contra los pagos registrados en ese mes (sin arrastre entre meses). */
+function hasPagos(s){ return !!(Number(s.tarifa)>0 && (s.modalidad==="clase"||s.modalidad==="mensual")); }
+function monthKeyOf(ds){ return (ds||"").slice(0,7); }
+function currentMonthKey(){ return monthKeyOf(today()); }
+function monthLabel(mk){
+  if(!mk) return "—";
+  const d=new Date(mk+"-01T12:00:00");
+  const l=d.toLocaleDateString("es-AR",{month:"long",year:"numeric"});
+  return l.charAt(0).toUpperCase()+l.slice(1);
+}
+function recentMonthKeys(n){
+  const out=[]; const d=new Date(); d.setDate(1);
+  for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,7)); d.setMonth(d.getMonth()-1); }
+  return out;
+}
+function pagoResumen(s, mk){
+  if(!hasPagos(s)) return null;
+  const tarifa=Number(s.tarifa)||0;
+  const clasesMes=(s.sessions||[]).filter(c=>monthKeyOf(c.date)===mk);
+  if(s.modalidad==="clase"){
+    const cobradas=clasesMes.filter(c=>c.cobrada).length;
+    const pendientes=clasesMes.length-cobradas;
+    return { clases:clasesMes.length, total:tarifa*clasesMes.length, cobrado:tarifa*cobradas, pendiente:tarifa*pendientes };
+  }
+  const cobrado=Math.min(tarifa, (s.pagos||[]).filter(p=>monthKeyOf(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0));
+  return { clases:clasesMes.length, total:tarifa, cobrado, pendiente:Math.max(0, tarifa-cobrado) };
 }
 
 /* ============ sesión: cookies (web) / localStorage (nativo) ============ */

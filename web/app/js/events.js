@@ -58,6 +58,7 @@ document.addEventListener("click", (e)=>{
     state.backupsLoaded=false; state.backupsError=""; loadBackups();
   }
   else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; state.editPackId=null; }
+  else if(a==="nav-pagos"){ state.view="pagos"; state.selId=null; if(!state.pagosMonth) state.pagosMonth=currentMonthKey(); }
   else if(a==="nav-stats"){
     state.view="stats"; state.selId=null;
     if(!subjectsWithStudents().some(m=>m.id===state.statsSubjectId)) state.statsSubjectId=defaultStatsSubjectId();
@@ -333,10 +334,22 @@ document.addEventListener("click", (e)=>{
     update(s.id,{sessions:[...s.sessions,{id:uid(),date,
       topic:document.getElementById("c-topic").value,
       tarea:document.getElementById("c-tarea").value,
-      note:document.getElementById("c-note").value}]}); return;
+      note:document.getElementById("c-note").value,
+      cobrada:false}]}); return;
   }
   else if(a==="del-session" && s){
     update(s.id,{sessions:s.sessions.filter(x=>x.id!==el.dataset.id)}); return;
+  }
+  else if(a==="toggle-cobrada" && s){
+    update(s.id,{sessions:s.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:!x.cobrada}:x)}); return;
+  }
+  else if(a==="save-pago" && s){
+    const date=document.getElementById("pago-date").value; if(!date) return;
+    const amount=parseFloat(document.getElementById("pago-amount").value); if(!amount) return;
+    update(s.id,{pagos:[...(s.pagos||[]),{id:uid(),date,amount}]}); return;
+  }
+  else if(a==="del-pago" && s){
+    update(s.id,{pagos:(s.pagos||[]).filter(x=>x.id!==el.dataset.id)}); return;
   }
   else if(a==="save-sim" && s){
     const date=document.getElementById("s-date").value; if(!date) return;
@@ -407,6 +420,7 @@ document.addEventListener("change",(e)=>{
   }
   if(cf && cf.dataset.cf==="new-pack-name"){ state.newPackName=cf.value; return; }
   if(cf && cf.dataset.cf==="stats-subject"){ state.statsSubjectId=cf.value; render(); return; }
+  if(cf && cf.dataset.cf==="pagos-month"){ state.pagosMonth=cf.value; render(); return; }
   const lf=e.target.closest("[data-lf]");
   if(lf){
     if(lf.dataset.lf==="subject") state.listSubject=lf.value;

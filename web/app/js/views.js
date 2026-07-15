@@ -76,6 +76,13 @@ function vTablero(){
     <div class="stat ${enRiesgo?"warn":""}"><b>${enRiesgo}</b><span>con alertas</span></div>
     <button class="primary" data-a="new">+ Nuevo estudiante</button></div>`;
 
+  const pendientesMes = activos.filter(hasPagos).map(s=>pagoResumen(s,currentMonthKey())).filter(r=>r&&r.pendiente>0);
+  if(pendientesMes.length){
+    const totalPend = pendientesMes.reduce((a,r)=>a+r.pendiente,0);
+    h += `<button class="alert" data-a="nav-pagos" style="cursor:pointer">
+      <span class="dot"></span><span class="t">Tenés ${fmtMoney(totalPend)} pendientes de cobro de ${pendientesMes.length} alumno${pendientesMes.length===1?"":"s"} este mes</span></button>`;
+  }
+
   h += `<div class="stitle">Alertas</div>`;
   h += alerts.length===0
     ? `<div class="empty">Sin alertas. Todo el mundo al día — buen momento para conseguir parciales viejos.</div>`
@@ -224,12 +231,14 @@ function vDetalle(){
       <div class="field"><div class="flabel">Nota rápida (qué costó, tarea que dejaste)</div>
         <input id="c-note" placeholder="Ej: se traba en cadena+cociente. Tarea: guía 5, ej. 8-12"></div>
       <button class="primary" style="margin-top:10px;margin-left:0" data-a="save-session">Guardar clase</button></div>`;
+    const cobraPorClase = hasPagos(s) && s.modalidad==="clase";
     const sorted=[...s.sessions].sort((a,b)=>b.date.localeCompare(a.date));
     h += sorted.length===0 ? `<div class="empty">Todavía no hay clases registradas.</div>`
       : sorted.map(c=>`<div class="log"><div class="d">${fmtDate(c.date)}</div>
         <div class="body"><span style="font-weight:600">${esc(c.topic||"Clase")}</span>
         ${c.tarea&&c.tarea!=="sd"?`<span class="tareatag" style="color:${TAREA_META[c.tarea].fg}">tarea: ${TAREA_META[c.tarea].label}</span>`:""}
         ${c.note?`<div class="note">${esc(c.note)}</div>`:""}</div>
+        ${cobraPorClase?`<button class="chip ${c.cobrada?"on":""}" data-a="toggle-cobrada" data-id="${c.id}">${c.cobrada?"Cobrada":"Pendiente"}</button>`:""}
         <button class="del" data-a="del-session" data-id="${c.id}" title="Borrar">×</button></div>`).join("");
   }
 
@@ -272,6 +281,14 @@ function vDetalle(){
         <div class="field"><div class="flabel">Empezó clases</div><input type="date" data-f="startDate" value="${esc(s.startDate)}"></div></div>
       <div class="field"><div class="flabel">Notas del alumno (diagnóstico inicial, agujeros de secundaria, cómo estudia)</div>
         <textarea data-f="notes">${esc(s.notes)}</textarea></div>
+      <div class="frow" style="margin-top:4px">
+        <div class="field"><div class="flabel">Tarifa (pesos)</div><input type="number" min="0" data-f="tarifa" placeholder="Sin cargar = sin cobro" value="${esc(s.tarifa||"")}"></div>
+        <div class="field"><div class="flabel">Modalidad de cobro</div><select data-f="modalidad">
+          <option value="" ${!s.modalidad?"selected":""}>—</option>
+          <option value="clase" ${s.modalidad==="clase"?"selected":""}>Por clase</option>
+          <option value="mensual" ${s.modalidad==="mensual"?"selected":""}>Mensual</option></select></div></div>
+      ${hasPagos(s)&&s.modalidad==="clase"?`<div class="hint" style="margin-top:2px">Marcá cada clase como cobrada desde la pestaña «Clases».</div>`:""}
+      ${hasPagos(s)&&s.modalidad==="mensual"?vPagosMensuales(s):""}
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--soft)">
         ${!state.confirmDel
           ? `<button class="danger" data-a="ask-del">${s.sample?"Eliminar ejemplo":"Eliminar estudiante…"}</button>`
@@ -282,6 +299,61 @@ function vDetalle(){
         ${s.sample?"":`<div class="hint" style="margin-top:8px">Consejo: si dejó o rindió, cambiá el estado en vez de borrarlo — si vuelve (pasa seguido), retomás con todo el historial.</div>`}
       </div></div>`;
   }
+  return h;
+}
+
+/* ============ pagos: registro mensual dentro de la ficha (modalidad "mensual") ============ */
+function vPagosMensuales(s){
+  const sorted=[...(s.pagos||[])].sort((a,b)=>b.date.localeCompare(a.date));
+  let h = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--soft)">
+    <div class="flabel" style="margin-bottom:6px">Pagos registrados</div>
+    <div class="frow" style="align-items:flex-end">
+      <div class="field"><div class="flabel">Fecha</div><input type="date" id="pago-date" value="${today()}"></div>
+      <div class="field"><div class="flabel">Monto</div><input type="number" min="0" id="pago-amount" placeholder="Ej: ${esc(s.tarifa||"")}"></div>
+      <button class="chip" data-a="save-pago" style="margin-bottom:2px">+ Registrar pago</button></div>`;
+  h += sorted.length===0 ? `<div class="empty" style="margin-top:8px">Sin pagos registrados todavía este mes ni anteriores.</div>`
+    : sorted.map(p=>`<div class="log" style="margin-top:6px"><div class="d">${fmtDate(p.date)}</div>
+      <div class="body">${fmtMoney(p.amount)}</div>
+      <button class="del" data-a="del-pago" data-id="${p.id}" title="Borrar">×</button></div>`).join("");
+  h += `</div>`;
+  return h;
+}
+
+/* ============ vista "Pagos": resumen del mes, todos los alumnos con tarifa cargada ============ */
+function vPagos(){
+  const mk = state.pagosMonth || currentMonthKey();
+  let h = `<div class="field" style="max-width:280px;margin-bottom:14px">
+    <div class="flabel">Mes</div>
+    <select data-cf="pagos-month">
+      ${recentMonthKeys(12).map(k=>`<option value="${k}" ${k===mk?"selected":""}>${esc(monthLabel(k))}</option>`).join("")}
+    </select></div>`;
+
+  const rows = alive().filter(hasPagos).map(s=>({s, r:pagoResumen(s,mk)}));
+  if(rows.length===0)
+    return h + `<div class="empty">Todavía no hay alumnos con tarifa cargada. Se configura desde la pestaña «Ficha» de cada alumno.</div>`;
+
+  const totalCobrado = rows.reduce((a,x)=>a+x.r.cobrado,0);
+  const totalPendiente = rows.reduce((a,x)=>a+x.r.pendiente,0);
+  const totalClases = rows.reduce((a,x)=>a+x.r.clases,0);
+  h += `<div class="stats">
+    <div class="stat"><b>${fmtMoney(totalCobrado)}</b><span>cobrado</span></div>
+    <div class="stat ${totalPendiente?"warn":""}"><b>${fmtMoney(totalPendiente)}</b><span>pendiente</span></div>
+    <div class="stat"><b>${totalClases}</b><span>clases dadas</span></div>
+  </div>`;
+
+  const nameCount={};
+  rows.forEach(x=>{ const n=normName(x.s.name); nameCount[n]=(nameCount[n]||0)+1; });
+  const sorted=[...rows].sort((a,b)=>b.r.pendiente-a.r.pendiente || a.s.name.localeCompare(b.s.name));
+
+  h += `<div class="stitle">Por alumno</div>`;
+  h += sorted.map(({s,r})=>{
+    const showSubject = nameCount[normName(s.name)]>1;
+    return `<button class="row" data-a="open" data-id="${s.id}">
+      <div class="main"><div class="name">${esc(s.name)}${showSubject?` <span class="hint">· ${esc(s.subject||"materia s/d")}</span>`:""}</div>
+      <div class="sub">${s.modalidad==="clase"?`${r.clases} clase${r.clases===1?"":"s"} dada${r.clases===1?"":"s"}`:"mensual"} · cobrado ${fmtMoney(r.cobrado)}</div></div>
+      <div class="right"><span style="color:${r.pendiente?"var(--red)":"var(--green)"};font-weight:600">${r.pendiente?fmtMoney(r.pendiente)+" pendiente":"al día"}</span></div>
+    </button>`;
+  }).join("");
   return h;
 }
 
@@ -1057,6 +1129,7 @@ function render(){
     <span style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="chip ${state.view==="catalog"?"on":""}" data-a="nav-catalog">Materias y carreras</button>
       <button class="chip ${state.view==="stats"?"on":""}" data-a="nav-stats">Estadísticas</button>
+      <button class="chip ${state.view==="pagos"?"on":""}" data-a="nav-pagos">Pagos</button>
       <button class="chip ${state.view==="cuenta"?"on":""}" data-a="nav-cuenta">Cuenta</button>
       ${isAdmin?`<button class="chip ${state.view==="panel"?"on":""}" data-a="nav-panel">Panel</button>`:""}
     </span>
@@ -1069,6 +1142,7 @@ function render(){
   if(state.view==="panel") h += isAdmin ? vPanel() : vTablero();
   if(state.view==="catalog") h += vCatalog();
   if(state.view==="stats") h += vEstadisticas();
+  if(state.view==="pagos") h += vPagos();
   if(state.showNew) h += vModal();
   h += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
   document.getElementById("app").innerHTML = h;
