@@ -270,6 +270,22 @@ async function loadActividad(){
   }
   render();
 }
+// metricas_horarias (migración 008): mismo shape que metricas_diarias pero por hora, con
+// retención de 14 días del lado del servidor. Sin usar todavía en ninguna vista — queda
+// lista para el próximo paso (ver panel-tab-actividad en events.js para engancharla).
+async function loadMetricasHorarias(){
+  try{
+    const s=await ensureToken();
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
+    const r=await fetch(SUPA_URL+"/rest/v1/metricas_horarias?select=user_id,hora,aperturas,syncs&order=hora.asc", {headers:h});
+    if(!r.ok) throw new Error("error "+r.status);
+    state.metricasHorarias=await r.json();
+    state.metricasHorariasLoaded=true; state.metricasHorariasError="";
+  }catch(e){
+    state.metricasHorariasError = !navigator.onLine ? "Sin conexión a internet." : "No se pudieron cargar las métricas horarias.";
+  }
+  render();
+}
 async function loadRecursos(){
   try{
     const s=await ensureToken();
