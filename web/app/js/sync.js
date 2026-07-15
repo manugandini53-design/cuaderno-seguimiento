@@ -294,3 +294,149 @@ async function toggleReporte(id,current){
     render();
   }catch(e){ /* se puede reintentar tocando el botón de nuevo */ }
 }
+
+/* ============ materiales por materia (Supabase Storage, bucket privado "materiales") ============
+   Ruta de cada archivo: materiales/{uid}/{subjectId}/{nombre-saneado}. El uid siempre sale del
+   JWT de la sesión propia (jwtSub), nunca de un valor manejado por el usuario — el aislamiento
+   entre cuentas lo terminan de garantizar las políticas RLS del bucket (repo cuaderno-supabase).
+   Esta sección no tiene sentido offline: cada acción chequea navigator.onLine antes de tocar la red. */
+function sanitizeFileName(name){
+  const dot=name.lastIndexOf(".");
+  const base=dot>0?name.slice(0,dot):name;
+  const ext=dot>0?name.slice(dot+1):"";
+  const clean=(s)=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-zA-Z0-9_-]+/g,"_");
+  const cleanBase=(clean(base)||"archivo").slice(0,60);
+  const cleanExt=clean(ext).slice(0,10);
+  return cleanExt ? `${cleanBase}.${cleanExt}` : cleanBase;
+}
+// Prefijo corto para que dos subidas con el mismo nombre de archivo no choquen en la misma ruta.
+function materialDisplayName(storedName){ return storedName.replace(/^[0-9a-z]{6}-/,""); }
+function materialPath(uid_, subjectId, fileName){ return `${uid_}/${subjectId}/${fileName}`; }
+function materialObjectUrl(path){
+  return SUPA_URL+"/storage/v1/object/"+MATERIALES_BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/");
+}
+
+async function loadMateriales(subjectId){
+  state.materialesSubjectId=subjectId; state.materialesLoaded=false; state.materialesError="";
+  state.materialesConfirmDelName=null;
+  if(!navigator.onLine){ state.materialesError="offline"; state.materialesLoaded=true; render(); return; }
+  render();
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+    const r=await fetch(SUPA_URL+"/storage/v1/object/list/"+MATERIALES_BUCKET,{method:"POST", headers:h,
+      body:JSON.stringify({prefix:`${uid_}/${subjectId}`, limit:100, sortBy:{column:"name",order:"asc"}})});
+    if(!r.ok) throw new Error("error "+r.status);
+    const list=await r.json();
+    state.materialesList=(Array.isArray(list)?list:[]).filter(x=>x.id);
+    state.materialesLoaded=true; state.materialesError="";
+  }catch(e){
+    state.materialesLoaded=true;
+    state.materialesError = !navigator.onLine ? "offline" : "No se pudieron cargar los materiales.";
+  }
+  render();
+}
+async function uploadMaterial(subjectId, file){
+  if(!navigator.onLine){ state.materialesUploadError="offline"; render(); return; }
+  if(file.size > MATERIAL_MAX_BYTES){
+    state.materialesUploadError=`«${file.name}» pesa ${fmtBytes(file.size)} — el máximo por archivo es ${fmtBytes(MATERIAL_MAX_BYTES)}.`;
+    render(); return;
+  }
+  if((state.materialesList||[]).length >= MATERIAL_MAX_COUNT){
+    state.materialesUploadError=`Ya hay ${MATERIAL_MAX_COUNT} materiales en esta materia — borrá alguno para subir otro.`;
+    render(); return;
+  }
+  state.materialesUploading=true; state.materialesUploadError=""; render();
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const fileName = uid().slice(-6)+"-"+sanitizeFileName(file.name);
+    const path=materialPath(uid_, subjectId, fileName);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type": file.type||"application/octet-stream"};
+    const r=await fetch(materialObjectUrl(path), {method:"POST", headers:h, body:file});
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.message||j.error||("error "+r.status)); }
+    state.materialesUploading=false;
+    await loadMateriales(subjectId);
+  }catch(e){
+    state.materialesUploading=false;
+    state.materialesUploadError = !navigator.onLine ? "offline" : "No se pudo subir el archivo.";
+    render();
+  }
+}
+async function deleteMaterial(subjectId, fileName){
+  if(!navigator.onLine){ state.materialesError="offline"; render(); return; }
+  state.materialesDeleteStatus="deleting"; render();
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
+    const r=await fetch(materialObjectUrl(materialPath(uid_, subjectId, fileName)), {method:"DELETE", headers:h});
+    if(!r.ok) throw new Error("error "+r.status);
+    state.materialesDeleteStatus="idle";
+    await loadMateriales(subjectId);
+  }catch(e){
+    state.materialesDeleteStatus="idle";
+    state.materialesError = !navigator.onLine ? "offline" : "No se pudo borrar el archivo.";
+    render();
+  }
+}
+async function downloadMaterial(subjectId, fileName){
+  if(!navigator.onLine){ state.materialesError="offline"; render(); return; }
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
+    const r=await fetch(materialObjectUrl(materialPath(uid_, subjectId, fileName)), {headers:h});
+    if(!r.ok) throw new Error("error "+r.status);
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url; link.download=materialDisplayName(fileName);
+    link.click(); URL.revokeObjectURL(url);
+  }catch(e){
+    state.materialesError = !navigator.onLine ? "offline" : "No se pudo descargar el archivo.";
+    render();
+  }
+}
+// Borra del bucket todos los materiales de una materia (se usa al eliminarla del catálogo,
+// solo si el usuario elige explícitamente borrarlos también). No bloquea el borrado de la
+// materia si alguna falla: es una limpieza best-effort.
+async function deleteAllMaterialsForSubject(uid_, s, subjectId, files){
+  const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
+  for(const f of files){
+    try{ await fetch(materialObjectUrl(materialPath(uid_, subjectId, f.name)), {method:"DELETE", headers:h}); }
+    catch(e){ /* best-effort: seguimos con los demás */ }
+  }
+}
+async function listMaterialsForSubject(subjectId){
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+    const r=await fetch(SUPA_URL+"/storage/v1/object/list/"+MATERIALES_BUCKET,{method:"POST", headers:h,
+      body:JSON.stringify({prefix:`${uid_}/${subjectId}`, limit:100})});
+    if(!r.ok) throw new Error("error "+r.status);
+    const list=await r.json();
+    return {uid_, s, files:(Array.isArray(list)?list:[]).filter(x=>x.id)};
+  }catch(e){ return {uid_:null, s:null, files:[]}; }
+}
+// Al borrar una materia del catálogo: si tiene materiales guardados, avisa y ofrece borrarlos
+// también (dos confirm() nativos, igual que el resto de la app). Offline no intenta comprobar
+// nada — borra la materia como siempre, sin tocar materiales (no hay forma de saber si tiene).
+async function deleteSubjectAndMaybeMaterials(subjectId){
+  const removeFromCatalog=()=>{
+    state.catalog.subjects=state.catalog.subjects.filter(m=>m.id!==subjectId);
+    state.catalog.packs=(state.catalog.packs||[]).map(p=>({...p, subjectIds:p.subjectIds.filter(id=>id!==subjectId)}));
+    touchCatalog();
+  };
+  if(!navigator.onLine){ removeFromCatalog(); return; }
+  const {uid_, s, files} = await listMaterialsForSubject(subjectId);
+  if(files.length===0){ removeFromCatalog(); return; }
+  const n=files.length;
+  if(!confirm(`Esta materia tiene ${n} material${n===1?"":"es"} guardado${n===1?"":"s"}. ¿Eliminar la materia igualmente?`)) return;
+  removeFromCatalog();
+  if(uid_ && confirm(`¿Borrar también ${n===1?"ese material":"esos "+n+" materiales"} del almacenamiento? Si elegís que no, quedan guardados pero ya no vas a poder verlos ni borrarlos desde la app.`)){
+    await deleteAllMaterialsForSubject(uid_, s, subjectId, files);
+  }
+}

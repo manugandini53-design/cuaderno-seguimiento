@@ -50,6 +50,9 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               recursos:null, recursosLoaded:false, recursosError:"",
               backups:[], backupsLoaded:false, backupsError:"",
               confirmRestoreId:null, restoreStatus:"idle", restoreError:"",
+              materialesSubjectId:null, materialesList:[], materialesLoaded:false, materialesError:"",
+              materialesUploading:false, materialesUploadError:"",
+              materialesConfirmDelName:null, materialesDeleteStatus:"idle",
               newVersionTag:null, updateBannerDismissed:false };
 
 const subjById = (id) => state.catalog.subjects.find(m=>m.id===id) || null;

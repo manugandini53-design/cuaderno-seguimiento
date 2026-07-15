@@ -102,14 +102,14 @@ document.addEventListener("click", (e)=>{
     const v=(document.getElementById("new-subject").value||"").trim(); if(!v) return;
     const m={id:uid(), name:v, units:[]};
     state.catalog.subjects.push(m); state.editSubjectId=m.id;
+    loadMateriales(m.id);
     touchCatalog(); return;
   }
-  else if(a==="cat-edit-subject"){ state.editSubjectId=el.dataset.id; state.editPackId=null; }
-  else if(a==="cat-del-subject"){
-    state.catalog.subjects=state.catalog.subjects.filter(m=>m.id!==el.dataset.id);
-    state.catalog.packs=(state.catalog.packs||[]).map(p=>({...p, subjectIds:p.subjectIds.filter(id=>id!==el.dataset.id)}));
-    touchCatalog(); return;
+  else if(a==="cat-edit-subject"){
+    state.editSubjectId=el.dataset.id; state.editPackId=null;
+    loadMateriales(el.dataset.id); return;
   }
+  else if(a==="cat-del-subject"){ deleteSubjectAndMaybeMaterials(el.dataset.id); return; }
   else if(a==="cat-close-edit"){ state.editSubjectId=null; }
   else if(a==="cat-add-unit"){
     const v=(document.getElementById("new-unit").value||"").trim(); if(!v) return;
@@ -148,6 +148,17 @@ document.addEventListener("click", (e)=>{
     state.newPackName=""; state.newPackSubjects=[]; state.newPackError="";
     touchCatalog(); return;
   }
+  else if(a==="mat-reload"){ loadMateriales(el.dataset.id); return; }
+  else if(a==="mat-upload"){
+    const input=document.getElementById("mat-file");
+    const file=input && input.files && input.files[0];
+    if(!file) return;
+    uploadMaterial(el.dataset.id, file); return;
+  }
+  else if(a==="mat-download"){ downloadMaterial(el.dataset.id, el.dataset.name); return; }
+  else if(a==="mat-del-ask"){ state.materialesConfirmDelName=el.dataset.name; }
+  else if(a==="mat-del-cancel"){ state.materialesConfirmDelName=null; }
+  else if(a==="mat-del-confirm"){ deleteMaterial(el.dataset.id, el.dataset.name); return; }
   else if(a==="auth-mode-login"){ state.authMode="login"; }
   else if(a==="auth-mode-signup"){ state.authMode="signup"; }
   else if(a==="auth-login"){

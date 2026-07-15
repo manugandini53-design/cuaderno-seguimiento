@@ -34,6 +34,12 @@ const DOWNLOADS_URL = "https://manugandini53-design.github.io/#usala";
 // `cuaderno` (cada cuenta solo puede leer/escribir su propia fila; ver el repo cuaderno-supabase).
 const SUPA_URL = "https://iwxsntxkqfqucxhwlfdv.supabase.co";
 const SUPA_ANON_KEY = "sb_publishable_S0zs9qmIRB5RWNZceO5gCg_vI7Hxx1D";
+// Materiales por materia: bucket privado de Storage, carpetas materiales/{uid}/{subjectId}/{archivo}.
+// El aislamiento entre usuarios lo dan las políticas RLS del bucket (ver cuaderno-supabase),
+// no el código de acá — el cliente nunca arma una ruta con un uid que no sea el propio.
+const MATERIALES_BUCKET = "materiales";
+const MATERIAL_MAX_BYTES = 10*1024*1024;
+const MATERIAL_MAX_COUNT = 20;
 const APP_VERSION = "1.7.0";
 // Empaquetado nativo: Tauri inyecta window.__TAURI__, Capacitor inyecta window.Capacitor
 const IS_NATIVE = !!(window.__TAURI__ || window.Capacitor);

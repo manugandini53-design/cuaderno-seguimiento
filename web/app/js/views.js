@@ -433,6 +433,7 @@ function vCatalog(){
     <button class="primary" style="margin:12px 0 0;margin-left:0" data-a="cat-close-edit">Listo</button>
     <div class="hint" style="margin-top:8px">Los cambios se guardan solos. Si quitás una unidad, los alumnos que ya la tenían registrada no pierden nada; las unidades nuevas les aparecen como «Pendiente».</div>
     </div>`;
+    h += vMateriales(em.id);
     return h;
   }
   const ep = state.editPackId ? (c.packs||[]).find(p=>p.id===state.editPackId) : null;
@@ -486,6 +487,49 @@ function vCatalog(){
   ${state.newPackError?`<div class="saveerr">${esc(state.newPackError)}</div>`:""}
   <button class="chip" data-a="cat-add-pack">+ Crear pack</button>
   <div class="hint" style="margin-top:6px">Eliminar un pack no borra las materias que agrupa.</div></div>`;
+  return h;
+}
+
+/* ============ materiales de una materia (dentro de su editor) ============ */
+function vMateriales(subjectId){
+  let h = `<div class="formcard"><div class="ftitle">Materiales</div>`;
+  if(!navigator.onLine || state.materialesError==="offline"){
+    h += `<div class="hint">Necesitás conexión a internet para ver y subir materiales.</div></div>`;
+    return h;
+  }
+  if(state.materialesSubjectId!==subjectId || !state.materialesLoaded){
+    h += `<div class="empty">Cargando materiales…</div></div>`;
+    return h;
+  }
+  if(state.materialesError){
+    h += `<div class="saveerr">${esc(state.materialesError)}</div>
+    <button class="chip" data-a="mat-reload" data-id="${subjectId}">Reintentar</button></div>`;
+    return h;
+  }
+  const list = state.materialesList||[];
+  h += `<div class="hint" style="margin-bottom:10px">${list.length}/${MATERIAL_MAX_COUNT} archivos · máx. ${fmtBytes(MATERIAL_MAX_BYTES)} cada uno</div>`;
+  h += list.length===0 ? `<div class="empty">Sin materiales todavía.</div>` : list.map(f=>{
+    const dn=materialDisplayName(f.name);
+    const size=(f.metadata&&f.metadata.size)||0;
+    const confirming = state.materialesConfirmDelName===f.name;
+    return `<div class="log" style="align-items:center;flex-wrap:wrap">
+      <div class="body">${esc(dn)}<div class="note">${fmtBytes(size)} · ${fmtDateTime(f.updated_at||f.created_at)}</div></div>
+      ${!confirming ? `<button class="chip" data-a="mat-download" data-id="${subjectId}" data-name="${esc(f.name)}">Descargar</button>
+        <button class="del" data-a="mat-del-ask" data-name="${esc(f.name)}" title="Borrar">×</button>`
+      : `<span style="font-size:12px;color:var(--red)">¿Borrar «${esc(dn)}»?</span>
+        <button class="danger" data-a="mat-del-confirm" data-id="${subjectId}" data-name="${esc(f.name)}" ${state.materialesDeleteStatus==="deleting"?"disabled":""}>Sí, borrar</button>
+        <button class="chip" data-a="mat-del-cancel">Cancelar</button>`}
+    </div>`;
+  }).join("");
+  if(state.materialesUploadError) h += `<div class="saveerr" style="margin-top:8px">${esc(state.materialesUploadError)}</div>`;
+  const full = list.length>=MATERIAL_MAX_COUNT;
+  h += `<div class="frow" style="margin-top:10px;align-items:flex-end">
+    <div class="field"><div class="flabel">Subir archivo (máx. ${fmtBytes(MATERIAL_MAX_BYTES)})</div>
+      <input type="file" id="mat-file" ${full||state.materialesUploading?"disabled":""}></div>
+    <button class="chip" data-a="mat-upload" data-id="${subjectId}" style="margin-bottom:2px" ${full||state.materialesUploading?"disabled":""}>${state.materialesUploading?"Subiendo…":"+ Subir"}</button>
+  </div>
+  ${full?`<div class="hint" style="margin-top:6px">Llegaste al máximo de ${MATERIAL_MAX_COUNT} archivos para esta materia.</div>`:""}
+  </div>`;
   return h;
 }
 
