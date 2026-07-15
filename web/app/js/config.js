@@ -40,7 +40,7 @@ const SUPA_ANON_KEY = "sb_publishable_S0zs9qmIRB5RWNZceO5gCg_vI7Hxx1D";
 const MATERIALES_BUCKET = "materiales";
 const MATERIAL_MAX_BYTES = 10*1024*1024;
 const MATERIAL_MAX_COUNT = 20;
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.8.0";
 // Empaquetado nativo: Tauri inyecta window.__TAURI__, Capacitor inyecta window.Capacitor
 const IS_NATIVE = !!(window.__TAURI__ || window.Capacitor);
 function detectPlatform(){
