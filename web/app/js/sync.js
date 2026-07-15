@@ -174,11 +174,14 @@ async function trimBackups(uid_, s){
       {method:"DELETE", headers:h});
   }catch(e){ /* silencioso */ }
 }
+// Lista liviana: solo id/created_at/n_alumnos (columna generada, migración 009) — nada de
+// "data". Bajar los N respaldos completos (uno puede ser el cuaderno entero) solo para
+// listarlos era el costo que había que eliminar; la data de uno solo se pide al restaurar.
 async function loadBackups(){
   try{
     const s=await ensureToken();
     const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
-    const r=await fetch(SUPA_URL+"/rest/v1/cuaderno_respaldos?select=id,created_at,data&order=created_at.desc", {headers:h});
+    const r=await fetch(SUPA_URL+"/rest/v1/cuaderno_respaldos?select=id,created_at,n_alumnos&order=created_at.desc", {headers:h});
     if(!r.ok) throw new Error("error "+r.status);
     state.backups=await r.json();
     state.backupsLoaded=true; state.backupsError="";
@@ -188,15 +191,22 @@ async function loadBackups(){
   render();
 }
 async function restoreBackup(id){
-  const b=(state.backups||[]).find(x=>String(x.id)===String(id));
-  if(!b) return;
+  const entry=(state.backups||[]).find(x=>String(x.id)===String(id));
+  if(!entry) return;
   state.restoreStatus="restoring"; state.restoreError=""; render();
   try{
     const s=await ensureToken();
     const uid_=jwtSub(s.access);
-    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
+    // la data completa de este respaldo puntual recién se baja acá, al confirmar
+    const dr=await fetch(SUPA_URL+"/rest/v1/cuaderno_respaldos?id=eq."+encodeURIComponent(id)+"&select=data", {headers:h});
+    if(!dr.ok) throw new Error("no se pudo leer el respaldo");
+    const rows=await dr.json();
+    const b=rows[0];
+    if(!b || !b.data) throw new Error("respaldo vacío");
+    const hw={...h, "Content-Type":"application/json", Prefer:"return=minimal"};
     // respaldo extra del estado actual antes de pisarlo
-    const safety=await fetch(SUPA_URL+"/rest/v1/cuaderno_respaldos", {method:"POST", headers:h,
+    const safety=await fetch(SUPA_URL+"/rest/v1/cuaderno_respaldos", {method:"POST", headers:hw,
       body:JSON.stringify([{user_id:uid_, data:{students:state.students, catalog:state.catalog}}])});
     if(!safety.ok) throw new Error("no se pudo guardar el respaldo de seguridad");
     await trimBackups(uid_, s);

@@ -397,7 +397,7 @@ function vBackupsList(){
   const list = state.backups||[];
   if(list.length===0) return `<div class="empty">Todavía no hay respaldos guardados. El primero se crea en la próxima sincronización.</div>`;
   let h = list.map(b=>{
-    const n = (b.data && Array.isArray(b.data.students)) ? b.data.students.filter(x=>!x.deleted).length : 0;
+    const n = b.n_alumnos||0;
     const bid = String(b.id);
     const confirming = state.confirmRestoreId===bid;
     return `<div class="log" style="align-items:center;flex-wrap:wrap">
