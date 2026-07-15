@@ -46,7 +46,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               reportMsg:"", reportStatus:"idle", reportError:"",
               reportes:[], reportFilter:"pendiente", reportesLoaded:false, reportesError:"",
               panelTab:"reportes", users:[], usersLoaded:false, usersError:"",
-              metricas:[], altas:[], actividadLoaded:false, actividadError:"",
+              metricas:[], altas:[], actividadLoaded:false, actividadError:"", actividadMode:"dia",
               metricasHorarias:[], metricasHorariasLoaded:false, metricasHorariasError:"",
               recursos:null, recursosLoaded:false, recursosError:"",
               backups:[], backupsLoaded:false, backupsError:"",

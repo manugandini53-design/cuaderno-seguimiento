@@ -822,21 +822,39 @@ function vUsuarios(){
 }
 
 // Barras simples en CSS (sin librerías): una <div> por dato, alto proporcional al máximo
-// del propio conjunto. El título (tooltip) lleva la etiqueta y el valor exacto.
+// del propio conjunto. Con pocas barras el valor va arriba de cada una (entra sin pisarse);
+// con muchas (30/48 puntos) no entra un número por barra, así que solo queda en el título
+// (tooltip) — se ve al tocar/pasar el mouse, igual que antes.
 function barRow(dataset){
   const max=Math.max(1, ...dataset.map(d=>d.v));
-  return `<div style="display:flex;align-items:flex-end;gap:3px;height:60px;margin-bottom:4px">` +
-    dataset.map(d=>`<div title="${esc(d.label)}: ${d.v}" style="flex:1;min-width:2px;background:var(--accent);
-      border-radius:2px 2px 0 0;height:${Math.max(2,Math.round(d.v/max*60))}px"></div>`).join("") +
+  const showLabels = dataset.length<=20;
+  return `<div style="display:flex;align-items:flex-end;gap:3px;height:74px;margin-bottom:4px">` +
+    dataset.map(d=>{
+      const hgt=Math.max(2,Math.round(d.v/max*58));
+      return `<div title="${esc(d.label)}: ${d.v}" style="flex:1;min-width:2px;display:flex;flex-direction:column;
+        align-items:center;justify-content:flex-end;height:100%">
+        ${showLabels?`<span style="font-size:9.5px;font-family:var(--mono);color:var(--muted);margin-bottom:2px">${d.v}</span>`:""}
+        <div style="width:100%;background:var(--accent);border-radius:2px 2px 0 0;height:${hgt}px"></div>
+      </div>`;
+    }).join("") +
     `</div><div class="hint" style="margin-bottom:16px">${esc(dataset[0].label)} → ${esc(dataset[dataset.length-1].label)}</div>`;
 }
+function sumRange(dataset, from, toExclusive){
+  let s=0; for(let i=from;i<toExclusive;i++) s+=dataset[i].v; return s;
+}
+// Variación del período actual contra el anterior, con flecha y color — arriba de cada gráfico.
+function trendBadge(curr, prev, periodLabel){
+  if(prev===0 && curr===0) return `<div class="hint" style="margin-bottom:6px">Sin actividad en ninguno de los dos períodos.</div>`;
+  if(prev===0) return `<div class="hint" style="margin-bottom:6px"><span style="color:var(--green);font-weight:700">↑ nuevo</span> — sin datos del ${esc(periodLabel)} para comparar.</div>`;
+  const pct=((curr-prev)/prev)*100;
+  const flat = Math.round(pct)===0;
+  const up = pct>0;
+  const arrow = flat?"→":(up?"↑":"↓");
+  const color = flat?"var(--muted)":(up?"var(--green)":"var(--red)");
+  return `<div class="hint" style="margin-bottom:6px"><span style="color:${color};font-weight:700;font-family:var(--mono)">${arrow} ${Math.abs(pct).toFixed(0)}%</span> vs. ${esc(periodLabel)}</div>`;
+}
 
-function vActividad(){
-  let h = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-    <button class="chip" data-a="refresh-actividad">Actualizar</button></div>`;
-  if(state.actividadError) return h + `<div class="saveerr">${esc(state.actividadError)}</div>`;
-  if(!state.actividadLoaded) return h + `<div class="empty">Cargando métricas…</div>`;
-
+function vActividadDia(){
   const days=[]; for(let i=29;i>=0;i--) days.push(new Date(Date.now()-i*86400000).toISOString().slice(0,10));
   const byDay={}; days.forEach(d=>byDay[d]={users:new Set(),aperturas:0,syncs:0});
   (state.metricas||[]).forEach(m=>{
@@ -847,21 +865,80 @@ function vActividad(){
   const aperturasSet = days.map(d=>({label:fmtDate(d), v:byDay[d].aperturas}));
   const syncsSet = days.map(d=>({label:fmtDate(d), v:byDay[d].syncs}));
 
-  h += `<div class="stitle">Usuarios activos por día (últimos 30 días)</div>` + barRow(activeSet);
-  h += `<div class="stitle">Aperturas por día</div>` + barRow(aperturasSet);
-  h += `<div class="stitle">Syncs por día</div>` + barRow(syncsSet);
+  let h = `<div class="stitle">Usuarios activos por día (últimos 30 días)</div>`;
+  h += trendBadge(sumRange(activeSet,23,30), sumRange(activeSet,16,23), "7 días anteriores");
+  h += barRow(activeSet);
+  h += `<div class="stitle">Aperturas por día</div>`;
+  h += trendBadge(sumRange(aperturasSet,23,30), sumRange(aperturasSet,16,23), "7 días anteriores");
+  h += barRow(aperturasSet);
+  h += `<div class="stitle">Syncs por día</div>`;
+  h += trendBadge(sumRange(syncsSet,23,30), sumRange(syncsSet,16,23), "7 días anteriores");
+  h += barRow(syncsSet);
+  return h;
+}
 
-  // Altas nuevas por semana: buckets de 7 días sobre perfiles.created_at (~35 días de ventana).
-  const buckets=[0,0,0,0,0];
-  (state.altas||[]).forEach(ts=>{
-    if(!ts) return;
-    const daysAgo=Math.floor((Date.now()-new Date(ts).getTime())/86400000);
-    const idx=Math.floor(daysAgo/7);
-    if(idx>=0 && idx<5) buckets[idx]++;
+// Trunca a la hora en UTC — coincide con date_trunc('hour', now()) del lado del servidor
+// (Supabase usa UTC), sin depender del huso horario del navegador.
+function hourKey(d){ const h=new Date(d); h.setUTCMinutes(0,0,0); return h.toISOString(); }
+function vActividadHora(){
+  if(state.metricasHorariasError) return `<div class="saveerr">${esc(state.metricasHorariasError)}</div>`;
+  if(!state.metricasHorariasLoaded) return `<div class="empty">Cargando métricas por hora…</div>`;
+
+  const hourKeys=[]; for(let i=47;i>=0;i--) hourKeys.push(hourKey(new Date(Date.now()-i*3600000)));
+  const byHour={}; hourKeys.forEach(k=>byHour[k]={users:new Set(),aperturas:0,syncs:0});
+  (state.metricasHorarias||[]).forEach(m=>{
+    const b=byHour[hourKey(m.hora)]; if(!b) return;
+    b.users.add(m.user_id); b.aperturas+=(m.aperturas||0); b.syncs+=(m.syncs||0);
   });
-  const labels=["Últimos 7 días","8–14 días","15–21 días","22–28 días","29–35 días"];
-  const altasSet = buckets.map((v,i)=>({label:labels[i], v})).reverse();
-  h += `<div class="stitle">Altas nuevas por semana</div>` + barRow(altasSet);
+  const activeSet = hourKeys.map(k=>({label:fmtDateTime(k), v:byHour[k].users.size}));
+  const aperturasSet = hourKeys.map(k=>({label:fmtDateTime(k), v:byHour[k].aperturas}));
+  const syncsSet = hourKeys.map(k=>({label:fmtDateTime(k), v:byHour[k].syncs}));
+
+  let h = `<div class="stitle">Usuarios activos por hora (últimas 48 hs)</div>`;
+  h += trendBadge(sumRange(activeSet,24,48), sumRange(activeSet,0,24), "24 hs anteriores");
+  h += barRow(activeSet);
+  h += `<div class="stitle">Aperturas por hora</div>`;
+  h += trendBadge(sumRange(aperturasSet,24,48), sumRange(aperturasSet,0,24), "24 hs anteriores");
+  h += barRow(aperturasSet);
+  h += `<div class="stitle">Syncs por hora</div>`;
+  h += trendBadge(sumRange(syncsSet,24,48), sumRange(syncsSet,0,24), "24 hs anteriores");
+  h += barRow(syncsSet);
+  return h;
+}
+
+function vActividad(){
+  const mode = state.actividadMode||"dia";
+  let h = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    <div class="tabs">
+      ${tabbtn("actividad-mode-dia",mode==="dia","Por día")}
+      ${tabbtn("actividad-mode-hora",mode==="hora","Por hora")}
+    </div>
+    <button class="chip" data-a="refresh-actividad">Actualizar</button>
+  </div>`;
+
+  if(mode==="dia"){
+    if(state.actividadError) h += `<div class="saveerr">${esc(state.actividadError)}</div>`;
+    else if(!state.actividadLoaded) h += `<div class="empty">Cargando métricas…</div>`;
+    else h += vActividadDia();
+  }else{
+    h += vActividadHora();
+  }
+
+  // Altas nuevas por semana: no participa del selector día/hora (no tiene equivalente horario).
+  if(state.actividadLoaded && !state.actividadError){
+    const buckets=[0,0,0,0,0];
+    (state.altas||[]).forEach(ts=>{
+      if(!ts) return;
+      const daysAgo=Math.floor((Date.now()-new Date(ts).getTime())/86400000);
+      const idx=Math.floor(daysAgo/7);
+      if(idx>=0 && idx<5) buckets[idx]++;
+    });
+    const labels=["Últimos 7 días","8–14 días","15–21 días","22–28 días","29–35 días"];
+    const altasSet = buckets.map((v,i)=>({label:labels[i], v})).reverse();
+    h += `<div class="stitle">Altas nuevas por semana</div>`;
+    h += trendBadge(altasSet[4].v, altasSet[3].v, "semana anterior");
+    h += barRow(altasSet);
+  }
 
   return h;
 }

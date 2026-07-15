@@ -76,7 +76,7 @@ document.addEventListener("click", (e)=>{
     loadUsuarios();
   }
   else if(a==="panel-tab-actividad"){
-    state.panelTab="actividad"; state.actividadLoaded=false; state.actividadError="";
+    state.panelTab="actividad"; state.actividadMode="dia"; state.actividadLoaded=false; state.actividadError="";
     loadActividad();
   }
   else if(a==="panel-tab-recursos"){
@@ -84,7 +84,18 @@ document.addEventListener("click", (e)=>{
     loadRecursos();
   }
   else if(a==="refresh-usuarios"){ state.usersLoaded=false; state.usersError=""; loadUsuarios(); }
-  else if(a==="refresh-actividad"){ state.actividadLoaded=false; state.actividadError=""; loadActividad(); }
+  else if(a==="actividad-mode-dia"){
+    state.actividadMode="dia";
+    if(!state.actividadLoaded){ state.actividadError=""; loadActividad(); }
+  }
+  else if(a==="actividad-mode-hora"){
+    state.actividadMode="hora";
+    if(!state.metricasHorariasLoaded){ state.metricasHorariasError=""; loadMetricasHorarias(); }
+  }
+  else if(a==="refresh-actividad"){
+    if(state.actividadMode==="hora"){ state.metricasHorariasLoaded=false; state.metricasHorariasError=""; loadMetricasHorarias(); }
+    else{ state.actividadLoaded=false; state.actividadError=""; loadActividad(); }
+  }
   else if(a==="refresh-recursos"){ state.recursosLoaded=false; state.recursosError=""; loadRecursos(); }
   else if(a==="reportes-filter"){ state.reportFilter=el.dataset.f; }
   else if(a==="toggle-reporte"){

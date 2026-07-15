@@ -271,8 +271,8 @@ async function loadActividad(){
   render();
 }
 // metricas_horarias (migración 008): mismo shape que metricas_diarias pero por hora, con
-// retención de 14 días del lado del servidor. Sin usar todavía en ninguna vista — queda
-// lista para el próximo paso (ver panel-tab-actividad en events.js para engancharla).
+// retención de 14 días del lado del servidor. Usada por el modo "Por hora" de la sub-pestaña
+// Actividad del panel admin (ver vActividadHora en views.js).
 async function loadMetricasHorarias(){
   try{
     const s=await ensureToken();
