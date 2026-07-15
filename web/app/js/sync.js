@@ -42,6 +42,7 @@ async function syncNow(force){
     const s=await ensureToken();
     const uid_=jwtSub(s.access);
     const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+    maybeHeartbeat(uid_, s);
     const dirty=isDirty();
 
     if(!force && !dirty){
@@ -110,6 +111,25 @@ window.addEventListener("online", ()=>syncNow());
 window.addEventListener("offline", ()=>setStatus("offline"));
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && getSes()) syncNow(); });
 setInterval(()=>{ if(getSes() && !document.hidden) syncNow(); }, 10*60*1000);
+
+/* ============ heartbeat de presencia (tabla perfiles) ============ */
+// Se cuelga del ciclo de sync existente (no arranca timers propios): se llama desde
+// syncNow() en cada intento real de sync, que ya solo ocurre con la pestaña visible
+// (arranque, volver a la pestaña, o el intervalo de 10min que también chequea
+// document.hidden) o al recuperar conexión. Acá adentro nos aseguramos una vez más de
+// la visibilidad (por si algún caller llega a cambiar) y de no mandar más de un PATCH
+// cada 5 minutos.
+let lastHeartbeat=0;
+async function maybeHeartbeat(uid_, s){
+  if(document.hidden) return;
+  if(Date.now()-lastHeartbeat < 5*60*1000) return;
+  lastHeartbeat=Date.now();
+  try{
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+    await fetch(SUPA_URL+"/rest/v1/perfiles?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
+      body:JSON.stringify({last_seen_at:new Date().toISOString(), plataforma:detectPlatform(), version:APP_VERSION})});
+  }catch(e){ /* silencioso: offline o falla puntual, nunca interrumpe al usuario */ }
+}
 
 /* ============ respaldos automáticos con historial ============ */
 // Un snapshot completo por día (primera sync exitosa del día), silencioso; se guardan hasta
