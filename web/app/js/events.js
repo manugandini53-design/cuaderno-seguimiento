@@ -209,6 +209,12 @@ document.addEventListener("click", (e)=>{
   else if(a==="open"){ state.view="detalle"; state.selId=el.dataset.id; state.tab="temas"; state.confirmDel=false; }
   else if(a==="back"){ state.view="lista"; state.selId=null; }
   else if(a==="new"){ state.showNew=true; }
+  else if(a==="load-sample"){
+    const st=sampleStudent();
+    state.students.push(st); save();
+    state.view="detalle"; state.selId=st.id; state.tab="temas";
+  }
+  else if(a==="dismiss-tips"){ dismissTips(); }
   else if(a==="cancel-new"){ state.showNew=false; }
   else if(a==="create"){
     const name=document.getElementById("n-name").value.trim();

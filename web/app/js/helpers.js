@@ -87,6 +87,38 @@ function emptyStudent(){
     updatedAt:Date.now(), topics:{}, sessions:[], simulacros:[] };
 }
 
+/* ============ alumno de ejemplo (onboarding) ============ */
+// Muestra todos los estados de tema, una clase con tarea hecha y otra sin hacer,
+// un simulacro con diagnóstico, semáforo amarillo y examen próximo — todo lo que
+// la app sabe hacer, para que una cuenta nueva sin datos vea de entrada qué se puede hacer.
+function daysFromToday(n){ const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function sampleStudent(){
+  const m = subjById("matbasica") || state.catalog.subjects[0] || null;
+  const units = m ? m.units : [];
+  const topics = {};
+  const cycle = ["parcial","visto","practica","pendiente","noentra"];
+  units.forEach((t,i)=>{ topics[t] = cycle[i % cycle.length]; });
+  return {
+    id: uid(), name:"Alumno de ejemplo", sample:true,
+    career: state.catalog.careers[0]||"Ingeniería", subject: m?m.name:"", subjectId: m?m.id:"",
+    chair:"", status:"activo", semaforo:"amarillo",
+    examDate: daysFromToday(6), startDate: daysFromToday(-20),
+    notes:"Este alumno es un ejemplo para que veas cómo se usa la app — podés borrarlo cuando quieras desde su ficha.",
+    updatedAt: Date.now(), topics,
+    sessions:[
+      {id:uid(), date:daysFromToday(-6), topic:units[1]||"", tarea:"hecha", note:"Bien encaminada, resolvió todo sin ayuda."},
+      {id:uid(), date:daysFromToday(-2), topic:units[2]||"", tarea:"intentada", note:"Le costó determinantes 3x3 — repasar la regla de Sarrus."}
+    ],
+    simulacros:[
+      {id:uid(), date:daysFromToday(-3), grade:"6/10", note:"2 errores conceptuales en límites, 1 de cuenta en derivadas, bien en integrales."}
+    ]
+  };
+}
+
+/* ============ guía de primeros pasos ============ */
+function tipsDismissed(){ return localStorage.getItem(ONBOARDING_TIPS_KEY)==="1"; }
+function dismissTips(){ localStorage.setItem(ONBOARDING_TIPS_KEY,"1"); }
+
 /* ============ alertas ============ */
 function studentAlerts(s){
   const out=[]; if(s.status!=="activo") return out;

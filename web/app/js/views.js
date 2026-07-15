@@ -8,15 +8,31 @@ const semDot = (v,size,btn) => {
 const pill = (st) => { const m=STATUS_META[st];
   return `<span class="pill" style="color:${m.fg};background:${m.bg}">${m.label}</span>`; };
 const tabbtn = (a,on,label) => `<button class="tabbtn ${on?"on":""}" data-a="${a}">${label}</button>`;
+const examplePill = (s) => s.sample ? `<span class="pill" style="color:var(--blue);background:var(--bluebg)">Ejemplo</span>` : "";
 
 /* ============ vistas ============ */
+function vTips(){
+  if(tipsDismissed()) return "";
+  return `<div class="formcard" style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between">
+    <div>
+      <div class="ftitle" style="margin-bottom:8px">Primeros pasos</div>
+      <div style="font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:4px">
+        <span><b style="color:var(--ink)">1.</b> Cargá tu primer alumno</span>
+        <span><b style="color:var(--ink)">2.</b> Marcá los temas que ya vieron</span>
+        <span><b style="color:var(--ink)">3.</b> Registrá cada clase al terminarla</span>
+      </div>
+    </div>
+    <button class="del" style="font-size:20px" data-a="dismiss-tips" title="Descartar">×</button>
+  </div>`;
+}
 function vTablero(){
   const activos = alive().filter(s=>s.status==="activo");
   const alerts = activos.flatMap(s=>studentAlerts(s).map(t=>({s,t})));
   const upcoming = activos.filter(s=>s.examDate && daysTo(s.examDate)>=0)
                           .sort((a,b)=>a.examDate.localeCompare(b.examDate));
   const enRiesgo = new Set(alerts.map(a=>a.s.id)).size;
-  let h = `<div class="stats">
+  let h = vTips();
+  h += `<div class="stats">
     <div class="stat"><b>${activos.length}</b><span>activos</span></div>
     <div class="stat"><b>${upcoming.length}</b><span>con examen a la vista</span></div>
     <div class="stat ${enRiesgo?"warn":""}"><b>${enRiesgo}</b><span>con alertas</span></div>
@@ -36,14 +52,18 @@ function vTablero(){
         const sim = s.simulacros.length ? `Simulacro: ${esc(s.simulacros[s.simulacros.length-1].grade||"hecho")}` : "Sin simulacro";
         return `<button class="examcard" data-a="open" data-id="${s.id}">
           <span class="count ${d<=7?"urgent":""}">${d===0?"HOY":d+" día"+(d===1?"":"s")}</span>
-          <div style="font-weight:700;font-size:15px;margin:8px 0 2px;display:flex;align-items:center;gap:7px">${esc(s.name)} ${semDot(s.semaforo,11,false)}</div>
+          <div style="font-weight:700;font-size:15px;margin:8px 0 2px;display:flex;align-items:center;gap:7px">${esc(s.name)} ${semDot(s.semaforo,11,false)} ${examplePill(s)}</div>
           <div style="font-size:12.5px;color:var(--muted)">${esc(s.subject||"Materia s/d")} · ${fmtDate(s.examDate)}</div>
           <div style="font-size:11.5px;font-family:var(--mono);margin-top:6px;color:${s.simulacros.length?"var(--green)":"var(--red)"}">${sim}</div>
         </button>`;}).join("") + `</div>`;
 
   if(alive().length===0)
     h += `<div class="empty" style="margin-top:24px;text-align:center;padding:32px">
-      El cuaderno está vacío. Cargá tu primer estudiante con el botón de arriba: nombre, materia y fecha de examen alcanzan para arrancar.</div>`;
+      El cuaderno está vacío. Elegí por dónde arrancar:
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px">
+        <button class="primary" style="margin-left:0" data-a="load-sample">Cargar un alumno de ejemplo</button>
+        <button class="chip" data-a="new">Empezar con mis alumnos</button>
+      </div></div>`;
 
   h += `<div class="stitle">Respaldo</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -78,7 +98,7 @@ function vLista(){
       ? `<span style="color:${d<=7?"var(--red)":"var(--ink)"};font-weight:600">examen en ${d}d</span>`
       : `<span style="color:var(--faint)">${s.examDate?fmtDate(s.examDate):"sin fecha"}</span>`;
     return `<button class="row" data-a="open" data-id="${s.id}">
-      <div class="main"><div class="name">${esc(s.name)} ${semDot(s.semaforo,13,false)} ${pill(s.status)}
+      <div class="main"><div class="name">${esc(s.name)} ${semDot(s.semaforo,13,false)} ${pill(s.status)} ${examplePill(s)}
         ${na?`<span class="mini-alert">${na} alerta${na>1?"s":""}</span>`:""}</div>
       <div class="sub">${esc(s.career)} · ${esc(s.subject||"materia s/d")} · temas ${seen}/${rel}</div></div>
       <div class="right">${right}</div></button>`;
@@ -94,7 +114,7 @@ function vDetalle(){
   <div class="dethead">
     <div style="flex:1;min-width:220px">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <h2>${esc(s.name)}</h2>${semDot(s.semaforo,16,true)}${pill(s.status)}</div>
+        <h2>${esc(s.name)}</h2>${semDot(s.semaforo,16,true)}${pill(s.status)}${examplePill(s)}</div>
       <div class="semlabel">${esc(SEM_META[s.semaforo||"sd"].label)}${(s.semaforo||"sd")==="sd"?" — tocá el círculo para marcar cómo viene":""}</div>
       <div style="font-size:13px;color:var(--muted)">${esc(s.career)} · ${esc(s.subject||"materia s/d")}${s.chair?" · "+esc(s.chair):""} · desde ${fmtDate(s.startDate)}</div>
     </div>
@@ -186,12 +206,12 @@ function vDetalle(){
         <textarea data-f="notes">${esc(s.notes)}</textarea></div>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--soft)">
         ${!state.confirmDel
-          ? `<button class="danger" data-a="ask-del">Eliminar estudiante…</button>`
+          ? `<button class="danger" data-a="ask-del">${s.sample?"Eliminar ejemplo":"Eliminar estudiante…"}</button>`
           : `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span style="font-size:13px;color:var(--red)">Se borra todo su historial. ¿Seguro?</span>
+              <span style="font-size:13px;color:var(--red)">${s.sample?"Se borra este alumno de ejemplo. ¿Seguro?":"Se borra todo su historial. ¿Seguro?"}</span>
               <button class="danger" data-a="confirm-del">Sí, eliminar</button>
               <button class="chip" data-a="cancel-del">Cancelar</button></div>`}
-        <div class="hint" style="margin-top:8px">Consejo: si dejó o rindió, cambiá el estado en vez de borrarlo — si vuelve (pasa seguido), retomás con todo el historial.</div>
+        ${s.sample?"":`<div class="hint" style="margin-top:8px">Consejo: si dejó o rindió, cambiá el estado en vez de borrarlo — si vuelve (pasa seguido), retomás con todo el historial.</div>`}
       </div></div>`;
   }
   return h;
