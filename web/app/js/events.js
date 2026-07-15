@@ -123,17 +123,22 @@ document.addEventListener("click", (e)=>{
   else if(a==="auth-mode-login"){ state.authMode="login"; }
   else if(a==="auth-mode-signup"){ state.authMode="signup"; }
   else if(a==="auth-login"){
+    const lockMs=loginLockRemainingMs();
+    if(lockMs>0){ authMsgShow("Demasiados intentos. Probá de nuevo en "+fmtLockRemaining(lockMs)+"."); return; }
     const em=(document.getElementById("auth-email").value||"").trim();
     const pw=document.getElementById("auth-pass").value||"";
     state.authEmail=em;
     if(!em||!pw){ authMsgShow("Completá correo y contraseña."); return; }
     authMsgShow("Iniciando sesión…",true);
-    doLogin(em,pw).then(()=>{ render(); syncNow(); })
+    doLogin(em,pw).then(()=>{ resetLoginAttempts(); render(); syncNow(); })
       .catch(err=>{
         if(isEmailNotConfirmedError(err)){
           state.pendingConfirmEmail=em; state.confirmStatus="idle"; state.confirmError=""; render();
         }else{
-          authMsgShow(friendlyAuthError(err));
+          recordFailedLogin();
+          const lockMs2=loginLockRemainingMs();
+          if(lockMs2>0){ render(); }
+          else authMsgShow(friendlyAuthError(err));
         }
       });
     return;
@@ -300,6 +305,16 @@ document.addEventListener("click", (e)=>{
   render();
 });
 
+// Enter en un campo de las pantallas de login/signup/recuperar/nueva contraseña dispara
+// la acción principal de esa pantalla (data-enter en el input apunta al data-a del botón).
+document.addEventListener("keydown",(e)=>{
+  if(e.key!=="Enter") return;
+  const el=e.target.closest("[data-enter]"); if(!el) return;
+  e.preventDefault();
+  const btn=document.querySelector(`[data-a="${el.dataset.enter}"]`);
+  if(btn) btn.click();
+});
+
 document.addEventListener("change",(e)=>{
   const cf=e.target.closest("[data-cf]");
   if(cf && cf.dataset.cf==="subj-name"){
@@ -345,15 +360,22 @@ document.addEventListener("input", (e)=>{
    así que no cuesta nada en el resto de la app. */
 setInterval(()=>{
   const t = state.simTimer;
-  if(!t || t.paused || t.remainingSec<=0) return;
-  t.remainingSec--;
-  if(t.remainingSec<=0 && !t.alerted){
-    t.alerted=true;
+  if(t && !t.paused && t.remainingSec>0){
+    t.remainingSec--;
+    if(t.remainingSec<=0 && !t.alerted){
+      t.alerted=true;
+      render();
+      alert("¡Se acabó el tiempo del simulacro!");
+      return;
+    }
     render();
-    alert("¡Se acabó el tiempo del simulacro!");
     return;
   }
-  render();
+  // cuenta regresiva del freno de intentos de login, mientras se ve la pantalla de login
+  if(!getSes() && !state.recovery){
+    const locked = loginLockRemainingMs()>0;
+    if(locked || state._authWasLocked){ state._authWasLocked=locked; render(); }
+  }
 },1000);
 
 /* ============ arranque ============ */

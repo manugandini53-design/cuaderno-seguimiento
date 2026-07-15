@@ -288,6 +288,9 @@ function vAuth(){
   const mode = state.authMode||"login", isLogin = mode==="login";
   const remembered = getRememberedEmails();
   const emailVal = state.authEmail || remembered[0] || "";
+  const lockMs = isLogin ? loginLockRemainingMs() : 0;
+  const locked = lockMs>0;
+  const mainAction = isLogin?"auth-login":"auth-signup";
   return `<div style="max-width:360px;margin:64px auto 0">
     <div style="text-align:center;margin-bottom:20px">
       <div class="eyebrow">Clases particulares</div>
@@ -299,14 +302,14 @@ function vAuth(){
         ${tabbtn("auth-mode-signup",!isLogin,"Crear cuenta")}
       </div>
       <div class="field"><div class="flabel">Correo</div>
-        <input id="auth-email" type="email" autocomplete="username" list="remembered-emails" value="${esc(emailVal)}">
+        <input id="auth-email" type="email" autocomplete="username" list="remembered-emails" value="${esc(emailVal)}" data-enter="${mainAction}" ${locked?"disabled":""}>
         <datalist id="remembered-emails">${remembered.map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
       </div>
       <div class="field" style="margin-top:8px"><div class="flabel">Contraseña${isLogin?"":" (mínimo 6 caracteres)"}</div>
-        <input id="auth-pass" type="password" autocomplete="${isLogin?"current-password":"new-password"}"></div>
-      <button class="primary" style="margin:14px 0 0;margin-left:0;width:100%" data-a="${isLogin?"auth-login":"auth-signup"}">${isLogin?"Iniciar sesión":"Crear cuenta"}</button>
-      ${isLogin?`<button class="chip" style="margin-top:10px;border:none;background:none;padding:2px 0;color:var(--muted)" data-a="auth-forgot">¿Olvidaste tu contraseña?</button>`:""}
-      <div class="hint" id="authMsg" style="margin-top:10px;min-height:16px"></div>
+        <input id="auth-pass" type="password" autocomplete="${isLogin?"current-password":"new-password"}" data-enter="${mainAction}" ${locked?"disabled":""}></div>
+      <button class="primary" style="margin:14px 0 0;margin-left:0;width:100%" data-a="${mainAction}" ${locked?"disabled":""}>${isLogin?"Iniciar sesión":"Crear cuenta"}</button>
+      ${isLogin?`<button class="chip" style="margin-top:10px;border:none;background:none;padding:2px 0;color:var(--muted)" data-a="auth-forgot" ${locked?"disabled":""}>¿Olvidaste tu contraseña?</button>`:""}
+      <div class="hint" id="authMsg" style="margin-top:10px;min-height:16px${locked?";color:var(--red)":""}">${locked?esc("Demasiados intentos. Probá de nuevo en "+fmtLockRemaining(lockMs)+"."):""}</div>
     </div>
   </div>`;
 }
@@ -341,9 +344,9 @@ function vSetPassword(){
     </div>
     <div class="formcard">
       <div class="field"><div class="flabel">Contraseña nueva (mínimo 6 caracteres)</div>
-        <input id="newpass1" type="password" autocomplete="new-password"></div>
+        <input id="newpass1" type="password" autocomplete="new-password" data-enter="auth-set-password"></div>
       <div class="field" style="margin-top:8px"><div class="flabel">Repetila</div>
-        <input id="newpass2" type="password" autocomplete="new-password"></div>
+        <input id="newpass2" type="password" autocomplete="new-password" data-enter="auth-set-password"></div>
       <button class="primary" style="margin:14px 0 0;margin-left:0;width:100%" data-a="auth-set-password">Guardar contraseña</button>
       <div class="hint" id="authMsg" style="margin-top:10px;min-height:16px"></div>
     </div>

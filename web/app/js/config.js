@@ -14,6 +14,9 @@ const LAST_EXPORT_KEY = "tutoria-last-export"; // timestamp de la última descar
 const BACKUP_REMINDER_DISMISS_KEY = "tutoria-backup-reminder-dismissed-at"; // timestamp del último "descartar" del aviso de respaldo
 const BACKUP_REMINDER_DAYS = 30; // a partir de cuántos días sin exportar se sugiere hacerlo
 const BACKUP_REMINDER_SNOOZE_DAYS = 7; // cada cuánto reaparece el aviso si se descarta
+const LOGIN_ATTEMPTS_KEY = "tutoria-login-attempts"; // {count, lockUntil} — freno local a intentos de login seguidos, aparte del rate-limit propio de Supabase
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCK_MS = 5*60*1000;
 const THEME_KEY = "tutoria-theme"; // "light" | "dark" | "system" (default)
 function getTheme(){ return localStorage.getItem(THEME_KEY) || "system"; }
 function applyTheme(theme){

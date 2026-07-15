@@ -89,6 +89,31 @@ async function setNewPassword(pass){
   if(!r.ok) throw new Error(j.msg||j.error_description||j.message||("error "+r.status));
   storeSession({access_token:state.recovery.access, refresh_token:state.recovery.refresh, expires_in:3600}, j.email||"");
 }
+/* ============ freno local a intentos de login seguidos ============
+   Aparte del rate-limit del lado del servidor (Supabase); esto es solo un freno de la
+   app, guardado en localStorage, para no ametrallar el endpoint de login. */
+function getLoginAttempts(){
+  try{ const a=JSON.parse(localStorage.getItem(LOGIN_ATTEMPTS_KEY)); return (a&&typeof a==="object")?a:{count:0,lockUntil:0}; }
+  catch(e){ return {count:0,lockUntil:0}; }
+}
+function setLoginAttempts(a){ try{ localStorage.setItem(LOGIN_ATTEMPTS_KEY, JSON.stringify(a)); }catch(e){} }
+function recordFailedLogin(){
+  const a=getLoginAttempts();
+  a.count=(a.count||0)+1;
+  if(a.count>=LOGIN_MAX_ATTEMPTS){ a.lockUntil=Date.now()+LOGIN_LOCK_MS; a.count=0; }
+  setLoginAttempts(a);
+}
+function resetLoginAttempts(){ setLoginAttempts({count:0,lockUntil:0}); }
+function loginLockRemainingMs(){
+  const rem=(getLoginAttempts().lockUntil||0)-Date.now();
+  return rem>0?rem:0;
+}
+function fmtLockRemaining(ms){
+  const totalSec=Math.ceil(ms/1000);
+  const m=Math.floor(totalSec/60), sec=totalSec%60;
+  return `${m}:${String(sec).padStart(2,"0")}`;
+}
+
 function parseRecoveryHash(){
   const raw = location.hash.startsWith("#") ? location.hash.slice(1) : "";
   if(!raw) return null;
