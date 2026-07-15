@@ -2,8 +2,8 @@
 
 Fecha: 2026-07-14. Alcance: todo el repo (`web/`, `android/`, `src-tauri/`, historial
 de git). No incluye una revisión del propio proyecto Supabase más allá de lo que se
-puede inferir del código y de `supabase-setup.sql` — ver la sección 5 para lo que
-falta confirmar a mano en el dashboard.
+puede inferir del código y de las migraciones del repo `cuaderno-supabase` — ver la
+sección 5 para lo que falta confirmar a mano en el dashboard.
 
 ## Resumen ejecutivo
 
@@ -159,6 +159,14 @@ Decisiones de diseño:
 
 ## 5. Tablas de Supabase y qué garantiza cada RLS
 
+**Actualización 2026-07-15**: el backend ahora está versionado por separado en el
+repo [`cuaderno-supabase`](https://github.com/manugandini53-design/cuaderno-supabase)
+(`migraciones/001..004`), con el SQL real de producción para las cuatro tablas.
+`supabase-setup.sql` ya no vive en este repo — su contenido pasó a `001_cuaderno.sql`
+de ese repo. La tabla de abajo queda como estaba escrita el 2026-07-14 (antes de esa
+migración) a modo de historial; ver el README de `cuaderno-supabase` para el estado
+confirmado actual.
+
 | Tabla | Usada para | RLS según lo que hay en el repo |
 |---|---|---|
 | `cuaderno` | Datos de alumnos/catálogo, una fila por usuario | **Confirmado** en `supabase-setup.sql`: select/insert/update sólo con `auth.uid() = user_id`. Sin policy de `delete` (a propósito — el borrado es lógico, `deleted:true`, nunca `DELETE`). |
@@ -195,6 +203,15 @@ Supabase:
 
 Ninguna de las dos cosas se puede arreglar desde el código de este repo — son
 configuración que vive sólo en Supabase.
+
+**Resuelto el 2026-07-15** vía `cuaderno-supabase/migraciones/004_perfiles_roles.sql`
+(pegado por el maintainer desde producción, no reconstruido): el punto 1 está
+confirmado — el `grant update` sobre `perfiles` sólo cubre
+`plataforma, version, last_seen_at`, `rol` queda afuera. Del punto 2, la parte de
+`cuaderno_respaldos` también está confirmada (`002_respaldos.sql`, ídem, SQL real de
+producción). La parte de `reportes` sigue sin dump real de producción —
+`003_reportes.sql` en ese repo es una reconstrucción a partir del uso en el código,
+marcada explícitamente para verificar contra el dashboard.
 
 ## 6. Diseño de la sesión
 

@@ -13,7 +13,7 @@ const RELEASES_API = "https://api.github.com/repos/manugandini53-design/manugand
 const DOWNLOADS_URL = "https://manugandini53-design.github.io/#usala";
 // Backend de sincronización: un único proyecto Supabase para todos los usuarios de la app.
 // La anon key es pública por diseño — la seguridad la dan las políticas RLS de la tabla
-// `cuaderno` (cada cuenta solo puede leer/escribir su propia fila; ver supabase-setup.sql).
+// `cuaderno` (cada cuenta solo puede leer/escribir su propia fila; ver el repo cuaderno-supabase).
 const SUPA_URL = "https://iwxsntxkqfqucxhwlfdv.supabase.co";
 const SUPA_ANON_KEY = "sb_publishable_S0zs9qmIRB5RWNZceO5gCg_vI7Hxx1D";
 const APP_VERSION = "1.3.0";
