@@ -38,7 +38,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null,
               listSearch:"", listSubject:"todas", listCareer:"todas", listSem:"todos",
               simTimer:null, simTimerLastMin:90, simPrefillNote:"",
               statsSubjectId:null,
-              showNew:false, confirmDel:false, saveErr:false,
+              showNew:false, newStudentError:"", confirmDel:false, fichaError:"", saveErr:false,
               syncStatus:"idle", syncMsg:"", lastSync:null,
               authMode:"login", authEmail:"", recovery:null,
               pendingConfirmEmail:null, confirmStatus:"idle", confirmError:"",
@@ -87,6 +87,16 @@ function emptyStudent(){
   return { id:uid(), name:"", career:(state.catalog.careers[0]||"Ingeniería"), subject:"", subjectId:"",
     chair:"", status:"activo", semaforo:"sd", examDate:"", startDate:today(), notes:"",
     updatedAt:Date.now(), topics:{}, sessions:[], simulacros:[] };
+}
+
+/* ============ regla: una ficha = un alumno en una materia ============
+   El mismo nombre en materias distintas es válido (un alumno que cursa varias
+   materias tiene una ficha por cada una); lo que no se permite es dos fichas
+   vivas con el mismo nombre en la misma materia (incluye "sin materia", subjectId=""). */
+function normName(s){ return (s||"").trim().toLowerCase().replace(/\s+/g," "); }
+function findDuplicateStudent(name, subjectId, excludeId){
+  const n = normName(name); if(!n) return null;
+  return alive().find(x => x.id!==excludeId && normName(x.name)===n && (x.subjectId||"")===(subjectId||"")) || null;
 }
 
 /* ============ alumno de ejemplo (onboarding) ============ */

@@ -253,6 +253,7 @@ function vDetalle(){
 
   if(state.tab==="ficha"){
     const opt=(v,cur,l)=>`<option value="${esc(v)}" ${v===cur?"selected":""}>${esc(l)}</option>`;
+    if(state.fichaError) h += `<div class="saveerr">${esc(state.fichaError)}</div>`;
     h += `<div class="formcard">
       <div class="frow">
         <div class="field"><div class="flabel">Nombre</div><input data-f="name" value="${esc(s.name)}"></div>
@@ -822,6 +823,7 @@ function vRecursos(){
 function vModal(){
   return `<div class="overlay"><div class="modal">
     <div class="ftitle" style="font-size:16px">Nuevo estudiante</div>
+    ${state.newStudentError?`<div class="saveerr">${esc(state.newStudentError)}</div>`:""}
     <div class="frow">
       <div class="field"><div class="flabel">Nombre *</div><input id="n-name" autofocus></div>
       <div class="field"><div class="flabel">Carrera</div><select id="n-career">
@@ -832,6 +834,7 @@ function vModal(){
         <option value="">Otra / sin materia por ahora</option></select></div>
       <div class="field"><div class="flabel">Fecha de examen (si ya la sabe)</div><input type="date" id="n-exam"></div></div>
     <div class="field"><div class="flabel">Notas iniciales (de dónde arranca, qué le cuesta)</div><textarea id="n-notes"></textarea></div>
+    <div class="hint" style="margin-top:8px">¿Cursa más de una materia? Cargalo una vez por cada materia.</div>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
       <button class="chip" data-a="cancel-new">Cancelar</button>
       <button class="primary" style="margin-left:0" data-a="create">Crear</button></div>

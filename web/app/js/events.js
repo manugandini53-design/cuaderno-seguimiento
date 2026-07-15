@@ -213,32 +213,35 @@ document.addEventListener("click", (e)=>{
   else if(a==="auth-logout"){ setSes(null); state.view="tablero"; render(); return; }
   else if(a==="open"){
     state.view="detalle"; state.selId=el.dataset.id; state.tab="temas"; state.confirmDel=false;
-    state.simTimer=null; state.simPrefillNote="";
+    state.simTimer=null; state.simPrefillNote=""; state.fichaError="";
   }
   else if(a==="back"){ state.view="lista"; state.selId=null; state.simTimer=null; state.simPrefillNote=""; }
-  else if(a==="new"){ state.showNew=true; }
+  else if(a==="new"){ state.showNew=true; state.newStudentError=""; }
   else if(a==="load-sample"){
     const st=sampleStudent();
     state.students.push(st); save();
     state.view="detalle"; state.selId=st.id; state.tab="temas";
   }
   else if(a==="dismiss-tips"){ dismissTips(); }
-  else if(a==="cancel-new"){ state.showNew=false; }
+  else if(a==="cancel-new"){ state.showNew=false; state.newStudentError=""; }
   else if(a==="create"){
     const name=document.getElementById("n-name").value.trim();
     if(!name){ document.getElementById("n-name").focus(); return; }
+    const subjectId=document.getElementById("n-subject").value;
+    const dup=findDuplicateStudent(name,subjectId,null);
+    if(dup){ state.newStudentError=`Ya tenés a ${dup.name} en esta materia.`; render(); return; }
     const st=emptyStudent();
     st.name=name;
     st.career=document.getElementById("n-career").value;
-    const _m=subjById(document.getElementById("n-subject").value);
+    const _m=subjById(subjectId);
     st.subjectId=_m?_m.id:""; st.subject=_m?_m.name:"";
     st.topics=_m?Object.fromEntries(_m.units.map(u=>[u,"pendiente"])):{};
     st.examDate=document.getElementById("n-exam").value;
     st.notes=document.getElementById("n-notes").value;
     state.students.push(st); save();
-    state.showNew=false; state.view="detalle"; state.selId=st.id; state.tab="temas";
+    state.newStudentError=""; state.showNew=false; state.view="detalle"; state.selId=st.id; state.tab="temas";
   }
-  else if(a.startsWith("tab-")){ state.tab=a.slice(4); state.confirmDel=false; }
+  else if(a.startsWith("tab-")){ state.tab=a.slice(4); state.confirmDel=false; state.fichaError=""; }
   else if(a==="filter"){ state.filter=el.dataset.f; }
   else if(a==="clear-filters"){
     state.filter="activo"; state.listSearch=""; state.listSubject="todas"; state.listCareer="todas"; state.listSem="todos";
@@ -335,9 +338,17 @@ document.addEventListener("change",(e)=>{
   const el=e.target.closest("[data-f]"); if(!el) return;
   const s=sel(); if(!s) return;
   if(el.dataset.f==="subjectId"){
+    const dup=findDuplicateStudent(s.name,el.value,s.id);
+    if(dup){ state.fichaError=`Ya tenés a ${dup.name} en esta materia.`; render(); return; }
     const m=subjById(el.value);
+    state.fichaError="";
     update(s.id,{subjectId:el.value, subject:m?m.name:s.subject});
     return;
+  }
+  if(el.dataset.f==="name"){
+    const dup=findDuplicateStudent(el.value,s.subjectId,s.id);
+    if(dup){ state.fichaError=`Ya tenés a ${dup.name} en esta materia.`; render(); return; }
+    state.fichaError="";
   }
   update(s.id,{[el.dataset.f]:el.value});
 });
