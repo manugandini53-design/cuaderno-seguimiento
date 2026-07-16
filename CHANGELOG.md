@@ -24,6 +24,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/), adaptado
 a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc.).
 
 ## [Sin publicar]
+- Eliminado GoatCounter de la landing (métricas propias en `metricas_diarias`/`metricas_horarias` no se tocan).
 
 ## [2.0.0] - 2026-07-16
 - Registro de pagos por alumno.
