@@ -361,26 +361,42 @@ async function toggleReporte(id,current){
 }
 
 /* ============ portal de invitados (tabla portales, migración 013) ============
-   Fila propia por docente: token general + tokens por alumno (más adelante), habilitado,
-   y el JSON "publicado" que ve el portal público (portal.html, sin sesión, vía la RPC
-   portal_publico). Por ahora publicado sólo lleva {nombre}; se arma en publicarPortal(). */
+   Fila propia por docente: token general (portal completo) + tokens_alumnos (mapa
+   token→studentId, una llave recortada por alumno), habilitado, y el JSON "publicado" que ve
+   el portal público (portal.html, sin sesión, vía la RPC portal_publico) — nombre del docente,
+   biblioteca (ver signMaterialUrl/publicarPortal más abajo) y alumnos (ver buildAlumnoBlock). */
 function genPortalToken(){
   const bytes=new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, b=>b.toString(16).padStart(2,"0")).join(""); // 48 caracteres
 }
 function portalUrl(token){ return new URL("portal.html?k="+encodeURIComponent(token), location.href).href; }
+// Lee la fila propia de portales (columnas a elección), con su token de sesión/uid ya resueltos —
+// evita repetir ensureToken()/jwtSub()/headers en cada acción de esta sección.
+async function fetchPortalRow(select){
+  const s=await ensureToken();
+  const uid_=jwtSub(s.access);
+  const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+  const r=await fetch(SUPA_URL+"/rest/v1/portales?select="+select, {headers:h});
+  if(!r.ok) throw new Error("error "+r.status);
+  const row=(await r.json())[0];
+  return {s, uid_, h, row: row||{}};
+}
+async function patchPortalRow(uid_, h, patch){
+  const r=await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH",
+    headers:{...h, Prefer:"return=minimal"}, body:JSON.stringify({...patch, updated_at:new Date().toISOString()})});
+  if(!r.ok) throw new Error("error "+r.status);
+}
+function tokenForStudent(studentId){
+  const map=(state.portal&&state.portal.tokensAlumnos)||{};
+  return Object.keys(map).find(k=>map[k]===studentId) || null;
+}
 async function loadPortal(){
   state.portalLoaded=false; state.portalError=""; render();
   try{
-    const s=await ensureToken();
-    const uid_=jwtSub(s.access);
-    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
-    const r=await fetch(SUPA_URL+"/rest/v1/portales?select=token,habilitado,publicado", {headers:h});
-    if(!r.ok) throw new Error("error "+r.status);
-    const rows=await r.json();
-    let row=rows[0];
-    if(!row){
+    const {s, uid_, h, row: existing}=await fetchPortalRow("token,habilitado,publicado,tokens_alumnos");
+    let row=existing;
+    if(!row || !row.token){
       const token=genPortalToken();
       const up=await fetch(SUPA_URL+"/rest/v1/portales", {method:"POST",
         headers:{...h, Prefer:"return=representation"},
@@ -389,7 +405,7 @@ async function loadPortal(){
       row=(await up.json())[0];
     }
     state.portal={token:row.token, habilitado:row.habilitado, publicado:row.publicado||{},
-      draftNombre:(row.publicado&&row.publicado.nombre)||""};
+      tokensAlumnos:row.tokens_alumnos||{}, draftNombre:(row.publicado&&row.publicado.nombre)||""};
     state.portalLoaded=true;
   }catch(e){
     state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo cargar el portal.";
@@ -402,12 +418,8 @@ async function togglePortalHabilitado(next){
   const prev=state.portal.habilitado;
   state.portal.habilitado=next; render();
   try{
-    const s=await ensureToken();
-    const uid_=jwtSub(s.access);
-    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
-    const r=await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
-      body:JSON.stringify({habilitado:next, updated_at:new Date().toISOString()})});
-    if(!r.ok) throw new Error();
+    const {uid_, h}=await fetchPortalRow("habilitado");
+    await patchPortalRow(uid_, h, {habilitado:next});
   }catch(e){
     state.portal.habilitado=prev;
     state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo actualizar. Probá de nuevo.";
@@ -419,12 +431,8 @@ async function regenerarPortalToken(){
   if(!confirm("La llave anterior deja de funcionar de inmediato: cualquier alumno que la tenga guardada pierde el acceso. ¿Regenerar?")) return;
   const token=genPortalToken();
   try{
-    const s=await ensureToken();
-    const uid_=jwtSub(s.access);
-    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
-    const r=await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
-      body:JSON.stringify({token, updated_at:new Date().toISOString()})});
-    if(!r.ok) throw new Error();
+    const {uid_, h}=await fetchPortalRow("token");
+    await patchPortalRow(uid_, h, {token});
     state.portal.token=token; state.portalCopyMsg=""; render();
   }catch(e){
     state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo regenerar la llave. Probá de nuevo.";
@@ -442,9 +450,31 @@ async function signMaterialUrl(s, path, expiresInSec){
   const j=await r.json();
   return SUPA_URL+"/storage/v1"+j.signedURL;
 }
-// Publicar cambios: nombre a mostrar + biblioteca (un ítem firmado por cada material con
-// compartido:true en cualquier materia). Si falla la firma de algún archivo, no se publica nada
-// (todo o nada, para no dejar el portal a medio actualizar) — se puede reintentar tocando de nuevo.
+// Arma lo que ve UN alumno puntual en su portal individual, a partir de lo que el docente tildó
+// en su ficha (s.portalShare, ver portalShareFor() en helpers.js). ÚNICA función que lee datos de
+// un alumno para el portal — a propósito acotada a estos tres campos: NUNCA agregar acá notas del
+// alumno, pagos, señas, ni ningún comentario privado. Si se suma un dato nuevo compartible, tiene
+// que sumarse antes como checkbox explícito en la ficha (vPortalAlumnoCard, views.js).
+function buildAlumnoBlock(s){
+  const share=portalShareFor(s);
+  const block={nombre:s.name}; // el nombre propio del alumno, para el saludo — no es un dato privado frente a sí mismo
+  if(share.proximaClase){
+    const n=nextClaseForStudent(s);
+    block.proximaClase = n ? {date:n.date, time:n.time, duration:n.duration} : null;
+  }
+  if(share.tareas){
+    const last=[...(s.sessions||[])].sort((a,b)=>b.date.localeCompare(a.date))[0];
+    block.tarea = last ? {date:last.date, nota:last.note||""} : null;
+  }
+  if(share.avance){
+    block.avance = unitsFor(s).map(u=>({unidad:u, estado:(s.topics||{})[u]||"pendiente"}));
+  }
+  return block;
+}
+// Publicar cambios: nombre a mostrar + biblioteca (firma un link por cada material con
+// compartido:true) + un bloque por cada alumno que tenga llave individual generada. Si falla la
+// firma de algún archivo, no se publica nada (todo o nada, para no dejar el portal a medio
+// actualizar) — se puede reintentar tocando de nuevo.
 async function publicarPortal(){
   if(!state.portal) return;
   state.portalSaving=true; state.portalSaveMsg=""; render();
@@ -461,11 +491,15 @@ async function publicarPortal(){
       return {subjectId:f.subjectId, materia:f.subject, nombre:materialDisplayName(f.name),
         path, url, bytes:f.bytes||0, at:f.at||null, firmadoAt:Date.now()};
     }));
-    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca};
-    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
-    const r=await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
-      body:JSON.stringify({publicado, updated_at:new Date().toISOString()})});
-    if(!r.ok) throw new Error();
+    const alumnoIds=[...new Set(Object.values(state.portal.tokensAlumnos||{}))];
+    const alumnos={};
+    alumnoIds.forEach(id=>{
+      const st=state.students.find(x=>x.id===id);
+      if(st) alumnos[id]=buildAlumnoBlock(st);
+    });
+    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos};
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+    await patchPortalRow(uid_, h, {publicado});
     state.portal.publicado=publicado;
     state.portalSaveMsg="Publicado — ya se ve en el portal.";
   }catch(e){
@@ -500,8 +534,7 @@ async function maybeRenewPortalLibrary(uid_, s){
     const byPath=new Map(renewed.map(it=>[it.path,it]));
     const merged=biblioteca.map(it=>byPath.get(it.path)||it);
     const publicado={...row.publicado, biblioteca:merged};
-    await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH",
-      headers:{...h, Prefer:"return=minimal"}, body:JSON.stringify({publicado, updated_at:new Date().toISOString()})});
+    await patchPortalRow(uid_, h, {publicado});
     if(state.portal){ state.portal.publicado=publicado; render(); }
   }catch(e){ /* silencioso: se reintenta al otro día */ }
 }
@@ -511,21 +544,86 @@ async function maybeRenewPortalLibrary(uid_, s){
 // ya que esto se dispara desde el editor de Materiales, no desde Cuenta).
 async function removeFromPortalBiblioteca(subjectId, fileName){
   try{
-    const s=await ensureToken();
-    const uid_=jwtSub(s.access);
+    const {s, uid_, h, row}=await fetchPortalRow("publicado");
+    if(!row.publicado) return;
     const path=materialPath(uid_, subjectId, fileName);
-    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
-    const r=await fetch(SUPA_URL+"/rest/v1/portales?select=publicado", {headers:h});
-    if(!r.ok) return;
-    const row=(await r.json())[0];
-    if(!row || !row.publicado) return;
     const biblioteca=row.publicado.biblioteca||[];
     if(!biblioteca.some(it=>it.path===path)) return;
     const publicado={...row.publicado, biblioteca:biblioteca.filter(it=>it.path!==path)};
-    await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH",
-      headers:{...h, Prefer:"return=minimal"}, body:JSON.stringify({publicado, updated_at:new Date().toISOString()})});
+    await patchPortalRow(uid_, h, {publicado});
     if(state.portal){ state.portal.publicado=publicado; render(); }
   }catch(e){ /* silencioso: se corrige solo en la próxima publicación manual */ }
+}
+/* ============ llave individual por alumno (portales.tokens_alumnos) ============
+   Un alumno con llave propia ve, además de biblioteca/links (igual que con la llave general),
+   su propio bloque (buildAlumnoBlock más arriba) — nunca el de otro alumno: la RPC portal_publico
+   sólo devuelve publicado.alumnos[<su studentId>], nunca el mapa completo. */
+async function generarLlaveAlumno(studentId){
+  state.portalAlumnoBusy=studentId; state.portalAlumnoError=""; render();
+  try{
+    const {uid_, h, row}=await fetchPortalRow("tokens_alumnos");
+    const tokensAlumnos={...(row.tokens_alumnos||{})};
+    if(!Object.keys(tokensAlumnos).some(k=>tokensAlumnos[k]===studentId)) tokensAlumnos[genPortalToken()]=studentId;
+    await patchPortalRow(uid_, h, {tokens_alumnos:tokensAlumnos});
+    if(state.portal) state.portal.tokensAlumnos=tokensAlumnos;
+    await republishAlumnoBlock(studentId);
+  }catch(e){
+    state.portalAlumnoError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo generar la llave. Probá de nuevo.";
+  }
+  state.portalAlumnoBusy=null; render();
+}
+async function regenerarLlaveAlumno(studentId){
+  if(!confirm("La llave anterior de este alumno deja de funcionar de inmediato. ¿Regenerar?")) return;
+  state.portalAlumnoBusy=studentId; state.portalAlumnoError=""; render();
+  try{
+    const {uid_, h, row}=await fetchPortalRow("tokens_alumnos");
+    const tokensAlumnos={...(row.tokens_alumnos||{})};
+    Object.keys(tokensAlumnos).forEach(k=>{ if(tokensAlumnos[k]===studentId) delete tokensAlumnos[k]; });
+    tokensAlumnos[genPortalToken()]=studentId;
+    await patchPortalRow(uid_, h, {tokens_alumnos:tokensAlumnos});
+    if(state.portal){ state.portal.tokensAlumnos=tokensAlumnos; state.portalAlumnoCopyMsg=""; }
+  }catch(e){
+    state.portalAlumnoError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo regenerar la llave. Probá de nuevo.";
+  }
+  state.portalAlumnoBusy=null; render();
+}
+async function revocarLlaveAlumno(studentId){
+  if(!confirm("El alumno deja de poder entrar a su portal con este link. ¿Revocar?")) return;
+  state.portalAlumnoBusy=studentId; state.portalAlumnoError=""; render();
+  try{
+    const {uid_, h, row}=await fetchPortalRow("tokens_alumnos,publicado");
+    const tokensAlumnos={...(row.tokens_alumnos||{})};
+    Object.keys(tokensAlumnos).forEach(k=>{ if(tokensAlumnos[k]===studentId) delete tokensAlumnos[k]; });
+    const alumnos={...((row.publicado&&row.publicado.alumnos)||{})};
+    delete alumnos[studentId];
+    const publicado={...(row.publicado||{}), alumnos};
+    await patchPortalRow(uid_, h, {tokens_alumnos:tokensAlumnos, publicado});
+    if(state.portal){ state.portal.tokensAlumnos=tokensAlumnos; state.portal.publicado=publicado; }
+  }catch(e){
+    state.portalAlumnoError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo revocar la llave. Probá de nuevo.";
+  }
+  state.portalAlumnoBusy=null; render();
+}
+// Re-arma y guarda sólo el bloque de un alumno puntual (sin tocar biblioteca ni el de otros
+// alumnos) — no firma nada, así que es liviano y se puede disparar seguido. Lee/escribe la fila
+// directo, no depende de que state.portal esté cargado.
+async function republishAlumnoBlock(studentId){
+  const st=state.students.find(x=>x.id===studentId); if(!st) return;
+  try{
+    const {uid_, h, row}=await fetchPortalRow("publicado");
+    const alumnos={...((row.publicado&&row.publicado.alumnos)||{})};
+    alumnos[studentId]=buildAlumnoBlock(st);
+    const publicado={...(row.publicado||{}), alumnos};
+    await patchPortalRow(uid_, h, {publicado});
+    if(state.portal) state.portal.publicado=publicado;
+  }catch(e){ /* silencioso: se corrige con el próximo "Publicar cambios" */ }
+}
+// Se dispara al tocar un checkbox de "qué ve este alumno" en su ficha — sólo si ya tiene llave
+// generada (si no, no hay nada publicado que actualizar todavía).
+async function maybeAutoRepublishAlumno(studentId){
+  if(!tokenForStudent(studentId)) return;
+  await republishAlumnoBlock(studentId);
+  render();
 }
 
 /* ============ materiales por materia (Supabase Storage, bucket privado "materiales") ============

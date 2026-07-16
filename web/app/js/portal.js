@@ -26,6 +26,58 @@ function fmtDate(ts){
   try{ return new Date(ts).toLocaleDateString("es-AR", {day:"numeric", month:"short"}); }
   catch(e){ return ""; }
 }
+// Fecha guardada como "YYYY-MM-DD" (ver buildAlumnoBlock en sync.js) — mediodía local para no
+// pisar el día por husos horarios, mismo criterio que fmtDate()/daysTo() del lado de la app.
+function fmtDiaLocal(ds){
+  if(!ds) return "";
+  try{ return new Date(ds+"T12:00:00").toLocaleDateString("es-AR", {day:"numeric", month:"short"}); }
+  catch(e){ return ds; }
+}
+// Colores/etiquetas de cada estado de unidad, duplicados acá (no cargamos config.js: portal.js
+// es standalone) — mismo criterio que SUPA_URL/SUPA_ANON_KEY más arriba.
+const TOPIC_BAR_META = {
+  pendiente:{pct:6, label:"Pendiente", color:"var(--faint)"},
+  visto:{pct:35, label:"Visto", color:"var(--blue)"},
+  practica:{pct:65, label:"En práctica", color:"var(--amber)"},
+  parcial:{pct:100, label:"Nivel parcial", color:"var(--green)"},
+  noentra:{pct:100, label:"No entra", color:"var(--faint)"},
+};
+// Bloque personal de un alumno con llave individual (ver buildAlumnoBlock en sync.js) — sólo
+// trae los campos que el docente tildó explícitamente en la ficha; nunca notas, pagos, señas ni
+// comentarios privados (eso ni siquiera sale de la app, ver el comentario en esa función).
+function personalHtml(alumno){
+  let h = `<div class="card personal"><div class="hello">Hola, ${esc(alumno.nombre||"")} 👋</div>`;
+  if("proximaClase" in alumno){
+    const pc = alumno.proximaClase;
+    h += `<div class="prow"><div class="plabel">Próxima clase</div>
+      ${pc ? `<div class="pvalue">${fmtDiaLocal(pc.date)} a las ${esc(pc.time)} (${Number(pc.duration)||60} min)</div>`
+           : `<div class="pempty">Sin clases agendadas por ahora.</div>`}
+    </div>`;
+  }
+  if("tarea" in alumno){
+    const t = alumno.tarea;
+    h += `<div class="prow"><div class="plabel">Tarea de la última clase</div>
+      ${t && t.nota ? `<div class="pvalue">${esc(t.nota)}<div class="pmeta">${fmtDiaLocal(t.date)}</div></div>`
+                     : `<div class="pempty">Sin tareas registradas.</div>`}
+    </div>`;
+  }
+  if("avance" in alumno){
+    const avance = alumno.avance||[];
+    h += `<div class="prow"><div class="plabel">Avance por unidades</div>`;
+    h += avance.length===0 ? `<div class="pempty">Todavía no hay unidades cargadas.</div>` : avance.map(it=>{
+      const m = TOPIC_BAR_META[it.estado] || TOPIC_BAR_META.pendiente;
+      return `<div class="unitrow">
+        <div class="unitname">${esc(it.unidad)}</div>
+        <div class="unitbarwrap">
+          <div class="unitbar"><div class="unitfill" style="width:${m.pct}%;background:${m.color}"></div></div>
+          <div class="unitstate" style="color:${m.color}">${m.label}</div>
+        </div>
+      </div>`;
+    }).join("");
+    h += `</div>`;
+  }
+  return h + `</div>`;
+}
 // Agrupa por materia y arma la sección de Biblioteca (primera y bien visible: es la sección
 // principal del portal). filtro filtra por materia+nombre de archivo, case-insensitive.
 function bibliotecaHtml(items, filtro){
@@ -56,6 +108,9 @@ function showPortal(res){
   const titulo = nombre ? `Portal de ${nombre}` : "Portal de tu profesor";
   const biblioteca = (res.data && Array.isArray(res.data.biblioteca)) ? res.data.biblioteca : [];
   let h = `<div class="eyebrow">Cuaderno de seguimiento</div><h1>${esc(titulo)}</h1>`;
+  // Llave de alumno: su bloque personal va primero, arriba de lo general (biblioteca/links) —
+  // es lo que más le importa a él en particular.
+  if(res.tipo==="alumno" && res.alumno) h += personalHtml(res.alumno);
   h += `<div class="card">
     <div class="ctitle">Biblioteca</div>
     ${biblioteca.length>1 ? `<input id="biblio-search" placeholder="Buscar por materia o archivo…" autocomplete="off">` : ""}

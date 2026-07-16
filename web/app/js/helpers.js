@@ -300,6 +300,34 @@ function pagoResumen(s, mk){
 function recordatoriosFor(){ return state.catalog.recordatorios || defaultRecordatorios(); }
 function costosFor(){ return state.catalog.costos || defaultCostos(); }
 function docenteFor(){ return state.catalog.docente || defaultDocente(); }
+// Qué de este alumno se comparte en su portal individual (ver s.portalShare, ficha → "Portal
+// para este alumno"). Por diseño sólo puede llevar estos tres booleanos — nunca notas, pagos,
+// señas ni comentarios privados (ver buildAlumnoBlock() en sync.js, que es lo único que lee esto
+// para armar el JSON público).
+function portalShareFor(s){ return s.portalShare || {proximaClase:false, tareas:false, avance:false}; }
+// Próxima clase de un alumno puntual (no importa el estado del alumno, a diferencia de
+// agendaRangeEvents que sólo mira activos): la más próxima entre sus clases puntuales futuras
+// no canceladas y la próxima ocurrencia de cada horario habitual dentro de los próximos 7 días.
+function nextClaseForStudent(s){
+  const from=today();
+  let best=null;
+  (s.clasesPuntuales||[]).forEach(p=>{
+    if(p.cancelada || p.date<from) return;
+    const key=p.date+" "+p.time;
+    if(!best || key<best.key) best={key, date:p.date, time:p.time, duration:Number(p.duration)||60};
+  });
+  (s.horarios||[]).forEach(hr=>{
+    for(let i=0;i<7;i++){
+      const d=addDays(from,i);
+      if(weekdayIdx(d)===hr.day){
+        const key=d+" "+hr.time;
+        if(!best || key<best.key) best={key, date:d, time:hr.time, duration:Number(hr.duration)||60};
+        break;
+      }
+    }
+  });
+  return best;
+}
 // "m:<id>" / "s:<id>" (valor del <select> de alcance en Rentabilidad) → {subjectId,studentId}
 // (nunca ambos con valor); "" o cualquier otra cosa → costo general, sin alcance.
 function parseScopeValue(v){

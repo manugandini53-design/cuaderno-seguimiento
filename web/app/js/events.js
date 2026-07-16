@@ -339,6 +339,22 @@ document.addEventListener("click", (e)=>{
     return;
   }
   else if(a==="portal-publicar"){ publicarPortal(); return; }
+  else if(a==="portal-alumno-generar" && s){ generarLlaveAlumno(s.id); return; }
+  else if(a==="portal-alumno-regen" && s){ regenerarLlaveAlumno(s.id); return; }
+  else if(a==="portal-alumno-revoke" && s){ revocarLlaveAlumno(s.id); return; }
+  else if(a==="portal-alumno-copy" && s){
+    const token=tokenForStudent(s.id); if(!token) return;
+    copyToClipboard(portalUrl(token))
+      .then(()=>{ state.portalAlumnoCopyMsg="Copiado."; state.portalAlumnoCopyId=s.id; render(); })
+      .catch(()=>{ state.portalAlumnoCopyMsg="No se pudo copiar. Seleccioná el texto manualmente."; state.portalAlumnoCopyId=s.id; render(); });
+    return;
+  }
+  else if(a==="portal-alumno-share-toggle" && s){
+    const key=el.dataset.key, cur=portalShareFor(s);
+    update(s.id,{portalShare:{...cur, [key]: !cur[key]}});
+    maybeAutoRepublishAlumno(s.id);
+    return;
+  }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }
   else if(a==="sync-now"){ syncNow(true); return; }
   else if(a==="dismiss-update-banner"){ state.updateBannerDismissed=true; }
@@ -414,7 +430,10 @@ document.addEventListener("click", (e)=>{
       state.newStudentError=""; state.showNew=false; state.view="detalle"; state.selId=st.id; state.tab="temas";
     }
   }
-  else if(a.startsWith("tab-")){ state.tab=a.slice(4); state.confirmDel=false; state.fichaError=""; state.sessionPrefillDate=""; }
+  else if(a.startsWith("tab-")){
+    state.tab=a.slice(4); state.confirmDel=false; state.fichaError=""; state.sessionPrefillDate="";
+    if(state.tab==="ficha" && !state.portalLoaded){ state.portalError=""; loadPortal(); }
+  }
   else if(a==="exam-result"){
     const id=el.dataset.id, result=el.dataset.r;
     const st=state.students.find(x=>x.id===id); if(!st) return;

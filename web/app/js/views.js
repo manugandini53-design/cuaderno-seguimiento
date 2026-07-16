@@ -337,6 +337,7 @@ function vDetalle(){
       <div><div class="ftitle" style="margin-bottom:2px">Contrato de servicio</div>
         <div class="hint">Modelo precargado con los datos de esta ficha, listo para completar y firmar.</div></div>
       <button class="chip" data-a="open-contrato">Generar contrato</button></div>`;
+    h += vPortalAlumnoCard(s);
     h += vHorariosCard(s);
     h += vPuntualesCard(s);
     h += vSeniaCard(s);
@@ -429,6 +430,51 @@ function vGoalClosure(s){
       <input type="range" min="0" max="100" step="5" value="50" id="goal-pct-${c.id}">
     </div>
   </div>`;
+}
+
+// Llave individual de portal para este alumno (ficha → Ficha): generar/copiar/regenerar/revocar
+// el link, y elegir qué ve — SIEMPRE explícito y acotado a estos tres checkboxes. A propósito no
+// hay forma de compartir notas del alumno, pagos, señas ni comentarios privados desde acá: ver
+// buildAlumnoBlock() en sync.js, la única función que lee datos de un alumno para el portal.
+function vPortalAlumnoCard(s){
+  let h = `<div class="formcard"><div class="ftitle">Portal para este alumno</div>`;
+  if(!state.portalLoaded){
+    h += `<div class="empty">Cargando…</div></div>`;
+    return h;
+  }
+  if(state.portalError && !state.portal){
+    h += `<div class="saveerr">${esc(state.portalError)}</div>
+    <button class="chip" data-a="portal-reload">Reintentar</button></div>`;
+    return h;
+  }
+  const token = tokenForStudent(s.id);
+  const busy = state.portalAlumnoBusy===s.id;
+  const share = portalShareFor(s);
+  h += `<div class="hint" style="margin-bottom:10px">Un link propio para ${esc(s.name)}, sin login — nunca muestra notas, pagos, señas ni comentarios privados, sólo lo que tildes abajo.</div>`;
+  if(!token){
+    h += `<button class="chip" data-a="portal-alumno-generar" ${busy?"disabled":""}>${busy?"Generando…":"Generar llave de acceso"}</button>`;
+  }else{
+    h += `<div class="field"><div class="flabel">Link para ${esc(s.name)}</div>
+      <input readonly value="${esc(portalUrl(token))}" onclick="this.select()"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="chip" data-a="portal-alumno-copy">Copiar link</button>
+      <button class="chip" data-a="portal-alumno-regen" ${busy?"disabled":""}>Regenerar llave</button>
+      <button class="danger" data-a="portal-alumno-revoke" ${busy?"disabled":""}>Revocar</button>
+    </div>
+    ${state.portalAlumnoCopyMsg && state.portalAlumnoCopyId===s.id?`<div class="hint" style="margin-top:6px;color:var(--green)">${esc(state.portalAlumnoCopyMsg)}</div>`:""}
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
+      <div class="flabel" style="margin-bottom:6px">Qué ve este alumno en su portal</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="chip ${share.proximaClase?"on":""}" data-a="portal-alumno-share-toggle" data-key="proximaClase">Su próxima clase</button>
+        <button class="chip ${share.tareas?"on":""}" data-a="portal-alumno-share-toggle" data-key="tareas">Tarea de la última clase</button>
+        <button class="chip ${share.avance?"on":""}" data-a="portal-alumno-share-toggle" data-key="avance">Avance por unidades</button>
+      </div>
+      <div class="hint" style="margin-top:8px">Esto se actualiza solo al tocar un tilde de arriba y cada vez que tocás «Publicar cambios» en Cuenta — si cambiás una clase, tarea o avance sin tocar nada acá, convendría republicar para que se vea al toque.</div>
+      <div class="hint" style="margin-top:6px">Nunca se comparten notas del alumno, pagos, señas ni comentarios privados, tilde o no tilde nada.</div>
+    </div>`;
+  }
+  if(state.portalAlumnoError) h += `<div class="saveerr" style="margin-top:10px">${esc(state.portalAlumnoError)}</div>`;
+  return h + `</div>`;
 }
 
 /* ============ agenda: horarios habituales + clases puntuales, dentro de la ficha ============ */
