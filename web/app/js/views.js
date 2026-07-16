@@ -82,6 +82,8 @@ function vTablero(){
     h += `<button class="alert" data-a="nav-pagos" style="cursor:pointer">
       <span class="dot"></span><span class="t">Tenés ${fmtMoney(totalPend)} pendientes de cobro de ${pendientesMes.length} alumno${pendientesMes.length===1?"":"s"} este mes</span></button>`;
   }
+  const seniasPend = pendingSeniasSummary();
+  if(seniasPend) h += `<div class="hint" style="margin:-2px 0 12px">${seniasPend.count} seña${seniasPend.count===1?"":"s"} pendiente${seniasPend.count===1?"":"s"} de cobro (${fmtMoney(seniasPend.total)})</div>`;
 
   const examPrompts = pendingExamResults();
   if(examPrompts.length){
@@ -281,6 +283,7 @@ function vDetalle(){
       <button class="chip" data-a="open-informe">Generar informe</button></div>`;
     h += vHorariosCard(s);
     h += vPuntualesCard(s);
+    h += vSeniaCard(s);
     if(hasPhone(s)) h += vWhatsApp(s);
     if(state.fichaError) h += `<div class="saveerr">${esc(state.fichaError)}</div>`;
     h += `<div class="formcard">
@@ -363,9 +366,7 @@ function vPuntualesCard(s){
   let h = `<div class="formcard"><div class="ftitle">Clases puntuales</div>
     <div class="hint" style="margin-bottom:8px">Clases sueltas que no siguen el horario habitual — una recuperación, una clase extra.</div>`;
   h += list.length===0 ? `<div class="empty">Sin clases puntuales cargadas.</div>`
-    : list.map(p=>`<div class="log" style="align-items:center">
-      <div class="body">${esc(fmtDate(p.date))} ${esc(p.time)} · ${p.duration||60} min</div>
-      <button class="del" data-a="del-puntual" data-id="${p.id}" title="Borrar">×</button></div>`).join("");
+    : list.map(p=>vPuntualRow(s,p)).join("");
   h += `<div class="frow" style="margin-top:8px;align-items:flex-end">
     <div class="field"><div class="flabel">Fecha</div><input type="date" id="p-date" value="${today()}"></div>
     <div class="field"><div class="flabel">Hora</div><input type="time" id="p-time" value="18:00"></div>
@@ -374,14 +375,86 @@ function vPuntualesCard(s){
   </div>`;
   return h;
 }
+// Una fila de "Clases puntuales": fecha/hora + (si el alumno cobra seña) el chip de estado
+// pendiente↔cobrada + el flujo de cancelar (confirmación con la consecuencia de la seña según
+// la política y la anticipación, ver applyCancelacion en helpers.js).
+function vPuntualRow(s,p){
+  const senia = hasSenia(s) ? p.seniaEstado : null;
+  const canToggle = senia==="pendiente" || senia==="cobrada";
+  const confirming = state.puntualCancelAskId===p.id;
+  let h = `<div class="log" style="align-items:center;flex-wrap:wrap">
+    <div class="body">${esc(DIAS_SEMANA[weekdayIdx(p.date)])} ${esc(fmtDate(p.date))} ${esc(p.time)} · ${p.duration||60} min
+      ${p.cancelada?`<div class="note" style="color:var(--red)">Cancelada ${esc(fmtDateTime(p.canceladaAt))}${senia?" · seña "+SENIA_ESTADO_META[senia].label.toLowerCase():""}</div>`:""}
+    </div>`;
+  if(senia && !p.cancelada){
+    h += canToggle
+      ? `<button class="chip" style="color:${SENIA_ESTADO_META[senia].fg};border-color:${SENIA_ESTADO_META[senia].fg}" data-a="toggle-senia-estado" data-id="${p.id}">${SENIA_ESTADO_META[senia].label}</button>`
+      : `<span class="chip" style="color:${SENIA_ESTADO_META[senia].fg};border-color:${SENIA_ESTADO_META[senia].fg}">${SENIA_ESTADO_META[senia].label}</span>`;
+  }
+  if(!p.cancelada){
+    if(!confirming){
+      h += `<button class="chip" data-a="puntual-cancel-ask" data-id="${p.id}">Cancelar</button>`;
+    }else{
+      const horas = hoursUntilClase(p);
+      const pol = cancelPolicyFor();
+      const seniaCobrada = hasSenia(s) && p.seniaEstado==="cobrada";
+      const consecuencia = !seniaCobrada ? "" :
+        (horas<pol.horasMinimas
+          ? ` La seña de ${fmtMoney(p.seniaMonto)} queda retenida (menos de ${pol.horasMinimas}hs de aviso).`
+          : ` La seña de ${fmtMoney(p.seniaMonto)} se ${pol.siATiempo==="acredita"?"acredita a la próxima clase":"devuelve"} (aviso con ${pol.horasMinimas}hs o más).`);
+      h += `<div style="flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px solid var(--soft)">
+        <div style="font-size:13px;color:var(--red);margin-bottom:6px">¿Cancelar esta clase?${consecuencia}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="danger" data-a="puntual-cancel-confirm" data-id="${p.id}">Sí, cancelar</button>
+          <button class="chip" data-a="puntual-cancel-cancel">Volver</button>
+        </div>
+      </div>`;
+    }
+  }
+  h += `<button class="del" data-a="del-puntual" data-id="${p.id}" title="Borrar">×</button></div>`;
+  return h;
+}
+// "¿Cobrás seña?" — opt-in por alumno; desactivada, no aparece nada de esto en ninguna otra
+// parte de la ficha ni en las clases puntuales (ver hasSenia() en helpers.js).
+function vSeniaCard(s){
+  const activa = hasSenia(s);
+  let h = `<div class="formcard"><div class="ftitle">¿Cobrás seña?</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${activa?"10px":"0"}">
+      <button class="chip ${!activa?"on":""}" data-a="toggle-senia" data-f="no">No</button>
+      <button class="chip ${activa?"on":""}" data-a="toggle-senia" data-f="si">Sí</button>
+    </div>`;
+  if(activa){
+    h += `<div class="frow">
+      <div class="field"><div class="flabel">Tipo</div><select data-f="seniaTipo">
+        <option value="monto" ${s.seniaTipo!=="porcentaje"?"selected":""}>Monto fijo</option>
+        <option value="porcentaje" ${s.seniaTipo==="porcentaje"?"selected":""}>% de la tarifa</option>
+      </select></div>
+      <div class="field"><div class="flabel">${s.seniaTipo==="porcentaje"?"Porcentaje":"Monto (pesos)"}</div>
+        <input type="number" min="0" data-f="seniaValor" value="${esc(s.seniaValor||"")}"></div>
+    </div>`;
+    h += (s.seniaTipo==="porcentaje" && !(Number(s.tarifa)>0))
+      ? `<div class="hint">Cargá una tarifa en esta ficha para que el porcentaje tenga sobre qué calcularse.</div>`
+      : `<div class="hint">Cada clase puntual que le programes va a pedir ${fmtMoney(seniaMontoFor(s))} de seña.</div>`;
+  }
+  return h + `</div>`;
+}
 
-/* ============ vista "Agenda": semana actual, todos los alumnos ============ */
+/* ============ vista "Agenda": semana o mes, todos los alumnos ============ */
 function vAgenda(){
+  const mode = state.agendaViewMode||"semana";
+  let h = `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
+  <div class="tabs" style="margin-bottom:16px">
+    ${tabbtn("agenda-view-semana",mode==="semana","Semana")}
+    ${tabbtn("agenda-view-mes",mode==="mes","Mes")}
+  </div>`;
+  h += mode==="mes" ? vAgendaMes() : vAgendaSemana();
+  return h;
+}
+function vAgendaSemana(){
   const offset = state.agendaWeekOffset||0;
   const weekStart = addDays(mondayOfWeek(today()), offset*7);
   const weekEnd = addDays(weekStart,6);
-  let h = `<button class="back" data-a="nav-tablero">← Volver al tablero</button>`;
-  h += `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  let h = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="chip" data-a="agenda-prev">← Semana anterior</button>
       <b style="font-size:14px">${esc(fmtDate(weekStart))} – ${esc(fmtDate(weekEnd))}</b>
@@ -414,12 +487,67 @@ function vAgenda(){
   }).join("") + `</div>`;
   return h;
 }
+/* ============ vista "Agenda" → Mes: grilla del mes con mini-marcas por día ============ */
+function vAgendaMes(){
+  const mk = monthKeyOffset(state.agendaMonthOffset||0);
+  const days = monthGridDays(mk);
+  const events = agendaRangeEvents(days[0], days[days.length-1]);
+  const byDate = {};
+  events.forEach(e=>{ (byDate[e.date]=byDate[e.date]||[]).push(e); });
+
+  let h = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="chip" data-a="agenda-month-prev">← Mes anterior</button>
+      <b style="font-size:14px">${esc(monthLabel(mk))}</b>
+      <button class="chip" data-a="agenda-month-next">Mes siguiente →</button>
+      ${(state.agendaMonthOffset||0)!==0?`<button class="chip" data-a="agenda-month-today">Este mes</button>`:""}
+    </div>
+  </div>`;
+
+  h += `<div class="cal-weekdays">` + DIAS_SEMANA.map(d=>`<div>${esc(d.slice(0,3))}</div>`).join("") + `</div>`;
+  h += `<div class="cal-grid">` + days.map(d=>{
+    const inMonth = d.slice(0,7)===mk;
+    const n = (byDate[d]||[]).length;
+    return `<button class="cal-cell ${inMonth?"":"other"} ${d===today()?"today":""} ${state.agendaSelectedDay===d?"selected":""}"
+      data-a="agenda-day-select" data-date="${d}">
+      <span class="cal-daynum">${parseInt(d.slice(8,10),10)}</span>
+      ${n>0?`<span class="cal-count">${n}</span>`:""}
+    </button>`;
+  }).join("") + `</div>`;
+
+  if(state.agendaSelectedDay) h += vAgendaDayDetail(state.agendaSelectedDay);
+  return h;
+}
+function vAgendaDayDetail(date){
+  const events = agendaRangeEvents(date,date).sort((a,b)=>a.time.localeCompare(b.time));
+  let h = `<div class="formcard">
+    <div class="ftitle">${esc(fmtDate(date))}${date===today()?" · hoy":""}</div>`;
+  h += events.length===0 ? `<div class="empty">Sin clases este día.</div>`
+    : events.map(e=>vAgendaEvent(e,date)).join("");
+
+  if(!state.agendaQuickAddOpen){
+    h += `<button class="chip" style="margin-top:10px" data-a="agenda-quick-open">Programar clase acá</button>`;
+  }else{
+    const activos = alive().filter(s=>s.status==="activo").sort((a,b)=>a.name.localeCompare(b.name));
+    h += activos.length===0 ? `<div class="hint" style="margin-top:10px">No hay alumnos activos para programarles una clase.</div>`
+      : `<div class="frow" style="margin-top:10px;align-items:flex-end">
+        <div class="field"><div class="flabel">Alumno</div><select id="aq-student">
+          ${activos.map(s=>`<option value="${s.id}">${esc(s.name)}${s.subject?" · "+esc(s.subject):""}</option>`).join("")}
+        </select></div>
+        <div class="field"><div class="flabel">Hora</div><input type="time" id="aq-time" value="18:00"></div>
+        <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" id="aq-duration" value="60" min="15" step="15"></div>
+        <button class="chip" data-a="agenda-quick-add" style="margin-bottom:2px">+ Programar</button>
+      </div>`;
+  }
+  return h + `</div>`;
+}
 function vAgendaEvent(e, date){
   const past = date<today();
   const already = past && studentHasSessionOnDate(e.studentId, e.date);
   return `<div class="agenda-event ${e.overlap?"overlap":""}">
     <div class="agenda-time">${esc(e.time)} <span class="hint">${e.duration}min</span></div>
     <div class="agenda-who"><b>${esc(e.studentName)}</b>${e.subject?` <span class="hint">· ${esc(e.subject)}</span>`:""}</div>
+    ${e.seniaEstado?`<span class="chip" style="margin-top:4px;color:${SENIA_ESTADO_META[e.seniaEstado].fg};border-color:${SENIA_ESTADO_META[e.seniaEstado].fg}">Seña ${SENIA_ESTADO_META[e.seniaEstado].label.toLowerCase()}</span>`:""}
     ${e.overlap?`<div class="hint" style="color:var(--red)">⚠ se superpone con otra clase</div>`:""}
     ${past && already ? `<div class="hint" style="color:var(--green)">Ya registrada</div>` : ""}
     ${past && !already ? `<button class="chip" style="margin-top:6px" data-a="agenda-log" data-id="${e.studentId}" data-date="${e.date}">Registrar esta clase</button>` : ""}
@@ -524,31 +652,47 @@ function vPagos(){
     </select></div>`;
 
   const rows = alive().filter(hasPagos).map(s=>({s, r:pagoResumen(s,mk)}));
-  if(rows.length===0)
-    return h + `<div class="empty">Todavía no hay alumnos con tarifa cargada. Se configura desde la pestaña «Ficha» de cada alumno.</div>`;
+  const seniaRes = pagosSeniaResumen(mk);
+  if(rows.length===0 && seniaRes.rows.length===0)
+    return h + `<div class="empty">Todavía no hay alumnos con tarifa cargada ni señas registradas este mes. Se configuran desde la pestaña «Ficha» de cada alumno.</div>`;
 
-  const totalCobrado = rows.reduce((a,x)=>a+x.r.cobrado,0);
-  const totalPendiente = rows.reduce((a,x)=>a+x.r.pendiente,0);
-  const totalClases = rows.reduce((a,x)=>a+x.r.clases,0);
-  h += `<div class="stats">
-    <div class="stat"><b>${fmtMoney(totalCobrado)}</b><span>cobrado</span></div>
-    <div class="stat ${totalPendiente?"warn":""}"><b>${fmtMoney(totalPendiente)}</b><span>pendiente</span></div>
-    <div class="stat"><b>${totalClases}</b><span>clases dadas</span></div>
-  </div>`;
+  if(rows.length){
+    const totalCobrado = rows.reduce((a,x)=>a+x.r.cobrado,0);
+    const totalPendiente = rows.reduce((a,x)=>a+x.r.pendiente,0);
+    const totalClases = rows.reduce((a,x)=>a+x.r.clases,0);
+    h += `<div class="stats">
+      <div class="stat"><b>${fmtMoney(totalCobrado)}</b><span>cobrado</span></div>
+      <div class="stat ${totalPendiente?"warn":""}"><b>${fmtMoney(totalPendiente)}</b><span>pendiente</span></div>
+      <div class="stat"><b>${totalClases}</b><span>clases dadas</span></div>
+    </div>`;
 
-  const nameCount={};
-  rows.forEach(x=>{ const n=normName(x.s.name); nameCount[n]=(nameCount[n]||0)+1; });
-  const sorted=[...rows].sort((a,b)=>b.r.pendiente-a.r.pendiente || a.s.name.localeCompare(b.s.name));
+    const nameCount={};
+    rows.forEach(x=>{ const n=normName(x.s.name); nameCount[n]=(nameCount[n]||0)+1; });
+    const sorted=[...rows].sort((a,b)=>b.r.pendiente-a.r.pendiente || a.s.name.localeCompare(b.s.name));
 
-  h += `<div class="stitle">Por alumno</div>`;
-  h += sorted.map(({s,r})=>{
-    const showSubject = nameCount[normName(s.name)]>1;
-    return `<button class="row" data-a="open" data-id="${s.id}">
-      <div class="main"><div class="name">${esc(s.name)}${showSubject?` <span class="hint">· ${esc(s.subject||"materia s/d")}</span>`:""}</div>
-      <div class="sub">${s.modalidad==="clase"?`${r.clases} clase${r.clases===1?"":"s"} dada${r.clases===1?"":"s"}`:"mensual"} · cobrado ${fmtMoney(r.cobrado)}</div></div>
-      <div class="right"><span style="color:${r.pendiente?"var(--red)":"var(--green)"};font-weight:600">${r.pendiente?fmtMoney(r.pendiente)+" pendiente":"al día"}</span></div>
-    </button>`;
-  }).join("");
+    h += `<div class="stitle">Por alumno</div>`;
+    h += sorted.map(({s,r})=>{
+      const showSubject = nameCount[normName(s.name)]>1;
+      return `<button class="row" data-a="open" data-id="${s.id}">
+        <div class="main"><div class="name">${esc(s.name)}${showSubject?` <span class="hint">· ${esc(s.subject||"materia s/d")}</span>`:""}</div>
+        <div class="sub">${s.modalidad==="clase"?`${r.clases} clase${r.clases===1?"":"s"} dada${r.clases===1?"":"s"}`:"mensual"} · cobrado ${fmtMoney(r.cobrado)}</div></div>
+        <div class="right"><span style="color:${r.pendiente?"var(--red)":"var(--green)"};font-weight:600">${r.pendiente?fmtMoney(r.pendiente)+" pendiente":"al día"}</span></div>
+      </button>`;
+    }).join("");
+  }
+
+  if(seniaRes.rows.length){
+    h += `<div class="stitle">Señas</div>
+    <div class="stats">
+      <div class="stat"><b>${fmtMoney(seniaRes.cobrado)}</b><span>cobradas</span></div>
+      <div class="stat"><b>${fmtMoney(seniaRes.retenida)}</b><span>retenidas</span></div>
+    </div>`;
+    h += seniaRes.rows.map(({s,p})=>`<div class="log">
+      <div class="d">${fmtDate(p.date)}</div>
+      <div class="body">${esc(s.name)}${s.subject?` <span class="hint">· ${esc(s.subject)}</span>`:""}</div>
+      <span class="chip" style="color:${SENIA_ESTADO_META[p.seniaEstado].fg};border-color:${SENIA_ESTADO_META[p.seniaEstado].fg};flex-shrink:0">${fmtMoney(p.seniaMonto)} · ${SENIA_ESTADO_META[p.seniaEstado].label}</span>
+    </div>`).join("");
+  }
   return h;
 }
 
@@ -734,7 +878,23 @@ function vSetPassword(){
 
 function vCuenta(){
   const ses=getSes();
+  const pol=cancelPolicyFor();
   return `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
+  <div class="formcard"><div class="ftitle">Política de cancelación</div>
+    <div class="hint" style="margin-bottom:10px">Se aplica al cancelar una clase puntual con seña ya cobrada (ver la ficha de cada alumno). El texto queda guardado para reutilizarlo donde haga falta.</div>
+    <div class="frow">
+      <div class="field" style="max-width:200px"><div class="flabel">Horas mínimas de aviso</div>
+        <input type="number" min="0" data-cf="policy-horas" value="${pol.horasMinimas}"></div>
+      <div class="field"><div class="flabel">Si cancela a tiempo, la seña…</div>
+        <select data-cf="policy-atiempo">
+          <option value="devuelve" ${pol.siATiempo!=="acredita"?"selected":""}>Se devuelve</option>
+          <option value="acredita" ${pol.siATiempo==="acredita"?"selected":""}>Se acredita a la próxima clase</option>
+        </select></div>
+    </div>
+    <div class="field"><div class="flabel">Texto de la política (opcional, para compartir)</div>
+      <textarea data-cf="policy-texto" placeholder="Ej: Las clases se cancelan con 24hs de aviso. Con menos aviso, la seña no se devuelve.">${esc(pol.texto||"")}</textarea></div>
+    <div class="hint" style="margin-top:6px">Si la seña de esa clase todavía no se cobró, cancelar no tiene ninguna consecuencia sobre ella.</div>
+  </div>
   <div class="formcard"><div class="ftitle">Cuenta</div>
     <div style="font-size:13.5px;margin-bottom:6px">Conectado como <b>${esc(ses?ses.email:"")}</b></div>
     <div class="hint" style="margin-bottom:6px">${sesIsAdmin(ses)?"Cuenta de administrador":"Cuenta de profesor"}</div>

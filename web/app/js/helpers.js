@@ -78,7 +78,9 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               newVersionTag:null, updateBannerDismissed:false,
               pagosMonth:null,
               informePeriod:"3m", informeCopyMsg:"",
-              agendaWeekOffset:0, sessionPrefillDate:"" };
+              agendaWeekOffset:0, sessionPrefillDate:"",
+              agendaViewMode:"semana", agendaMonthOffset:0, agendaSelectedDay:null, agendaQuickAddOpen:false,
+              puntualCancelAskId:null };
 
 const subjById = (id) => state.catalog.subjects.find(m=>m.id===id) || null;
 function unitsFor(s){ const m=subjById(s.subjectId); return m ? m.units : Object.keys(s.topics||{}); }
@@ -121,7 +123,8 @@ function emptyStudent(){
     chair:"", status:"activo", semaforo:"sd", examDate:"", startDate:today(), notes:"",
     updatedAt:Date.now(), topics:{}, sessions:[], simulacros:[],
     tarifa:"", modalidad:"", pagos:[], informeComment:"", phone:"", examResults:[],
-    horarios:[], clasesPuntuales:[] };
+    horarios:[], clasesPuntuales:[],
+    seniaActiva:false, seniaTipo:"monto", seniaValor:"" };
 }
 
 /* ============ regla: una ficha = un alumno en una materia ============
@@ -299,24 +302,139 @@ function hasScheduledBeforeExam(s){
   for(let d=from; d<=to; d=addDays(d,1)) if(days.has(weekdayIdx(d))) return true;
   return false;
 }
-// eventos de una semana (weekStart = lunes) para todos los alumnos activos: horarios
-// habituales expandidos a esa semana + clases puntuales que caen en ella.
-function agendaWeekEvents(weekStart){
-  const weekEnd = addDays(weekStart,6);
+// eventos de un rango de fechas (inclusive) para todos los alumnos activos: horarios
+// habituales expandidos día a día dentro del rango + clases puntuales no canceladas que
+// caen en él. Generaliza lo que antes hacía agendaWeekEvents (semana = rango de 7 días) para
+// que la vista mensual pueda pedir el mismo tipo de evento sobre varias semanas de una.
+function agendaRangeEvents(fromDate, toDate){
   const events = [];
   alive().filter(s=>s.status==="activo").forEach(s=>{
-    (s.horarios||[]).forEach(h=>events.push({
-      studentId:s.id, studentName:s.name, subject:s.subject,
-      date:addDays(weekStart,h.day), time:h.time, duration:Number(h.duration)||60,
-      kind:"horario", sourceId:h.id }));
+    if((s.horarios||[]).length){
+      for(let d=fromDate; d<=toDate; d=addDays(d,1)){
+        const dow=weekdayIdx(d);
+        (s.horarios||[]).filter(h=>h.day===dow).forEach(h=>{
+          events.push({studentId:s.id, studentName:s.name, subject:s.subject,
+            date:d, time:h.time, duration:Number(h.duration)||60, kind:"horario", sourceId:h.id});
+        });
+      }
+    }
     (s.clasesPuntuales||[]).forEach(p=>{
-      if(p.date>=weekStart && p.date<=weekEnd) events.push({
+      if(p.cancelada) return;
+      if(p.date>=fromDate && p.date<=toDate) events.push({
         studentId:s.id, studentName:s.name, subject:s.subject,
         date:p.date, time:p.time, duration:Number(p.duration)||60,
-        kind:"puntual", sourceId:p.id });
+        kind:"puntual", sourceId:p.id, seniaEstado:p.seniaEstado });
     });
   });
   return events;
+}
+function agendaWeekEvents(weekStart){ return agendaRangeEvents(weekStart, addDays(weekStart,6)); }
+// grilla de un mes (YYYY-MM) en semanas completas de lunes a domingo, con los días de los
+// meses vecinos que completan la primera y última semana (se muestran atenuados en la UI).
+function monthKeyOffset(n){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+n); return d.toISOString().slice(0,7); }
+function lastDayOfMonth(mk){ const d=new Date(mk+"-01T12:00:00"); d.setMonth(d.getMonth()+1); d.setDate(0); return d.toISOString().slice(0,10); }
+function monthGridDays(mk){
+  const start = mondayOfWeek(mk+"-01");
+  const end = addDays(mondayOfWeek(lastDayOfMonth(mk)),6);
+  const days=[]; for(let d=start; d<=end; d=addDays(d,1)) days.push(d);
+  return days;
+}
+
+/* ============ señas y política de cancelación (dentro de clasesPuntuales, opcional por alumno) ============
+   Seña: opt-in por alumno (s.seniaActiva). Cada clase puntual creada mientras está activa guarda
+   una foto del monto (s.seniaValor/tarifa al momento de crearla, ver seniaMontoFor) y arranca en
+   "pendiente". Sólo pendiente↔cobrada se alternan a mano (toggle-senia-estado); retenida/devuelta
+   las pone applyCancelacion() al cancelar la clase, según la política y la anticipación. */
+function hasSenia(s){ return !!s.seniaActiva; }
+function seniaMontoFor(s){
+  if(s.seniaTipo==="porcentaje") return (Number(s.tarifa)||0) * (Number(s.seniaValor)||0) / 100;
+  return Number(s.seniaValor)||0;
+}
+function cancelPolicyFor(){ return state.catalog.cancelPolicy || defaultCancelPolicy(); }
+// horas entre ahora y el momento exacto de la clase (puede dar negativo si ya pasó — eso
+// hace que la anticipación quede por debajo del mínimo y la seña se retenga, sin caso especial).
+function hoursUntilClase(p){ return (new Date(p.date+"T"+(p.time||"00:00")+":00") - new Date())/3600000; }
+// clase puntual anterior (no cancelada) con seña todavía pendiente — para el aviso de "no le
+// cobraste la seña de la clase del [fecha]" al programar una nueva.
+function previousPendingSenia(s, beforeDate){
+  return (s.clasesPuntuales||[])
+    .filter(x=>!x.cancelada && x.seniaEstado==="pendiente" && x.date<beforeDate)
+    .sort((a,b)=>b.date.localeCompare(a.date))[0] || null;
+}
+// próxima clase puntual (no cancelada) con seña pendiente, estrictamente después de afterDate —
+// la usa applyCancelacion() para "acreditar a la próxima" cuando la política lo pide.
+function nextPendingPuntual(s, afterDate){
+  return (s.clasesPuntuales||[])
+    .filter(x=>!x.cancelada && x.seniaEstado==="pendiente" && x.date>afterDate)
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time))[0] || null;
+}
+// crea una clase puntual para studentId (usado tanto desde la ficha como desde "Programar clase
+// acá" en la agenda mensual) — snapshotea la seña si el alumno la tiene activa y devuelve un
+// aviso (o null) si la clase anterior de ese alumno todavía tiene la seña sin cobrar.
+function addPuntualClase(studentId, date, time, duration){
+  const s = state.students.find(x=>x.id===studentId); if(!s) return {warning:null};
+  const nueva = {id:uid(), date, time, duration};
+  let warning = null;
+  if(hasSenia(s)){
+    nueva.seniaEstado="pendiente"; nueva.seniaMonto=seniaMontoFor(s);
+    const prev = previousPendingSenia(s, date);
+    if(prev) warning = `No le cobraste la seña de la clase del ${fmtDate(prev.date)}.`;
+  }
+  update(studentId, {clasesPuntuales:[...(s.clasesPuntuales||[]), nueva]});
+  return {warning};
+}
+// cancela una clase puntual y aplica la política de cancelación según la anticipación —
+// sólo tiene efecto sobre la seña si ya estaba cobrada (si seguía pendiente, no hay nada
+// que retener ni devolver). "Se acredita a la próxima" busca la siguiente clase puntual con
+// seña pendiente de ese alumno y la marca cobrada directo, sin volver a pedirla.
+function applyCancelacion(studentId, puntualId){
+  const s = state.students.find(x=>x.id===studentId); if(!s) return null;
+  const p = (s.clasesPuntuales||[]).find(x=>x.id===puntualId); if(!p || p.cancelada) return null;
+  const horas = hoursUntilClase(p);
+  const pol = cancelPolicyFor();
+  let nuevoEstado = p.seniaEstado, creditId = null;
+  if(p.seniaEstado==="cobrada"){
+    if(horas < pol.horasMinimas){
+      nuevoEstado = "retenida";
+    }else{
+      nuevoEstado = "devuelta";
+      if(pol.siATiempo==="acredita"){
+        const next = nextPendingPuntual(s, p.date);
+        if(next) creditId = next.id;
+      }
+    }
+  }
+  const clasesPuntuales = (s.clasesPuntuales||[]).map(x=>{
+    if(x.id===puntualId) return {...x, cancelada:true, canceladaAt:Date.now(), canceladaAnticipacionHoras:Math.round(horas), seniaEstado:nuevoEstado};
+    if(creditId && x.id===creditId) return {...x, seniaEstado:"cobrada", seniaCreditadaDe:puntualId};
+    return x;
+  });
+  update(studentId, {clasesPuntuales});
+  return {horas, nuevoEstado, credited:!!creditId};
+}
+// señas cobradas de este mes en cualquier alumno, sin cruzarse con clases/mensualidades
+// (ver hasPagos/pagoResumen más arriba) — rubro propio en la vista "Pagos".
+function pagosSeniaResumen(mk){
+  const rows=[]; let cobrado=0, retenida=0;
+  alive().forEach(s=>{
+    (s.clasesPuntuales||[]).forEach(p=>{
+      if(monthKeyOf(p.date)!==mk) return;
+      if(p.seniaEstado==="cobrada"){ cobrado+=Number(p.seniaMonto)||0; rows.push({s,p}); }
+      else if(p.seniaEstado==="retenida"){ retenida+=Number(p.seniaMonto)||0; rows.push({s,p}); }
+    });
+  });
+  rows.sort((a,b)=>a.p.date.localeCompare(b.p.date));
+  return {cobrado, retenida, rows};
+}
+// señas sin cobrar de alumnos activos, para la línea discreta del tablero.
+function pendingSeniasSummary(){
+  let count=0, total=0;
+  alive().filter(s=>s.status==="activo").forEach(s=>{
+    (s.clasesPuntuales||[]).forEach(p=>{
+      if(!p.cancelada && p.seniaEstado==="pendiente"){ count++; total+=Number(p.seniaMonto)||0; }
+    });
+  });
+  return count>0 ? {count,total} : null;
 }
 // marca overlap:true en cada evento que se superpone en horario con otro el mismo día
 // (distinto alumno u horario doble cargado sin querer).

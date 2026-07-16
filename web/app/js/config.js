@@ -77,9 +77,23 @@ function defaultCatalog(){
     subjects:[{ id:"materia-ejemplo", name:"Materia de ejemplo (tocala para verla)",
       units:["Unidad 1: introducción","Unidad 2: desarrollo","Unidad 3: aplicaciones","Unidad 4: repaso final"] }],
     packs:[],
+    cancelPolicy: defaultCancelPolicy(),
     updatedAt:0 };
 }
 const TAREA_META = {hecha:{label:"hecha",fg:"var(--tarea-hecha-fg)"},intentada:{label:"intentada",fg:"var(--tarea-intentada-fg)"},no:{label:"no hecha",fg:"var(--tarea-no-fg)"}};
+// Estado de la seña de una clase puntual (ver s.clasesPuntuales[].seniaEstado en helpers.js).
+// "retenida"/"devuelta" son terminales (las pone applyCancelacion, no se tocan a mano); sólo
+// "pendiente"↔"cobrada" se alternan con un toque (ver toggle-senia-estado en events.js).
+const SENIA_ESTADO_META = {
+  pendiente:{label:"Pendiente",fg:"var(--amber)"},
+  cobrada:{label:"Cobrada",fg:"var(--green)"},
+  retenida:{label:"Retenida",fg:"var(--red)"},
+  devuelta:{label:"Devuelta",fg:"var(--muted)"},
+};
+// Política de cancelación por defecto (state.catalog.cancelPolicy) — catálogos sincronizados
+// antes de este campo no lo tienen; se completa con esto en cada lectura (ver cancelPolicyFor()
+// en helpers.js), sin migrar nada a mano.
+function defaultCancelPolicy(){ return {horasMinimas:24, siATiempo:"devuelve", texto:""}; }
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 // Plantillas de materias: temarios típicos de primer año universitario para no arrancar

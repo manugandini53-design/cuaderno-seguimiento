@@ -60,9 +60,30 @@ document.addEventListener("click", (e)=>{
   else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; state.editPackId=null; }
   else if(a==="nav-pagos"){ state.view="pagos"; state.selId=null; if(!state.pagosMonth) state.pagosMonth=currentMonthKey(); }
   else if(a==="nav-agenda"){ state.view="agenda"; state.selId=null; }
+  else if(a==="agenda-view-semana"){ state.agendaViewMode="semana"; }
+  else if(a==="agenda-view-mes"){ state.agendaViewMode="mes"; }
   else if(a==="agenda-prev"){ state.agendaWeekOffset=(state.agendaWeekOffset||0)-1; }
   else if(a==="agenda-next"){ state.agendaWeekOffset=(state.agendaWeekOffset||0)+1; }
   else if(a==="agenda-today"){ state.agendaWeekOffset=0; }
+  else if(a==="agenda-month-prev"){ state.agendaMonthOffset=(state.agendaMonthOffset||0)-1; state.agendaSelectedDay=null; state.agendaQuickAddOpen=false; }
+  else if(a==="agenda-month-next"){ state.agendaMonthOffset=(state.agendaMonthOffset||0)+1; state.agendaSelectedDay=null; state.agendaQuickAddOpen=false; }
+  else if(a==="agenda-month-today"){ state.agendaMonthOffset=0; state.agendaSelectedDay=null; state.agendaQuickAddOpen=false; }
+  else if(a==="agenda-day-select"){
+    const d=el.dataset.date;
+    state.agendaSelectedDay = state.agendaSelectedDay===d ? null : d;
+    state.agendaQuickAddOpen=false;
+  }
+  else if(a==="agenda-quick-open"){ state.agendaQuickAddOpen=true; }
+  else if(a==="agenda-quick-add"){
+    const studentEl=document.getElementById("aq-student"); if(!studentEl) return;
+    const date=state.agendaSelectedDay; if(!date) return;
+    const time=document.getElementById("aq-time").value; if(!time) return;
+    const duration=parseInt(document.getElementById("aq-duration").value,10)||60;
+    state.agendaQuickAddOpen=false;
+    const {warning}=addPuntualClase(studentEl.value, date, time, duration);
+    if(warning) alert(warning);
+    return;
+  }
   else if(a==="agenda-log"){
     state.selId=el.dataset.id; state.view="detalle"; state.tab="clases";
     state.sessionPrefillDate=el.dataset.date; state.confirmDel=false; state.fichaError="";
@@ -418,10 +439,28 @@ document.addEventListener("click", (e)=>{
     const date=document.getElementById("p-date").value; if(!date) return;
     const time=document.getElementById("p-time").value; if(!time) return;
     const duration=parseInt(document.getElementById("p-duration").value,10)||60;
-    update(s.id,{clasesPuntuales:[...(s.clasesPuntuales||[]), {id:uid(), date, time, duration}]}); return;
+    const {warning}=addPuntualClase(s.id, date, time, duration);
+    if(warning) alert(warning);
+    return;
   }
   else if(a==="del-puntual" && s){
     update(s.id,{clasesPuntuales:(s.clasesPuntuales||[]).filter(x=>x.id!==el.dataset.id)}); return;
+  }
+  else if(a==="toggle-senia" && s){
+    update(s.id,{seniaActiva:el.dataset.f==="si", seniaTipo:s.seniaTipo||"monto"}); return;
+  }
+  else if(a==="toggle-senia-estado" && s){
+    const p=(s.clasesPuntuales||[]).find(x=>x.id===el.dataset.id); if(!p || p.cancelada) return;
+    if(p.seniaEstado!=="pendiente" && p.seniaEstado!=="cobrada") return;
+    const next = p.seniaEstado==="pendiente" ? "cobrada" : "pendiente";
+    update(s.id,{clasesPuntuales:s.clasesPuntuales.map(x=>x.id===p.id?{...x,seniaEstado:next}:x)}); return;
+  }
+  else if(a==="puntual-cancel-ask"){ state.puntualCancelAskId=el.dataset.id; }
+  else if(a==="puntual-cancel-cancel"){ state.puntualCancelAskId=null; }
+  else if(a==="puntual-cancel-confirm" && s){
+    state.puntualCancelAskId=null;
+    applyCancelacion(s.id, el.dataset.id);
+    return;
   }
   else if(a==="toggle-cobrada" && s){
     update(s.id,{sessions:s.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:!x.cobrada}:x)}); return;
@@ -502,6 +541,18 @@ document.addEventListener("change",(e)=>{
     p.name=v; touchCatalog(); return;
   }
   if(cf && cf.dataset.cf==="new-pack-name"){ state.newPackName=cf.value; return; }
+  if(cf && cf.dataset.cf==="policy-horas"){
+    state.catalog.cancelPolicy = {...cancelPolicyFor(), horasMinimas:Math.max(0, parseInt(cf.value,10)||0)};
+    touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf==="policy-atiempo"){
+    state.catalog.cancelPolicy = {...cancelPolicyFor(), siATiempo:cf.value};
+    touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf==="policy-texto"){
+    state.catalog.cancelPolicy = {...cancelPolicyFor(), texto:cf.value};
+    touchCatalog(); return;
+  }
   if(cf && cf.dataset.cf==="stats-subject"){ state.statsSubjectId=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-month"){ state.pagosMonth=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="informe-period"){ state.informePeriod=cf.value; state.informeCopyMsg=""; render(); return; }
