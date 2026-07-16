@@ -1317,6 +1317,7 @@ function vCuenta(){
       <button class="danger" data-a="auth-logout">Cerrar sesión</button>
     </div>
   </div>
+  ${vPortalCard()}
   <div class="formcard"><div class="ftitle">Apariencia</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${themeBtn("system","Según el sistema")}${themeBtn("light","Claro")}${themeBtn("dark","Oscuro")}
@@ -1340,6 +1341,45 @@ function reportStatusText(){
   if(state.reportStatus==="ok") return "¡Gracias! Recibimos tu reporte.";
   if(state.reportStatus==="error") return state.reportError||"No se pudo enviar el reporte.";
   return "";
+}
+
+// Portal para tus alumnos (Cuenta) — activar/desactivar, ver/copiar el link, regenerar la
+// llave y publicar el JSON público (ver migración 013_portal.sql y portal.html/js/portal.js).
+function vPortalCard(){
+  let h = `<div class="formcard"><div class="ftitle">Portal para tus alumnos</div>`;
+  if(state.portalError && !state.portal){
+    h += `<div class="saveerr">${esc(state.portalError)}</div>
+    <button class="chip" data-a="portal-reload">Reintentar</button></div>`;
+    return h;
+  }
+  if(!state.portalLoaded || !state.portal){
+    h += `<div class="empty">Cargando…</div></div>`;
+    return h;
+  }
+  const p=state.portal;
+  h += `<div class="hint" style="margin-bottom:10px">Una página pública, sin login, donde tus alumnos ven lo que quieras compartirles.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <button class="chip ${!p.habilitado?"on":""}" data-a="portal-toggle" data-f="no">Desactivado</button>
+    <button class="chip ${p.habilitado?"on":""}" data-a="portal-toggle" data-f="si">Activado</button>
+  </div>`;
+  if(p.habilitado){
+    h += `<div class="field"><div class="flabel">Link para compartir</div>
+      <input readonly value="${esc(portalUrl(p.token))}" onclick="this.select()"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="chip" data-a="portal-copy">Copiar link</button>
+      <button class="chip" data-a="portal-regen">Regenerar llave</button>
+    </div>
+    ${state.portalCopyMsg?`<div class="hint" style="margin-top:6px;color:var(--green)">${esc(state.portalCopyMsg)}</div>`:""}
+    <div class="hint" style="margin-top:10px">Regenerar la llave hace que el link de arriba deje de funcionar — cualquier alumno que ya lo tenga guardado pierde el acceso.</div>`;
+  }
+  h += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
+    <div class="field"><div class="flabel">Nombre a mostrar en el portal</div>
+      <input data-cf="portal-nombre" placeholder="Ej: Prof. Juan Pérez" value="${esc(p.draftNombre||"")}"></div>
+    <button class="primary" style="margin:10px 0 0;margin-left:0" data-a="portal-publicar" ${state.portalSaving?"disabled":""}>Publicar cambios</button>
+    ${state.portalSaveMsg?`<div class="hint" style="margin-top:8px">${esc(state.portalSaveMsg)}</div>`:""}
+  </div>`;
+  if(state.portalError) h += `<div class="saveerr" style="margin-top:10px">${esc(state.portalError)}</div>`;
+  return h + `</div>`;
 }
 
 function vBackupsList(){

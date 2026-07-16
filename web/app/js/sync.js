@@ -358,6 +358,96 @@ async function toggleReporte(id,current){
   }catch(e){ /* se puede reintentar tocando el botón de nuevo */ }
 }
 
+/* ============ portal de invitados (tabla portales, migración 013) ============
+   Fila propia por docente: token general + tokens por alumno (más adelante), habilitado,
+   y el JSON "publicado" que ve el portal público (portal.html, sin sesión, vía la RPC
+   portal_publico). Por ahora publicado sólo lleva {nombre}; se arma en publicarPortal(). */
+function genPortalToken(){
+  const bytes=new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b=>b.toString(16).padStart(2,"0")).join(""); // 48 caracteres
+}
+function portalUrl(token){ return new URL("portal.html?k="+encodeURIComponent(token), location.href).href; }
+async function loadPortal(){
+  state.portalLoaded=false; state.portalError=""; render();
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+    const r=await fetch(SUPA_URL+"/rest/v1/portales?select=token,habilitado,publicado", {headers:h});
+    if(!r.ok) throw new Error("error "+r.status);
+    const rows=await r.json();
+    let row=rows[0];
+    if(!row){
+      const token=genPortalToken();
+      const up=await fetch(SUPA_URL+"/rest/v1/portales", {method:"POST",
+        headers:{...h, Prefer:"return=representation"},
+        body:JSON.stringify([{user_id:uid_, token, habilitado:false, publicado:{}}])});
+      if(!up.ok) throw new Error("no se pudo crear el portal");
+      row=(await up.json())[0];
+    }
+    state.portal={token:row.token, habilitado:row.habilitado, publicado:row.publicado||{},
+      draftNombre:(row.publicado&&row.publicado.nombre)||""};
+    state.portalLoaded=true;
+  }catch(e){
+    state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo cargar el portal.";
+    state.portalLoaded=true;
+  }
+  render();
+}
+async function togglePortalHabilitado(next){
+  if(!state.portal || state.portal.habilitado===next) return;
+  const prev=state.portal.habilitado;
+  state.portal.habilitado=next; render();
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+    const r=await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
+      body:JSON.stringify({habilitado:next, updated_at:new Date().toISOString()})});
+    if(!r.ok) throw new Error();
+  }catch(e){
+    state.portal.habilitado=prev;
+    state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo actualizar. Probá de nuevo.";
+    render();
+  }
+}
+async function regenerarPortalToken(){
+  if(!state.portal) return;
+  if(!confirm("La llave anterior deja de funcionar de inmediato: cualquier alumno que la tenga guardada pierde el acceso. ¿Regenerar?")) return;
+  const token=genPortalToken();
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+    const r=await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
+      body:JSON.stringify({token, updated_at:new Date().toISOString()})});
+    if(!r.ok) throw new Error();
+    state.portal.token=token; state.portalCopyMsg=""; render();
+  }catch(e){
+    state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo regenerar la llave. Probá de nuevo.";
+    render();
+  }
+}
+async function publicarPortal(){
+  if(!state.portal) return;
+  state.portalSaving=true; state.portalSaveMsg=""; render();
+  const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim()};
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+    const r=await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
+      body:JSON.stringify({publicado, updated_at:new Date().toISOString()})});
+    if(!r.ok) throw new Error();
+    state.portal.publicado=publicado;
+    state.portalSaveMsg="Publicado — ya se ve en el portal.";
+  }catch(e){
+    state.portalSaveMsg = !navigator.onLine ? "Sin conexión a internet." : "No se pudo publicar. Probá de nuevo.";
+  }
+  state.portalSaving=false; render();
+}
+
 /* ============ materiales por materia (Supabase Storage, bucket privado "materiales") ============
    Ruta de cada archivo: materiales/{uid}/{subjectId}/{nombre-saneado}. El uid siempre sale del
    JWT de la sesión propia (jwtSub), nunca de un valor manejado por el usuario — el aislamiento

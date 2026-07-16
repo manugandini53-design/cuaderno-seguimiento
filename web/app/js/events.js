@@ -76,6 +76,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="nav-cuenta"){
     state.view="cuenta"; state.selId=null; state.confirmRestoreId=null;
     state.backupsLoaded=false; state.backupsError=""; loadBackups();
+    state.portalLoaded=false; state.portalError=""; state.portalCopyMsg=""; loadPortal();
   }
   else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; state.editPackId=null; }
   else if(a==="nav-pagos"){ state.view="pagos"; state.selId=null; if(!state.pagosMonth) state.pagosMonth=currentMonthKey(); }
@@ -320,6 +321,16 @@ document.addEventListener("click", (e)=>{
       .catch(err=>authMsgShow(friendlyAuthError(err)));
     return;
   }
+  else if(a==="portal-reload"){ loadPortal(); return; }
+  else if(a==="portal-toggle"){ togglePortalHabilitado(el.dataset.f==="si"); return; }
+  else if(a==="portal-regen"){ regenerarPortalToken(); return; }
+  else if(a==="portal-copy"){
+    copyToClipboard(portalUrl(state.portal.token))
+      .then(()=>{ state.portalCopyMsg="Copiado."; render(); })
+      .catch(()=>{ state.portalCopyMsg="No se pudo copiar. Seleccioná el texto manualmente."; render(); });
+    return;
+  }
+  else if(a==="portal-publicar"){ publicarPortal(); return; }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }
   else if(a==="sync-now"){ syncNow(true); return; }
   else if(a==="dismiss-update-banner"){ state.updateBannerDismissed=true; }
@@ -660,6 +671,7 @@ document.addEventListener("change",(e)=>{
   if(cf && cf.dataset.cf==="docente-nombre"){ state.catalog.docente={...docenteFor(), nombre:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-telefono"){ state.catalog.docente={...docenteFor(), telefono:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-dni"){ state.catalog.docente={...docenteFor(), dni:cf.value}; touchCatalog(); return; }
+  if(cf && cf.dataset.cf==="portal-nombre"){ if(state.portal) state.portal.draftNombre=cf.value; return; }
   if(cf && cf.dataset.cf==="rec-dias"){
     state.catalog.recordatorios = {...recordatoriosFor(), diasAtraso:Math.max(0, parseInt(cf.value,10)||0)};
     touchCatalog(); return;

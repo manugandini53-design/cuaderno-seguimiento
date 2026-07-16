@@ -1,5 +1,5 @@
 /* Cuaderno de seguimiento — funcionamiento sin conexión */
-const CACHE = "cuaderno-v52";
+const CACHE = "cuaderno-v53";
 const FILES = ["./", "./index.html", "./styles.css", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "./js/config.js", "./js/helpers.js", "./js/auth.js", "./js/sync.js", "./js/views.js", "./js/events.js"];
 
@@ -23,6 +23,9 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
+  // Portal de invitados: página pública sin sesión, pensada para gente sin la app instalada —
+  // fuera del precache y de la interceptación a propósito, para que siempre pegue a la red.
+  if (url.pathname.endsWith("/portal.html") || url.pathname.endsWith("/js/portal.js")) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(
       (hit) => hit || fetch(e.request).then((res) => {

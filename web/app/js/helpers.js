@@ -84,7 +84,9 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               informePeriod:"3m", informeCopyMsg:"",
               agendaWeekOffset:0, sessionPrefillDate:"",
               agendaViewMode:"semana", agendaMonthOffset:0, agendaSelectedDay:null, agendaQuickAddOpen:false,
-              puntualCancelAskId:null, cobrosBannerOpen:false };
+              puntualCancelAskId:null, cobrosBannerOpen:false,
+              portal:null, portalLoaded:false, portalError:"",
+              portalSaving:false, portalSaveMsg:"", portalCopyMsg:"" };
 
 const subjById = (id) => state.catalog.subjects.find(m=>m.id===id) || null;
 function unitsFor(s){ const m=subjById(s.subjectId); return m ? m.units : Object.keys(s.topics||{}); }

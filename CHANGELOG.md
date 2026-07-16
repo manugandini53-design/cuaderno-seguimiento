@@ -24,6 +24,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/), adaptado
 a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc.).
 
 ## [Sin publicar]
+- Base del portal de invitados: tabla `portales` y RPC pública `portal_publico()` (migración 013), sección "Portal para tus alumnos" en Cuenta (activar/desactivar, copiar link, regenerar llave, publicar el nombre a mostrar) y página standalone `portal.html`/`js/portal.js` sin sesión y fuera del service worker.
 
 ## [2.0.2] - 2026-07-16
 - Generador de contratos de servicio: botón "Generar contrato" en la ficha del alumno, con un modelo precargado (docente, alumno, materia, tarifa y modalidad, horarios habituales, política de cancelación y señas) y campos editables (responsable, DNI opcional, fecha de inicio, cláusulas adicionales); datos del docente reutilizables cargados una sola vez en Cuenta; vista tipo documento con el mismo patrón que el informe (Descargar PDF / Copiar texto).

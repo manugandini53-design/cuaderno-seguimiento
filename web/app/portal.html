@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- Página standalone para alumnos invitados: sin sesión, sin localStorage, y a propósito
+     fuera del alcance del service worker de la app (ver la exclusión en sw.js) — un invitado
+     sin conexión no tiene nada guardado para mostrar. CSS propio, sin depender de styles.css,
+     mismo criterio que la landing (web/index.html): cada archivo standalone de este repo
+     duplica sus estilos en vez de compartir hoja. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src https://*.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal — Cuaderno de seguimiento</title>
+<style>
+  :root{
+    --bg:#E7E8EB; --card:#FFFFFF; --ink:#1E2B4D; --muted:#5B6072; --faint:#8B90A0;
+    --line:#D8DAE3; --soft:#E4E4E0; --red:#C43C2B; --redbg:#FAE9E4;
+    --accent:#1E2B4D;
+    --sans:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#12141A; --card:#1B1E27; --ink:#E8E9EE; --muted:#A8ADBD; --faint:#7A8096;
+      --line:#2E3240; --soft:#242836; --red:#FF6B57; --redbg:#3A211D;
+      --accent:#8CA6F5;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+       font-size:15px;line-height:1.5;padding:24px 16px 48px}
+  .shell{max-width:520px;margin:0 auto}
+  .eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  h1{font-size:22px;margin:0 0 18px;letter-spacing:-.01em}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+  .ctitle{font-weight:600;font-size:14.5px;margin-bottom:6px}
+  .empty{color:var(--faint);font-size:13.5px}
+  .msg{text-align:center;padding:40px 16px}
+  .msg .big{font-size:17px;font-weight:600;margin-bottom:8px}
+  .msg .small{color:var(--muted);font-size:13.5px}
+  .err{color:var(--red);background:var(--redbg);border-radius:10px;padding:10px 14px;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="shell" id="app">
+  <div class="msg"><div class="big">Cargando…</div></div>
+</div>
+<script src="js/portal.js"></script>
+</body>
+</html>
