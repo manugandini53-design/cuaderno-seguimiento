@@ -128,7 +128,8 @@ function emptyStudent(){
     updatedAt:Date.now(), topics:{}, sessions:[], simulacros:[],
     tarifa:"", modalidad:"", pagos:[], informeComment:"", phone:"", examResults:[],
     horarios:[], clasesPuntuales:[],
-    seniaActiva:false, seniaTipo:"monto", seniaValor:"" };
+    seniaActiva:false, seniaTipo:"monto", seniaValor:"",
+    contratoResponsable:"", contratoDni:"", contratoFechaInicio:"", contratoClausulas:"" };
 }
 
 /* ============ regla: una ficha = un alumno en una materia ============
@@ -296,6 +297,7 @@ function pagoResumen(s, mk){
    pendientes, todo junto, para el aviso diario del tablero (ver events.js: maybeNotifyCobros) ============ */
 function recordatoriosFor(){ return state.catalog.recordatorios || defaultRecordatorios(); }
 function costosFor(){ return state.catalog.costos || defaultCostos(); }
+function docenteFor(){ return state.catalog.docente || defaultDocente(); }
 // "m:<id>" / "s:<id>" (valor del <select> de alcance en Rentabilidad) → {subjectId,studentId}
 // (nunca ambos con valor); "" o cualquier otra cosa → costo general, sin alcance.
 function parseScopeValue(v){

@@ -421,6 +421,15 @@ document.addEventListener("click", (e)=>{
       .catch(()=>{ state.informeCopyMsg="No se pudo copiar. Seleccioná el texto manualmente."; render(); });
     return;
   }
+  else if(a==="open-contrato" && s){ state.view="contrato"; state.contratoCopyMsg=""; }
+  else if(a==="close-contrato"){ state.view="detalle"; state.tab="ficha"; state.contratoCopyMsg=""; }
+  else if(a==="contrato-print"){ window.print(); return; }
+  else if(a==="contrato-copy" && s){
+    copyToClipboard(buildContratoText(s))
+      .then(()=>{ state.contratoCopyMsg="Copiado al portapapeles."; render(); })
+      .catch(()=>{ state.contratoCopyMsg="No se pudo copiar. Seleccioná el texto manualmente."; render(); });
+    return;
+  }
   else if(a==="filter"){ state.filter=el.dataset.f; }
   else if(a==="clear-filters"){
     state.filter="activo"; state.listSearch=""; state.listSubject="todas"; state.listCareer="todas"; state.listSem="todos";
@@ -648,6 +657,9 @@ document.addEventListener("change",(e)=>{
     state.catalog.cancelPolicy = {...cancelPolicyFor(), texto:cf.value};
     touchCatalog(); return;
   }
+  if(cf && cf.dataset.cf==="docente-nombre"){ state.catalog.docente={...docenteFor(), nombre:cf.value}; touchCatalog(); return; }
+  if(cf && cf.dataset.cf==="docente-telefono"){ state.catalog.docente={...docenteFor(), telefono:cf.value}; touchCatalog(); return; }
+  if(cf && cf.dataset.cf==="docente-dni"){ state.catalog.docente={...docenteFor(), dni:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="rec-dias"){
     state.catalog.recordatorios = {...recordatoriosFor(), diasAtraso:Math.max(0, parseInt(cf.value,10)||0)};
     touchCatalog(); return;

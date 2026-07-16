@@ -81,6 +81,7 @@ function defaultCatalog(){
     cancelPolicy: defaultCancelPolicy(),
     recordatorios: defaultRecordatorios(),
     costos: defaultCostos(),
+    docente: defaultDocente(),
     updatedAt:0 };
 }
 const TAREA_META = {hecha:{label:"hecha",fg:"var(--tarea-hecha-fg)"},intentada:{label:"intentada",fg:"var(--tarea-intentada-fg)"},no:{label:"no hecha",fg:"var(--tarea-no-fg)"}};
@@ -116,6 +117,10 @@ function defaultRecordatorios(){ return {activo:true, diasAtraso:1, notificacion
 // rentabilidadPorMateria/rentabilidadPorAlumno en helpers.js — los generales no se reparten ahí,
 // sólo entran en el total del mes).
 function defaultCostos(){ return {fijos:[], variables:[]}; }
+// Datos del docente (state.catalog.docente) — mismo patrón que cancelPolicy/recordatorios/costos:
+// se cargan una sola vez en Cuenta y se reutilizan donde haga falta (por ahora, el generador de
+// contratos — ver docenteFor() en helpers.js y vContrato() en views.js).
+function defaultDocente(){ return {nombre:"", telefono:"", dni:""}; }
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 // Plantillas de materias: temarios típicos de primer año universitario para no arrancar

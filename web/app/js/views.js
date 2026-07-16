@@ -333,6 +333,10 @@ function vDetalle(){
       <div><div class="ftitle" style="margin-bottom:2px">Informe de progreso</div>
         <div class="hint">Un resumen prolijo para compartir con el alumno o la familia.</div></div>
       <button class="chip" data-a="open-informe">Generar informe</button></div>`;
+    h += `<div class="formcard" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div><div class="ftitle" style="margin-bottom:2px">Contrato de servicio</div>
+        <div class="hint">Modelo precargado con los datos de esta ficha, listo para completar y firmar.</div></div>
+      <button class="chip" data-a="open-contrato">Generar contrato</button></div>`;
     h += vHorariosCard(s);
     h += vPuntualesCard(s);
     h += vSeniaCard(s);
@@ -1032,6 +1036,152 @@ function buildInformeText(s){
   return lines.join("\n");
 }
 
+/* ============ contrato de servicio: modelo precargado con lo que la app ya sabe del alumno,
+   mismo patrón visual que el informe de progreso (reutiliza sus clases .informe-*). Los campos
+   editables (responsable, DNI, fecha de inicio, cláusulas adicionales) viven directo en el alumno
+   (contratoResponsable/contratoDni/contratoFechaInicio/contratoClausulas) y se guardan solos con
+   el data-f genérico, igual que informeComment. Los datos del docente se cargan una sola vez en
+   Cuenta (ver docenteFor() en helpers.js) y se reutilizan acá. ============ */
+function modalidadCobroLabel(modalidad){
+  if(modalidad==="clase") return "por clase dictada";
+  if(modalidad==="mensual") return "mensual, independiente de la cantidad de clases dictadas ese mes";
+  return "a coordinar entre las partes";
+}
+function vContrato(){
+  const s = sel(); if(!s) return "";
+  const doc = docenteFor();
+  const pol = cancelPolicyFor();
+  const seniaActiva = hasSenia(s);
+  const horarios = [...(s.horarios||[])].sort((a,b)=>a.day-b.day||a.time.localeCompare(b.time));
+
+  let h = `<div class="informe-bar no-print">
+    <button class="back" style="margin:0" data-a="close-contrato">← Volver a la ficha</button>
+    <div class="informe-actions">
+      <button class="chip" data-a="contrato-copy">Copiar texto</button>
+      <button class="primary" style="margin-left:0" data-a="contrato-print">Descargar PDF</button>
+    </div>
+  </div>`;
+  if(state.contratoCopyMsg) h += `<div class="hint no-print" style="margin:-10px 0 14px">${esc(state.contratoCopyMsg)}</div>`;
+
+  h += `<div class="informe-doc">
+    <div class="informe-eyebrow">Contrato de prestación de servicios educativos</div>
+    <h1 class="informe-name">Clases particulares de ${esc(s.subject||"materia s/d")}</h1>
+    <div class="informe-sub">${esc(s.career)}${s.chair?" · "+esc(s.chair):""}</div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Partes</div>
+      <div class="informe-row"><div class="informe-rowbody">
+        <b>Docente:</b> ${doc.nombre?esc(doc.nombre):`<span style="color:var(--faint)">completar nombre en «Cuenta»</span>`}${doc.dni?` · DNI/CUIT ${esc(doc.dni)}`:""}${doc.telefono?` · Tel. ${esc(doc.telefono)}`:""}
+      </div></div>
+      <div class="informe-row"><div class="informe-rowbody"><b>Alumno/a:</b> ${esc(s.name)}</div></div>
+      <div class="informe-row"><div class="informe-rowbody">
+        <b>Responsable</b> <span class="hint">(padre/madre/tutor, o el propio alumno si es mayor de edad)</span>
+        <div class="frow" style="margin-top:6px">
+          <div class="field"><input class="contrato-field" data-f="contratoResponsable" placeholder="Nombre y apellido" value="${esc(s.contratoResponsable||"")}"></div>
+          <div class="field"><input class="contrato-field" data-f="contratoDni" placeholder="DNI (opcional)" value="${esc(s.contratoDni||"")}"></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Objeto del servicio</div>
+      <div class="informe-rowbody">El/la docente se compromete a brindar clases particulares de apoyo escolar/universitario en la materia <b>${esc(s.subject||"a definir")}</b> al alumno/a mencionado/a, con la frecuencia y en los horarios acordados entre las partes.</div>
+    </div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Horarios</div>
+      ${horarios.length===0 ? `<div class="informe-empty">A coordinar entre las partes.</div>` :
+        `<div class="informe-units">` + horarios.map(hr=>
+          `<div class="informe-unit"><span>${esc(DIAS_SEMANA[hr.day])}</span><b>${esc(hr.time)} · ${hr.duration||60} min</b></div>`
+        ).join("") + `</div>`}
+    </div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Tarifa y forma de pago</div>
+      <div class="informe-rowbody">
+        ${Number(s.tarifa)>0
+          ? `El valor del servicio es de <b>${fmtMoney(s.tarifa)}</b>, con modalidad de cobro <b>${modalidadCobroLabel(s.modalidad)}</b>.`
+          : `<span style="color:var(--faint)">Cargar la tarifa y la modalidad de cobro en la ficha del alumno para completar este párrafo.</span>`}
+        ${seniaActiva ? ` Se reserva cada clase puntual con una seña de ${s.seniaTipo==="porcentaje"?`${esc(s.seniaValor)}% de la tarifa`:fmtMoney(seniaMontoFor(s))}.` : ""}
+      </div>
+    </div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Cancelaciones y señas</div>
+      <div class="informe-rowbody">${pol.texto ? esc(pol.texto) :
+        `Las clases se cancelan con al menos ${pol.horasMinimas} hora${pol.horasMinimas===1?"":"s"} de anticipación. Con menos aviso, la seña de la clase ${pol.siATiempo==="acredita"?"no se acredita a la próxima clase":"no se devuelve"}.`}</div>
+    </div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Vigencia</div>
+      <div class="informe-rowbody">El presente contrato entra en vigencia el <input type="date" class="contrato-field" data-f="contratoFechaInicio" style="display:inline-block;width:auto" value="${esc(s.contratoFechaInicio||s.startDate||today())}"> y se mantiene vigente por tiempo indeterminado, hasta que cualquiera de las partes decida darlo por finalizado, avisando con razonable anticipación.</div>
+    </div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Cláusulas adicionales</div>
+      <textarea class="informe-comment contrato-field" data-f="contratoClausulas" placeholder="Agregá cláusulas propias si hace falta (opcional)…">${esc(s.contratoClausulas||"")}</textarea>
+    </div>
+
+    <div class="informe-section" style="margin-top:30px">
+      <div class="contrato-firmas">
+        <div class="contrato-firma"><div class="contrato-firmaline"></div><div class="informe-note">Firma docente${doc.nombre?` — Aclaración: ${esc(doc.nombre)}`:""}</div></div>
+        <div class="contrato-firma"><div class="contrato-firmaline"></div><div class="informe-note">Firma responsable${s.contratoResponsable?` — Aclaración: ${esc(s.contratoResponsable)}`:""}</div></div>
+      </div>
+    </div>
+
+    <div class="informe-footer" style="font-style:italic">Modelo orientativo: revisalo y adaptalo a tu caso; no constituye asesoramiento legal.</div>
+    <div class="informe-footer">Generado con Cuaderno de seguimiento — ${esc(fmtDate(today()))}</div>
+  </div>`;
+  return h;
+}
+function buildContratoText(s){
+  const doc = docenteFor();
+  const pol = cancelPolicyFor();
+  const seniaActiva = hasSenia(s);
+  const horarios = [...(s.horarios||[])].sort((a,b)=>a.day-b.day||a.time.localeCompare(b.time));
+  const lines = [];
+  lines.push("CONTRATO DE PRESTACIÓN DE SERVICIOS EDUCATIVOS");
+  lines.push(`Clases particulares de ${s.subject||"materia s/d"}${s.career?" — "+s.career:""}`);
+  lines.push("");
+  lines.push("PARTES");
+  lines.push(`Docente: ${doc.nombre||"[completar en Cuenta]"}${doc.dni?` · DNI/CUIT ${doc.dni}`:""}${doc.telefono?` · Tel. ${doc.telefono}`:""}`);
+  lines.push(`Alumno/a: ${s.name}`);
+  lines.push(`Responsable: ${s.contratoResponsable||"________________________"}${s.contratoDni?` — DNI ${s.contratoDni}`:""}`);
+  lines.push("");
+  lines.push("OBJETO DEL SERVICIO");
+  lines.push(`El/la docente se compromete a brindar clases particulares de apoyo escolar/universitario en la materia ${s.subject||"a definir"} al alumno/a mencionado/a, con la frecuencia y en los horarios acordados entre las partes.`);
+  lines.push("");
+  lines.push("HORARIOS");
+  if(horarios.length===0) lines.push("A coordinar entre las partes.");
+  else horarios.forEach(hr=>lines.push(`- ${DIAS_SEMANA[hr.day]} ${hr.time} · ${hr.duration||60} min`));
+  lines.push("");
+  lines.push("TARIFA Y FORMA DE PAGO");
+  if(Number(s.tarifa)>0){
+    let l = `El valor del servicio es de ${fmtMoney(s.tarifa)}, con modalidad de cobro ${modalidadCobroLabel(s.modalidad)}.`;
+    if(seniaActiva) l += ` Se reserva cada clase puntual con una seña de ${s.seniaTipo==="porcentaje"?`${s.seniaValor}% de la tarifa`:fmtMoney(seniaMontoFor(s))}.`;
+    lines.push(l);
+  } else lines.push("[Cargar la tarifa y la modalidad de cobro en la ficha del alumno para completar este párrafo]");
+  lines.push("");
+  lines.push("CANCELACIONES Y SEÑAS");
+  lines.push(pol.texto || `Las clases se cancelan con al menos ${pol.horasMinimas} hora${pol.horasMinimas===1?"":"s"} de anticipación. Con menos aviso, la seña de la clase ${pol.siATiempo==="acredita"?"no se acredita a la próxima clase":"no se devuelve"}.`);
+  lines.push("");
+  lines.push("VIGENCIA");
+  lines.push(`El presente contrato entra en vigencia el ${fmtDate(s.contratoFechaInicio||s.startDate||today())} y se mantiene vigente por tiempo indeterminado, hasta que cualquiera de las partes decida darlo por finalizado, avisando con razonable anticipación.`);
+  if(s.contratoClausulas){
+    lines.push("");
+    lines.push("CLÁUSULAS ADICIONALES");
+    lines.push(s.contratoClausulas);
+  }
+  lines.push("");
+  lines.push("_______________________________          _______________________________");
+  lines.push(`Firma docente                             Firma responsable`);
+  lines.push(`Aclaración: ${doc.nombre||"________________"}            Aclaración: ${s.contratoResponsable||"________________"}`);
+  lines.push("");
+  lines.push("Modelo orientativo: revisalo y adaptalo a tu caso; no constituye asesoramiento legal.");
+  lines.push(`Generado con Cuaderno de seguimiento — ${fmtDate(today())}`);
+  return lines.join("\n");
+}
+
 function vAuth(){
   const mode = state.authMode||"login", isLogin = mode==="login";
   const remembered = getRememberedEmails();
@@ -1132,7 +1282,16 @@ function vRecordatoriosCard(){
 function vCuenta(){
   const ses=getSes();
   const pol=cancelPolicyFor();
+  const doc=docenteFor();
   return `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
+  <div class="formcard"><div class="ftitle">Datos del docente</div>
+    <div class="hint" style="margin-bottom:10px">Se cargan una sola vez acá y se reutilizan donde haga falta (por ahora, el generador de contratos de servicio, en la ficha de cada alumno).</div>
+    <div class="frow">
+      <div class="field"><div class="flabel">Nombre completo</div><input data-cf="docente-nombre" value="${esc(doc.nombre||"")}"></div>
+      <div class="field"><div class="flabel">Teléfono</div><input data-cf="docente-telefono" value="${esc(doc.telefono||"")}"></div>
+      <div class="field"><div class="flabel">DNI / CUIT (opcional)</div><input data-cf="docente-dni" value="${esc(doc.dni||"")}"></div>
+    </div>
+  </div>
   ${vRecordatoriosCard()}
   <div class="formcard"><div class="ftitle">Política de cancelación</div>
     <div class="hint" style="margin-bottom:10px">Se aplica al cancelar una clase puntual con seña ya cobrada (ver la ficha de cada alumno). El texto queda guardado para reutilizarlo donde haga falta.</div>
@@ -2079,6 +2238,10 @@ function render(){
   if(state.view==="informe"){
     if(!sel()){ state.view="tablero"; }
     else{ document.getElementById("app").innerHTML = vInforme(); return; }
+  }
+  if(state.view==="contrato"){
+    if(!sel()){ state.view="tablero"; }
+    else{ document.getElementById("app").innerHTML = vContrato(); return; }
   }
   const activos = alive().filter(s=>s.status==="activo").length;
   const ses = getSes();

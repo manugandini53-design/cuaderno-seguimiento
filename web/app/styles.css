@@ -258,6 +258,12 @@
     .informe-name{font-size:22px}
     .informe-meta{gap:14px}
   }
+
+  /* ============ contrato de servicio: líneas de firma (reutiliza .informe-* para el resto) ============ */
+  .contrato-firmas{display:flex;gap:30px;flex-wrap:wrap;margin-top:10px}
+  .contrato-firma{flex:1;min-width:200px}
+  .contrato-firmaline{border-top:1px solid var(--faint);margin:34px 0 8px}
+
   @media print{
     body{background:#fff!important;padding:0!important;color:#111!important}
     .shell{max-width:none}
@@ -266,5 +272,6 @@
     .informe-sub,.informe-note,.informe-metalabel,.informe-stitle,.informe-eyebrow,.informe-empty,.informe-footer{color:#444!important}
     .informe-unit{background:#f3f3f3!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .informe-row,.informe-meta{border-color:#ddd!important}
-    .informe-comment{border:none!important;padding:0!important;background:none!important;color:#111!important;resize:none}
+    .informe-comment,.contrato-field{border:none!important;padding:0!important;background:none!important;color:#111!important;resize:none}
+    .contrato-firmaline{border-color:#111!important}
   }
