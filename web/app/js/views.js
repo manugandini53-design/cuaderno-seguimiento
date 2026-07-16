@@ -890,7 +890,14 @@ function vMateriales(subjectId){
     return h;
   }
   const list = state.materialesList||[];
-  h += `<div class="hint" style="margin-bottom:10px">${list.length}/${MATERIAL_MAX_COUNT} archivos · máx. ${fmtBytes(MATERIAL_MAX_BYTES)} cada uno</div>`;
+  const totalBytes = materialesTotalBytes();
+  const totalPct = Math.min(100, totalBytes/MATERIAL_MAX_TOTAL_BYTES*100);
+  const totalBarColor = totalPct>=90 ? "var(--red)" : totalPct>=70 ? "var(--amber)" : "var(--green)";
+  h += `<div style="background:var(--soft);border-radius:99px;height:10px;overflow:hidden;margin-bottom:6px">
+    <div style="height:100%;width:${totalPct.toFixed(1)}%;background:${totalBarColor};border-radius:99px"></div>
+  </div>
+  <div class="hint" style="margin-bottom:10px">${fmtBytes(totalBytes)} de ${fmtBytes(MATERIAL_MAX_TOTAL_BYTES)} usados (entre todas tus materias)</div>
+  <div class="hint" style="margin-bottom:10px">${list.length}/${MATERIAL_MAX_COUNT} archivos · máx. ${fmtBytes(MATERIAL_MAX_BYTES)} cada uno</div>`;
   h += list.length===0 ? `<div class="empty">Sin materiales todavía.</div>` : list.map(f=>{
     const dn=materialDisplayName(f.name);
     const size=(f.metadata&&f.metadata.size)||0;
@@ -906,12 +913,15 @@ function vMateriales(subjectId){
   }).join("");
   if(state.materialesUploadError) h += `<div class="saveerr" style="margin-top:8px">${esc(state.materialesUploadError)}</div>`;
   const full = list.length>=MATERIAL_MAX_COUNT;
+  const totalFull = totalBytes>=MATERIAL_MAX_TOTAL_BYTES;
+  const blocked = full||totalFull;
   h += `<div class="frow" style="margin-top:10px;align-items:flex-end">
     <div class="field"><div class="flabel">Subir archivo (máx. ${fmtBytes(MATERIAL_MAX_BYTES)})</div>
-      <input type="file" id="mat-file" ${full||state.materialesUploading?"disabled":""}></div>
-    <button class="chip" data-a="mat-upload" data-id="${subjectId}" style="margin-bottom:2px" ${full||state.materialesUploading?"disabled":""}>${state.materialesUploading?"Subiendo…":"+ Subir"}</button>
+      <input type="file" id="mat-file" ${blocked||state.materialesUploading?"disabled":""}></div>
+    <button class="chip" data-a="mat-upload" data-id="${subjectId}" style="margin-bottom:2px" ${blocked||state.materialesUploading?"disabled":""}>${state.materialesUploading?"Subiendo…":"+ Subir"}</button>
   </div>
   ${full?`<div class="hint" style="margin-top:6px">Llegaste al máximo de ${MATERIAL_MAX_COUNT} archivos para esta materia.</div>`:""}
+  ${!full&&totalFull?`<div class="hint" style="margin-top:6px">Llegaste al máximo de ${fmtBytes(MATERIAL_MAX_TOTAL_BYTES)} entre todas tus materias.</div>`:""}
   </div>`;
   return h;
 }

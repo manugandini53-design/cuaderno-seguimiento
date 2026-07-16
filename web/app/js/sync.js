@@ -342,6 +342,34 @@ function materialObjectUrl(path){
   return SUPA_URL+"/storage/v1/object/"+MATERIALES_BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/");
 }
 
+// Índice liviano de materiales (nombre, bytes, fecha) guardado dentro de state.catalog, por
+// materia — así uploadMaterial puede chequear el total de las 20MB sin listar Storage en cada
+// subida. Es un espejo del list() real de Storage, así que puede desincronizarse (borrados desde
+// otro dispositivo, subidas a mitad de camino): loadMateriales lo reconcilia contra Storage cada
+// vez que se abre la sección Materiales de una materia.
+function materialesIndexFor(subjectId){
+  const s=subjById(subjectId);
+  return (s && Array.isArray(s.materiales)) ? s.materiales : [];
+}
+function materialesTotalBytes(){
+  return (state.catalog.subjects||[]).reduce((sum,s)=>
+    sum+((s.materiales||[]).reduce((a,m)=>a+(Number(m.bytes)||0),0)), 0);
+}
+function materialesIndexMatches(subjectId, storageList){
+  const idx=materialesIndexFor(subjectId);
+  if(idx.length!==storageList.length) return false;
+  const key=(name,bytes)=>name+"|"+bytes;
+  const idxKeys=new Set(idx.map(m=>key(m.name,m.bytes)));
+  return storageList.every(f=>idxKeys.has(key(f.name,(f.metadata&&f.metadata.size)||0)));
+}
+function reconcileMaterialesIndex(subjectId, storageList){
+  if(materialesIndexMatches(subjectId, storageList)) return;
+  const s=subjById(subjectId);
+  if(!s) return;
+  s.materiales=storageList.map(f=>({name:f.name, bytes:(f.metadata&&f.metadata.size)||0, at:f.updated_at||f.created_at||null}));
+  touchCatalog();
+}
+
 async function loadMateriales(subjectId){
   state.materialesSubjectId=subjectId; state.materialesLoaded=false; state.materialesError="";
   state.materialesConfirmDelName=null;
@@ -357,6 +385,7 @@ async function loadMateriales(subjectId){
     const list=await r.json();
     state.materialesList=(Array.isArray(list)?list:[]).filter(x=>x.id);
     state.materialesLoaded=true; state.materialesError="";
+    reconcileMaterialesIndex(subjectId, state.materialesList);
   }catch(e){
     state.materialesLoaded=true;
     state.materialesError = !navigator.onLine ? "offline" : "No se pudieron cargar los materiales.";
@@ -371,6 +400,12 @@ async function uploadMaterial(subjectId, file){
   }
   if((state.materialesList||[]).length >= MATERIAL_MAX_COUNT){
     state.materialesUploadError=`Ya hay ${MATERIAL_MAX_COUNT} materiales en esta materia — borrá alguno para subir otro.`;
+    render(); return;
+  }
+  const usedBytes=materialesTotalBytes();
+  if(usedBytes+file.size > MATERIAL_MAX_TOTAL_BYTES){
+    const free=Math.max(0, MATERIAL_MAX_TOTAL_BYTES-usedBytes);
+    state.materialesUploadError=`No entra: quedan ${fmtBytes(free)} libres de los ${fmtBytes(MATERIAL_MAX_TOTAL_BYTES)} totales entre todas tus materias.`;
     render(); return;
   }
   state.materialesUploading=true; state.materialesUploadError=""; render();
