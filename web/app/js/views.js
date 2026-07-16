@@ -1290,23 +1290,59 @@ function vUsuarios(){
   return h;
 }
 
+// Elige hasta maxTicks índices repartidos parejo (siempre incluye el primero y el
+// último) para no pisar etiquetas de eje cuando el dataset tiene muchos puntos.
+function pickAxisIndices(n, maxTicks){
+  const step=Math.max(1, Math.ceil(n/maxTicks));
+  const idx=new Set();
+  for(let i=0;i<n;i+=step) idx.add(i);
+  idx.add(n-1);
+  return idx;
+}
+// Suma total de un dataset de barRow — se muestra junto al título del gráfico.
+function barTotal(dataset){ return dataset.reduce((s,d)=>s+d.v,0); }
+
 // Barras simples en CSS (sin librerías): una <div> por dato, alto proporcional al máximo
-// del propio conjunto. Con pocas barras el valor va arriba de cada una (entra sin pisarse);
-// con muchas (30/48 puntos) no entra un número por barra, así que solo queda en el título
-// (tooltip) — se ve al tocar/pasar el mouse, igual que antes.
-function barRow(dataset){
+// del propio conjunto. El valor de cada barra siempre está visible (no depende de hover):
+// horizontal arriba de la barra con pocos puntos, rotado en vertical cuando hay muchos
+// (30/48, como en Actividad) para que entre sin superponerse aunque la barra quede finita.
+// axisLabels (opcional, mismo largo que dataset, con "" en los índices que no se muestran)
+// agrega etiquetas de eje abreviadas debajo de las barras en vez del hint "primero → último".
+function barRow(dataset, axisLabels){
   const max=Math.max(1, ...dataset.map(d=>d.v));
-  const showLabels = dataset.length<=20;
-  return `<div style="display:flex;align-items:flex-end;gap:3px;height:74px;margin-bottom:4px">` +
-    dataset.map(d=>{
-      const hgt=Math.max(2,Math.round(d.v/max*58));
-      return `<div title="${esc(d.label)}: ${d.v}" style="flex:1;min-width:2px;display:flex;flex-direction:column;
-        align-items:center;justify-content:flex-end;height:100%">
-        ${showLabels?`<span style="font-size:9.5px;font-family:var(--mono);color:var(--muted);margin-bottom:2px">${d.v}</span>`:""}
-        <div style="width:100%;background:var(--accent);border-radius:2px 2px 0 0;height:${hgt}px"></div>
-      </div>`;
-    }).join("") +
-    `</div><div class="hint" style="margin-bottom:16px">${esc(dataset[0].label)} → ${esc(dataset[dataset.length-1].label)}</div>`;
+  const dense = dataset.length>14;
+  const gap = dense?"2px":"3px";
+  const barMaxPx = dense?40:58;
+  const bars = dataset.map(d=>{
+    const hgt=Math.max(2,Math.round(d.v/max*barMaxPx));
+    const val = dense
+      ? `<span style="writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--mono);font-size:9px;color:var(--muted);line-height:1;white-space:nowrap;margin-bottom:2px">${d.v}</span>`
+      : `<span style="font-size:9.5px;font-family:var(--mono);color:var(--muted);margin-bottom:2px">${d.v}</span>`;
+    return `<div title="${esc(d.label)}: ${d.v}" style="flex:${dense?"0 0 14px":"1"};min-width:${dense?"14px":"2px"};display:flex;flex-direction:column;
+      align-items:center;justify-content:flex-end;height:100%">
+      ${val}
+      <div style="width:100%;background:var(--accent);border-radius:2px 2px 0 0;height:${hgt}px"></div>
+    </div>`;
+  }).join("");
+  const chart = `<div style="display:flex;align-items:flex-end;gap:${gap};height:74px;margin-bottom:4px">${bars}</div>`;
+  let axisRow="", rangeHint="";
+  if(axisLabels){
+    axisRow = `<div style="display:flex;gap:${gap};margin-bottom:10px">` +
+      dataset.map((d,i)=>`<div style="flex:${dense?"0 0 14px":"1"};min-width:${dense?"14px":"2px"};text-align:center">
+        ${axisLabels[i]?`<span style="display:inline-block;font-size:8.5px;font-family:var(--mono);color:var(--faint);white-space:nowrap;transform:rotate(-40deg);transform-origin:top center">${esc(axisLabels[i])}</span>`:""}
+      </div>`).join("") +
+    `</div>`;
+  }else{
+    rangeHint = `<div class="hint" style="margin-bottom:16px">${esc(dataset[0].label)} → ${esc(dataset[dataset.length-1].label)}</div>`;
+  }
+  // dense (30/48 puntos): las barras quedan a ancho fijo y el bloque scrollea horizontal
+  // en pantallas angostas en vez de aplastarse hasta hacer ilegibles número y etiqueta.
+  return (dense?`<div style="overflow-x:auto;padding-bottom:2px">${chart}${axisRow}</div>`:chart+axisRow) + rangeHint;
+}
+// Título de sub-gráfico + total del período, en la misma línea (formato de .stitle).
+function chartTitle(text, dataset){
+  return `<div class="stitle" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+    <span>${esc(text)}</span><span>Total: ${barTotal(dataset)}</span></div>`;
 }
 function sumRange(dataset, from, toExclusive){
   let s=0; for(let i=from;i<toExclusive;i++) s+=dataset[i].v; return s;
@@ -1333,16 +1369,18 @@ function vActividadDia(){
   const activeSet = days.map(d=>({label:fmtDate(d), v:byDay[d].users.size}));
   const aperturasSet = days.map(d=>({label:fmtDate(d), v:byDay[d].aperturas}));
   const syncsSet = days.map(d=>({label:fmtDate(d), v:byDay[d].syncs}));
+  const axisIdx = pickAxisIndices(days.length, 8);
+  const axisLabels = days.map((d,i)=>axisIdx.has(i)?fmtDate(d):"");
 
-  let h = `<div class="stitle">Usuarios activos por día (últimos 30 días)</div>`;
+  let h = chartTitle("Usuarios activos por día (últimos 30 días)", activeSet);
   h += trendBadge(sumRange(activeSet,23,30), sumRange(activeSet,16,23), "7 días anteriores");
-  h += barRow(activeSet);
-  h += `<div class="stitle">Aperturas por día</div>`;
+  h += barRow(activeSet, axisLabels);
+  h += chartTitle("Aperturas por día", aperturasSet);
   h += trendBadge(sumRange(aperturasSet,23,30), sumRange(aperturasSet,16,23), "7 días anteriores");
-  h += barRow(aperturasSet);
-  h += `<div class="stitle">Syncs por día</div>`;
+  h += barRow(aperturasSet, axisLabels);
+  h += chartTitle("Syncs por día", syncsSet);
   h += trendBadge(sumRange(syncsSet,23,30), sumRange(syncsSet,16,23), "7 días anteriores");
-  h += barRow(syncsSet);
+  h += barRow(syncsSet, axisLabels);
   return h;
 }
 
@@ -1362,16 +1400,19 @@ function vActividadHora(){
   const activeSet = hourKeys.map(k=>({label:fmtDateTime(k), v:byHour[k].users.size}));
   const aperturasSet = hourKeys.map(k=>({label:fmtDateTime(k), v:byHour[k].aperturas}));
   const syncsSet = hourKeys.map(k=>({label:fmtDateTime(k), v:byHour[k].syncs}));
+  const axisIdx = pickAxisIndices(hourKeys.length, 8);
+  const shortHour = k=>{ try{ return new Date(k).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return "—"; } };
+  const axisLabels = hourKeys.map((k,i)=>axisIdx.has(i)?shortHour(k):"");
 
-  let h = `<div class="stitle">Usuarios activos por hora (últimas 48 hs)</div>`;
+  let h = chartTitle("Usuarios activos por hora (últimas 48 hs)", activeSet);
   h += trendBadge(sumRange(activeSet,24,48), sumRange(activeSet,0,24), "24 hs anteriores");
-  h += barRow(activeSet);
-  h += `<div class="stitle">Aperturas por hora</div>`;
+  h += barRow(activeSet, axisLabels);
+  h += chartTitle("Aperturas por hora", aperturasSet);
   h += trendBadge(sumRange(aperturasSet,24,48), sumRange(aperturasSet,0,24), "24 hs anteriores");
-  h += barRow(aperturasSet);
-  h += `<div class="stitle">Syncs por hora</div>`;
+  h += barRow(aperturasSet, axisLabels);
+  h += chartTitle("Syncs por hora", syncsSet);
   h += trendBadge(sumRange(syncsSet,24,48), sumRange(syncsSet,0,24), "24 hs anteriores");
-  h += barRow(syncsSet);
+  h += barRow(syncsSet, axisLabels);
   return h;
 }
 

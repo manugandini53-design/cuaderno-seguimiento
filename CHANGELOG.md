@@ -28,6 +28,7 @@ a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc
 - Límite total de materiales (20 MB por usuario entre todas sus materias), con índice liviano en el catálogo, reconciliación contra Storage y barra de uso en la sección Materiales.
 - Tema elegible (automático/claro/oscuro) en la landing, con botón sol/luna en el header y la misma clave de localStorage que usa la app.
 - Panel admin → Usuarios: última conexión reforzada server-side (`registrar_actividad`), orden por última conexión y botón para eliminar cuentas (con doble confirmación escribiendo el email) que usa la nueva RPC `admin_eliminar_usuario`.
+- Panel admin → Actividad: valor de cada barra siempre visible (rotado en los gráficos de 30/48 puntos), etiquetas de eje abreviadas sin superponerse y total del período junto al título de cada gráfico.
 
 ## [2.0.0] - 2026-07-16
 - Registro de pagos por alumno.
