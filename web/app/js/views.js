@@ -76,14 +76,7 @@ function vTablero(){
     <div class="stat ${enRiesgo?"warn":""}"><b>${enRiesgo}</b><span>con alertas</span></div>
     <button class="primary" data-a="new">+ Nuevo estudiante</button></div>`;
 
-  const pendientesMes = activos.filter(hasPagos).map(s=>pagoResumen(s,currentMonthKey())).filter(r=>r&&r.pendiente>0);
-  if(pendientesMes.length){
-    const totalPend = pendientesMes.reduce((a,r)=>a+r.pendiente,0);
-    h += `<button class="alert" data-a="nav-pagos" style="cursor:pointer">
-      <span class="dot"></span><span class="t">Tenés ${fmtMoney(totalPend)} pendientes de cobro de ${pendientesMes.length} alumno${pendientesMes.length===1?"":"s"} este mes</span></button>`;
-  }
-  const seniasPend = pendingSeniasSummary();
-  if(seniasPend) h += `<div class="hint" style="margin:-2px 0 12px">${seniasPend.count} seña${seniasPend.count===1?"":"s"} pendiente${seniasPend.count===1?"":"s"} de cobro (${fmtMoney(seniasPend.total)})</div>`;
+  h += vCobrosBanner();
 
   const examPrompts = pendingExamResults();
   if(examPrompts.length){
@@ -128,6 +121,51 @@ function vTablero(){
         <input type="file" id="importFile" accept="application/json" style="display:none"></label>
       <span class="hint">Restaurar reemplaza todos los datos actuales por los del archivo.</span></div>`;
   return h;
+}
+
+/* ============ aviso de cobros atrasados: clases sin cobrar + mensualidades vencidas + señas
+   pendientes, agrupado por alumno y desplegable (ver cobrosAtrasadosSummary en helpers.js) ============ */
+function vCobrosBanner(){
+  const rec = recordatoriosFor();
+  if(!rec.activo) return "";
+  const sum = cobrosAtrasadosSummary(rec.diasAtraso);
+  if(sum.count===0) return "";
+  const nClase = sum.items.filter(i=>i.kind==="clase").length;
+  const nMensual = sum.items.filter(i=>i.kind==="mensual").length;
+  const nSenia = sum.items.filter(i=>i.kind==="senia").length;
+  const parts = [];
+  if(nClase) parts.push(`${nClase} clase${nClase===1?"":"s"} sin cobrar`);
+  if(nMensual) parts.push(`${nMensual} mensualidad${nMensual===1?"":"es"} vencida${nMensual===1?"":"s"}`);
+  if(nSenia) parts.push(`${nSenia} seña${nSenia===1?"":"s"} pendiente${nSenia===1?"":"s"}`);
+  let h = `<button class="alert" data-a="cobros-toggle" style="cursor:pointer">
+    <span class="dot"></span><span class="t">Tenés ${parts.join(", ")} — ${fmtMoney(sum.total)}</span></button>`;
+  if(state.cobrosBannerOpen){
+    h += `<div class="formcard" style="margin-top:-8px">` +
+      Object.keys(sum.byStudent).map(sid=>{
+        const s = state.students.find(x=>x.id===sid); if(!s) return "";
+        const items = sum.byStudent[sid];
+        const subtotal = items.reduce((a,i)=>a+i.monto,0);
+        return `<div class="log" style="align-items:flex-start;flex-wrap:wrap">
+          <div class="body">
+            <div style="font-weight:600">${esc(s.name)}${s.subject?` <span class="hint">· ${esc(s.subject)}</span>`:""}</div>
+            ${items.map(i=>vCobroItemRow(s,i)).join("")}
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-weight:600;font-family:var(--mono)">${fmtMoney(subtotal)}</div>
+            ${hasPhone(s)?`<a class="wa-quick" style="margin-top:4px" title="WhatsApp: recordatorio de pago" target="_blank" rel="noopener" href="${waLink(s,waMsgCobro(s))}">💬</a>`:""}
+          </div>
+        </div>`;
+      }).join("") + `</div>`;
+  }
+  return h;
+}
+function vCobroItemRow(s,i){
+  if(i.kind==="clase") return `<div class="note">${esc(fmtDate(i.date))} · ${fmtMoney(i.monto)}
+    <button class="chip" style="margin-left:6px" data-a="cobro-marcar-clase" data-sid="${s.id}" data-id="${i.sessionId}">Marcar cobrada</button></div>`;
+  if(i.kind==="mensual") return `<div class="note">Mensualidad de ${esc(monthLabel(currentMonthKey()))} · ${fmtMoney(i.monto)} pendiente
+    <button class="chip" style="margin-left:6px" data-a="nav-pagos">Ver en Pagos</button></div>`;
+  return `<div class="note">Seña de la clase del ${esc(fmtDate(i.date))} · ${fmtMoney(i.monto)}
+    <button class="chip" style="margin-left:6px" data-a="toggle-senia-estado" data-sid="${s.id}" data-id="${i.puntualId}">Marcar cobrada</button></div>`;
 }
 
 const SEM_SHORT = {sd:"Sin evaluar", verde:"Verde", amarillo:"Amarillo", rojo:"Rojo"};
@@ -612,12 +650,22 @@ function waMsgForAlert(s, kind){
   if(kind==="tarea") return waMsgTareaHoy(s);
   return waMsgProximaClase(s);
 }
+// Recordatorio de pago pendiente (clases sin cobrar + mensualidad del mes + señas pendientes,
+// ver pendienteTotalFor en helpers.js) — lo usa tanto el menú de WhatsApp de la ficha como el
+// aviso de cobros atrasados del tablero.
+function waMsgCobro(s){
+  const total = pendienteTotalFor(s);
+  if(total<=0) return `Hola ${studentFirstName(s)}! Te escribo para coordinar el pago de las clases.`;
+  return `Hola ${studentFirstName(s)}! Te escribo por el pago pendiente de ${fmtMoney(total)}. ¡Avisame cuando lo puedas hacer, gracias!`;
+}
 function vWhatsApp(s){
+  const pendiente = pendienteTotalFor(s);
   return `<div class="formcard"><div class="ftitle">Enviar WhatsApp</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgProximaClase(s))}">Recordatorio de próxima clase</a>
       <a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgTareaHoy(s))}">Tarea de la última clase</a>
       ${s.examDate?`<a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgExamen(s))}">Recordatorio de examen</a>`:""}
+      ${pendiente>0?`<a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgCobro(s))}">Recordatorio de pago pendiente</a>`:""}
     </div>
     <div class="field"><div class="flabel">Mensaje libre</div>
       <textarea id="wa-free-text">${esc(waMsgProximaClase(s))}</textarea></div>
@@ -876,10 +924,39 @@ function vSetPassword(){
   </div>`;
 }
 
+// Switch de recordatorios de cobro (Cuenta) + notificación del navegador — el permiso de
+// Notification API recién se pide al tocar el botón (ver toggle-notif-os en events.js), nunca
+// de entrada. "notifSupported" evita referenciar Notification donde no exista (apps nativas).
+function vRecordatoriosCard(){
+  const rec = recordatoriosFor();
+  const notifSupported = typeof Notification!=="undefined";
+  const notifDenied = notifSupported && Notification.permission==="denied";
+  let h = `<div class="formcard"><div class="ftitle">Recordatorios de cobro</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${rec.activo?"10px":"0"}">
+      <button class="chip ${!rec.activo?"on":""}" data-a="toggle-recordatorios" data-f="no">No</button>
+      <button class="chip ${rec.activo?"on":""}" data-a="toggle-recordatorios" data-f="si">Sí</button>
+    </div>`;
+  if(rec.activo){
+    h += `<div class="field" style="max-width:260px"><div class="flabel">Avisar a partir de cuántos días de atraso</div>
+      <input type="number" min="0" data-cf="rec-dias" value="${rec.diasAtraso}"></div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--soft)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div><div style="font-weight:600;font-size:13.5px">Notificación del navegador</div>
+          <div class="hint" style="margin-top:2px">Los avisos aparecen al abrir la app. Push real con la app cerrada necesita servidor: queda para más adelante.</div></div>
+        ${notifSupported
+          ? `<button class="chip ${rec.notificacionesOS?"on":""}" data-a="toggle-notif-os">${rec.notificacionesOS?"Activada":"Desactivada"}</button>`
+          : `<span class="hint">No disponible en este dispositivo</span>`}
+      </div>
+      ${notifDenied?`<div class="hint" style="color:var(--red);margin-top:6px">Este navegador tiene los avisos bloqueados para el sitio — activalos desde su configuración y volvé a tocar el botón.</div>`:""}
+    </div>`;
+  }
+  return h + `</div>`;
+}
 function vCuenta(){
   const ses=getSes();
   const pol=cancelPolicyFor();
   return `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
+  ${vRecordatoriosCard()}
   <div class="formcard"><div class="ftitle">Política de cancelación</div>
     <div class="hint" style="margin-bottom:10px">Se aplica al cancelar una clase puntual con seña ya cobrada (ver la ficha de cada alumno). El texto queda guardado para reutilizarlo donde haga falta.</div>
     <div class="frow">

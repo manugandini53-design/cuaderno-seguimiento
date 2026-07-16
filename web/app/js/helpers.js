@@ -7,6 +7,7 @@ const esc = (s) => String(s??"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 function daysTo(ds){ if(!ds) return null;
   const d=new Date(ds+"T12:00:00"), n=new Date(); n.setHours(12,0,0,0);
   return Math.round((d-n)/86400000); }
+function daysSince(ds){ const d=daysTo(ds); return d===null ? null : -d; }
 function fmtDate(ds){ if(!ds) return "—";
   return new Date(ds+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"}); }
 function fmtDateTime(ts){
@@ -80,7 +81,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               informePeriod:"3m", informeCopyMsg:"",
               agendaWeekOffset:0, sessionPrefillDate:"",
               agendaViewMode:"semana", agendaMonthOffset:0, agendaSelectedDay:null, agendaQuickAddOpen:false,
-              puntualCancelAskId:null };
+              puntualCancelAskId:null, cobrosBannerOpen:false };
 
 const subjById = (id) => state.catalog.subjects.find(m=>m.id===id) || null;
 function unitsFor(s){ const m=subjById(s.subjectId); return m ? m.units : Object.keys(s.topics||{}); }
@@ -251,6 +252,47 @@ function pagoResumen(s, mk){
   }
   const cobrado=Math.min(tarifa, (s.pagos||[]).filter(p=>monthKeyOf(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0));
   return { clases:clasesMes.length, total:tarifa, cobrado, pendiente:Math.max(0, tarifa-cobrado) };
+}
+
+/* ============ recordatorios de cobro: clases sin cobrar + mensualidades vencidas + señas
+   pendientes, todo junto, para el aviso diario del tablero (ver events.js: maybeNotifyCobros) ============ */
+function recordatoriosFor(){ return state.catalog.recordatorios || defaultRecordatorios(); }
+// todo lo pendiente de un alumno (mes actual + señas), sin filtrar por días de atraso — lo usa
+// el mensaje de WhatsApp de recordatorio de pago, que tiene sentido mandar apenas hay algo
+// pendiente y no recién cuando ya se hizo tarde.
+function pendienteTotalFor(s){
+  let total=0;
+  if(hasPagos(s)){ const r=pagoResumen(s,currentMonthKey()); if(r) total+=r.pendiente; }
+  (s.clasesPuntuales||[]).forEach(p=>{ if(!p.cancelada && p.seniaEstado==="pendiente") total+=Number(p.seniaMonto)||0; });
+  return total;
+}
+// items atrasados (clase sin cobrar / mensualidad vencida / seña pendiente) de todos los alumnos
+// activos, con al menos diasAtraso días de atraso cada uno — para el aviso del tablero.
+function cobrosAtrasadosSummary(diasAtraso){
+  const dias = diasAtraso==null ? 1 : diasAtraso;
+  const items = [];
+  const mk = currentMonthKey();
+  alive().filter(s=>s.status==="activo").forEach(s=>{
+    if(hasPagos(s) && s.modalidad==="clase"){
+      (s.sessions||[]).forEach(c=>{
+        if(!c.cobrada && daysSince(c.date)>=dias)
+          items.push({studentId:s.id, kind:"clase", monto:Number(s.tarifa)||0, date:c.date, sessionId:c.id});
+      });
+    }
+    if(hasPagos(s) && s.modalidad==="mensual" && daysSince(mk+"-01")>=dias){
+      const r=pagoResumen(s,mk);
+      if(r && r.pendiente>0) items.push({studentId:s.id, kind:"mensual", monto:r.pendiente, date:mk+"-01"});
+    }
+    (s.clasesPuntuales||[]).forEach(p=>{
+      if(!p.cancelada && p.seniaEstado==="pendiente" && daysSince(p.date)>=dias)
+        items.push({studentId:s.id, kind:"senia", monto:Number(p.seniaMonto)||0, date:p.date, puntualId:p.id});
+    });
+  });
+  const total = items.reduce((a,i)=>a+i.monto,0);
+  const byStudent = {};
+  items.forEach(i=>{ (byStudent[i.studentId]=byStudent[i.studentId]||[]).push(i); });
+  Object.values(byStudent).forEach(list=>list.sort((a,b)=>a.date.localeCompare(b.date)));
+  return {items, total, count:items.length, byStudent};
 }
 
 /* ============ informe de progreso: período elegido para filtrar clases/simulacros ============ */
@@ -425,16 +467,6 @@ function pagosSeniaResumen(mk){
   });
   rows.sort((a,b)=>a.p.date.localeCompare(b.p.date));
   return {cobrado, retenida, rows};
-}
-// señas sin cobrar de alumnos activos, para la línea discreta del tablero.
-function pendingSeniasSummary(){
-  let count=0, total=0;
-  alive().filter(s=>s.status==="activo").forEach(s=>{
-    (s.clasesPuntuales||[]).forEach(p=>{
-      if(!p.cancelada && p.seniaEstado==="pendiente"){ count++; total+=Number(p.seniaMonto)||0; }
-    });
-  });
-  return count>0 ? {count,total} : null;
 }
 // marca overlap:true en cada evento que se superpone en horario con otro el mismo día
 // (distinto alumno u horario doble cargado sin querer).

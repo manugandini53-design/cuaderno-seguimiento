@@ -17,6 +17,7 @@ const BACKUP_REMINDER_SNOOZE_DAYS = 7; // cada cuánto reaparece el aviso si se 
 const LOGIN_ATTEMPTS_KEY = "tutoria-login-attempts"; // {count, lockUntil} — freno local a intentos de login seguidos, aparte del rate-limit propio de Supabase
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_MS = 5*60*1000;
+const LAST_COBROS_NOTIFY_KEY = "tutoria-last-cobros-notify-date"; // fecha (YYYY-MM-DD) del último aviso del sistema por cobros atrasados — uno por día, por dispositivo
 const THEME_KEY = "tutoria-theme"; // "light" | "dark" | "system" (default)
 function getTheme(){ return localStorage.getItem(THEME_KEY) || "system"; }
 function applyTheme(theme){
@@ -78,6 +79,7 @@ function defaultCatalog(){
       units:["Unidad 1: introducción","Unidad 2: desarrollo","Unidad 3: aplicaciones","Unidad 4: repaso final"] }],
     packs:[],
     cancelPolicy: defaultCancelPolicy(),
+    recordatorios: defaultRecordatorios(),
     updatedAt:0 };
 }
 const TAREA_META = {hecha:{label:"hecha",fg:"var(--tarea-hecha-fg)"},intentada:{label:"intentada",fg:"var(--tarea-intentada-fg)"},no:{label:"no hecha",fg:"var(--tarea-no-fg)"}};
@@ -94,6 +96,11 @@ const SENIA_ESTADO_META = {
 // antes de este campo no lo tienen; se completa con esto en cada lectura (ver cancelPolicyFor()
 // en helpers.js), sin migrar nada a mano.
 function defaultCancelPolicy(){ return {horasMinimas:24, siATiempo:"devuelve", texto:""}; }
+// Recordatorios de cobro (state.catalog.recordatorios) — mismo patrón que cancelPolicy: sincroniza
+// vía catalog, con este default para catálogos viejos que todavía no lo tienen (ver
+// recordatoriosFor() en helpers.js). notificacionesOS es la intención guardada; el permiso real
+// del navegador (Notification.permission) es local a cada dispositivo y no viaja en el JSON.
+function defaultRecordatorios(){ return {activo:true, diasAtraso:1, notificacionesOS:false}; }
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 // Plantillas de materias: temarios típicos de primer año universitario para no arrancar

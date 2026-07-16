@@ -42,6 +42,26 @@ async function checkTauriUpdate(){
   }catch(e){ /* silencioso: sin internet, sin release firmado todavía, o falla puntual del endpoint */ }
 }
 
+/* ============ notificación diaria de cobros atrasados (una por día, por dispositivo) ============
+   El aviso EN el tablero (vCobrosBanner) se recalcula en cada render, siempre al día; esto
+   sólo gobierna la notificación del SISTEMA, que sí necesita un tope de una vez por día para
+   no interrumpir en cada apertura de la app. */
+function maybeNotifyCobros(){
+  if(!getSes()) return;
+  const rec = recordatoriosFor();
+  if(!rec.activo || !rec.notificacionesOS) return;
+  if(typeof Notification==="undefined" || Notification.permission!=="granted") return;
+  if(localStorage.getItem(LAST_COBROS_NOTIFY_KEY)===today()) return;
+  const sum = cobrosAtrasadosSummary(rec.diasAtraso);
+  if(sum.count===0) return;
+  try{
+    new Notification("Cuaderno de seguimiento", {
+      body: `Tenés ${sum.count} cobro${sum.count===1?"":"s"} atrasado${sum.count===1?"":"s"} por ${fmtMoney(sum.total)}.`,
+    });
+    localStorage.setItem(LAST_COBROS_NOTIFY_KEY, today());
+  }catch(e){ /* silencioso: algún navegador/SO puntual puede bloquear la construcción */ }
+}
+
 function authMsgShow(t,ok){
   const el=document.getElementById("authMsg");
   if(el){ el.textContent=t; el.style.color = ok ? "var(--green)" : "var(--red)"; }
@@ -449,11 +469,41 @@ document.addEventListener("click", (e)=>{
   else if(a==="toggle-senia" && s){
     update(s.id,{seniaActiva:el.dataset.f==="si", seniaTipo:s.seniaTipo||"monto"}); return;
   }
-  else if(a==="toggle-senia-estado" && s){
-    const p=(s.clasesPuntuales||[]).find(x=>x.id===el.dataset.id); if(!p || p.cancelada) return;
+  else if(a==="toggle-senia-estado"){
+    const sid = el.dataset.sid || (s&&s.id); if(!sid) return;
+    const st = state.students.find(x=>x.id===sid); if(!st) return;
+    const p=(st.clasesPuntuales||[]).find(x=>x.id===el.dataset.id); if(!p || p.cancelada) return;
     if(p.seniaEstado!=="pendiente" && p.seniaEstado!=="cobrada") return;
     const next = p.seniaEstado==="pendiente" ? "cobrada" : "pendiente";
-    update(s.id,{clasesPuntuales:s.clasesPuntuales.map(x=>x.id===p.id?{...x,seniaEstado:next}:x)}); return;
+    update(sid,{clasesPuntuales:st.clasesPuntuales.map(x=>x.id===p.id?{...x,seniaEstado:next}:x)}); return;
+  }
+  else if(a==="cobros-toggle"){ state.cobrosBannerOpen = !state.cobrosBannerOpen; }
+  else if(a==="cobro-marcar-clase"){
+    const sid=el.dataset.sid, st=state.students.find(x=>x.id===sid); if(!st) return;
+    update(sid,{sessions:st.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:true}:x)}); return;
+  }
+  else if(a==="toggle-recordatorios"){
+    state.catalog.recordatorios = {...recordatoriosFor(), activo: el.dataset.f==="si"};
+    touchCatalog(); return;
+  }
+  else if(a==="toggle-notif-os"){
+    const rec = recordatoriosFor();
+    if(rec.notificacionesOS){
+      state.catalog.recordatorios = {...rec, notificacionesOS:false};
+      touchCatalog(); return;
+    }
+    if(typeof Notification==="undefined" || Notification.permission==="denied") return;
+    if(Notification.permission==="granted"){
+      state.catalog.recordatorios = {...rec, notificacionesOS:true};
+      touchCatalog(); return;
+    }
+    Notification.requestPermission().then(perm=>{
+      if(perm==="granted"){
+        state.catalog.recordatorios = {...recordatoriosFor(), notificacionesOS:true};
+        touchCatalog();
+      }
+    });
+    return;
   }
   else if(a==="puntual-cancel-ask"){ state.puntualCancelAskId=el.dataset.id; }
   else if(a==="puntual-cancel-cancel"){ state.puntualCancelAskId=null; }
@@ -553,6 +603,10 @@ document.addEventListener("change",(e)=>{
     state.catalog.cancelPolicy = {...cancelPolicyFor(), texto:cf.value};
     touchCatalog(); return;
   }
+  if(cf && cf.dataset.cf==="rec-dias"){
+    state.catalog.recordatorios = {...recordatoriosFor(), diasAtraso:Math.max(0, parseInt(cf.value,10)||0)};
+    touchCatalog(); return;
+  }
   if(cf && cf.dataset.cf==="stats-subject"){ state.statsSubjectId=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-month"){ state.pagosMonth=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="informe-period"){ state.informePeriod=cf.value; state.informeCopyMsg=""; render(); return; }
@@ -631,6 +685,7 @@ load(); render();
 syncNow();
 checkForNewVersion();
 checkTauriUpdate();
+maybeNotifyCobros();
 
 /* PWA: registrar el service worker cuando la app está publicada (no en file://
    ni dentro de un contenedor nativo como Tauri o Capacitor, que ya resuelven
