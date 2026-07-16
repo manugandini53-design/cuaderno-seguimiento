@@ -261,6 +261,26 @@ async function loadUsuarios(){
   }
   render();
 }
+async function deleteUsuario(id){
+  state.usersDeleteStatus="deleting"; state.usersDeleteError=""; render();
+  try{
+    const s=await ensureToken();
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+    const r=await fetch(SUPA_URL+"/rest/v1/rpc/admin_eliminar_usuario",{method:"POST", headers:h, body:JSON.stringify({objetivo:id})});
+    if(!r.ok){
+      const j=await r.json().catch(()=>({}));
+      throw new Error(j.message||j.msg||("error "+r.status));
+    }
+    state.usersConfirmDelId=null; state.usersConfirmDelInput=""; state.usersDeleteStatus="idle";
+    state.usersDeleteMsg="Cuenta eliminada.";
+    state.usersLoaded=false;
+    await loadUsuarios();
+  }catch(e){
+    state.usersDeleteStatus="idle";
+    state.usersDeleteError = !navigator.onLine ? "Sin conexión a internet." : (e.message||"No se pudo eliminar la cuenta.");
+    render();
+  }
+}
 async function loadActividad(){
   try{
     const s=await ensureToken();

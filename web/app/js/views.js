@@ -1228,8 +1228,11 @@ function vReportes(){
 }
 
 function vUsuarios(){
-  let h = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+  const sortDir = state.usersSortDir||"desc";
+  let h = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+    <button class="chip" data-a="usuarios-sort-lastseen">Última conexión ${sortDir==="desc"?"↓ más reciente primero":"↑ más antigua primero"}</button>
     <button class="chip" data-a="refresh-usuarios">Actualizar</button></div>`;
+  if(state.usersDeleteMsg) h += `<div class="hint" style="color:var(--green);margin-bottom:8px">${esc(state.usersDeleteMsg)}</div>`;
   if(state.usersError) return h + `<div class="saveerr">${esc(state.usersError)}</div>`;
   if(!state.usersLoaded) return h + `<div class="empty">Cargando usuarios…</div>`;
   const list = state.users||[];
@@ -1244,16 +1247,44 @@ function vUsuarios(){
     <div class="stat"><b>${list.filter(isActiveWeek).length}</b><span>activos últimos 7 días</span></div>
   </div>`;
   if(list.length===0) return h + `<div class="empty">Todavía no hay cuentas.</div>`;
-  h += list.map(u=>{
+  // más reciente/antigua primero; sin last_seen_at (nunca conectado) siempre al final, sea cual sea el orden
+  const sorted = list.slice().sort((a,b)=>{
+    const ma=lastSeenMs(a), mb=lastSeenMs(b);
+    if(ma===null && mb===null) return 0;
+    if(ma===null) return 1;
+    if(mb===null) return -1;
+    return sortDir==="desc" ? ma-mb : mb-ma;
+  });
+  h += sorted.map(u=>{
     const seen = isOnline(u)
       ? `<span style="display:inline-flex;align-items:center;gap:5px;color:var(--green);font-weight:600">
           <span class="sem" style="width:8px;height:8px;background:var(--green)"></span>En línea</span>`
       : `<span style="color:var(--faint)">${u.last_seen_at?"visto por última vez "+timeAgo(u.last_seen_at):"nunca conectado"}</span>`;
-    return `<div class="log" style="align-items:flex-start">
+    const isAdmin = u.rol==="admin";
+    const confirming = state.usersConfirmDelId===u.user_id;
+    let delUi = "";
+    if(!isAdmin){
+      if(!confirming){
+        delUi = `<button class="del" data-a="users-del-ask" data-id="${esc(u.user_id)}" title="Eliminar cuenta">×</button>`;
+      }else{
+        const matches = (state.usersConfirmDelInput||"")===u.email;
+        delUi = `<div style="flex-basis:100%;margin-top:8px;padding-top:8px;border-top:1px solid var(--soft)">
+          <div style="font-size:13px;color:var(--red);margin-bottom:6px">Esto borra la cuenta, sus alumnos, respaldos y materiales — no se puede deshacer. Escribí <b>${esc(u.email)}</b> para confirmar:</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" data-live="users-del-email" value="${esc(state.usersConfirmDelInput||"")}" placeholder="${esc(u.email)}" style="flex:1;min-width:180px">
+            <button class="danger" data-a="users-del-confirm" data-id="${esc(u.user_id)}" ${(!matches||state.usersDeleteStatus==="deleting")?"disabled":""}>Sí, eliminar</button>
+            <button class="chip" data-a="users-del-cancel">Cancelar</button>
+          </div>
+          ${state.usersDeleteError?`<div class="saveerr" style="margin-top:6px">${esc(state.usersDeleteError)}</div>`:""}
+        </div>`;
+      }
+    }
+    return `<div class="log" style="align-items:flex-start;flex-wrap:wrap">
       <div class="body">
         <div style="font-weight:600">${esc(u.email||"—")} <span class="hint">· ${esc(u.rol||"—")}</span></div>
         <div class="note">${seen} · ${esc(u.plataforma||"—")} · v${esc(u.version||"—")} · alta ${fmtDateTime(u.created_at)}</div>
       </div>
+      ${delUi}
     </div>`;
   }).join("");
   return h;

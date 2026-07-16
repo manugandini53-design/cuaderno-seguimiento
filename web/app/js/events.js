@@ -100,6 +100,18 @@ document.addEventListener("click", (e)=>{
     loadRecursos();
   }
   else if(a==="refresh-usuarios"){ state.usersLoaded=false; state.usersError=""; loadUsuarios(); }
+  else if(a==="usuarios-sort-lastseen"){ state.usersSortDir = state.usersSortDir==="desc" ? "asc" : "desc"; }
+  else if(a==="users-del-ask"){
+    state.usersConfirmDelId=el.dataset.id; state.usersConfirmDelInput=""; state.usersDeleteError=""; state.usersDeleteMsg="";
+  }
+  else if(a==="users-del-cancel"){
+    state.usersConfirmDelId=null; state.usersConfirmDelInput=""; state.usersDeleteError="";
+  }
+  else if(a==="users-del-confirm"){
+    const u=(state.users||[]).find(x=>x.user_id===el.dataset.id); if(!u) return;
+    if((state.usersConfirmDelInput||"")!==u.email) return;
+    deleteUsuario(u.user_id); return;
+  }
   else if(a==="actividad-mode-dia"){
     state.actividadMode="dia";
     if(!state.actividadLoaded){ state.actividadError=""; loadActividad(); }
@@ -522,6 +534,13 @@ document.addEventListener("input", (e)=>{
     state.listSearch=el.value;
     render();
     const ne=document.getElementById("lista-search");
+    if(ne){ ne.focus(); ne.setSelectionRange(pos,pos); }
+  }
+  if(el.dataset.live==="users-del-email"){
+    const pos=el.selectionStart;
+    state.usersConfirmDelInput=el.value;
+    render();
+    const ne=document.querySelector('[data-live="users-del-email"]');
     if(ne){ ne.focus(); ne.setSelectionRange(pos,pos); }
   }
 });
