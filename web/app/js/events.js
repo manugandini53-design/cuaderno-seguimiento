@@ -55,7 +55,7 @@ function maybeNotifyCobros(){
   const sum = cobrosAtrasadosSummary(rec.diasAtraso);
   if(sum.count===0) return;
   try{
-    new Notification("Cuaderno de seguimiento", {
+    new Notification("Entreclases", {
       body: `Tenés ${sum.count} cobro${sum.count===1?"":"s"} atrasado${sum.count===1?"":"s"} por ${fmtMoney(sum.total)}.`,
     });
     localStorage.setItem(LAST_COBROS_NOTIFY_KEY, today());

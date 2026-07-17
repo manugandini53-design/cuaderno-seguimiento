@@ -75,7 +75,7 @@ function navShell(isAdmin){
     `<button class="navitem ${isOn(it)?"on":""}" data-a="${it.action}">${it.icon}<span class="navitem-label">${esc(it.label)}</span></button>`
   ).join("");
   return `<nav class="appnav no-print">
-    <button class="appnav-brand" data-a="nav-tablero" aria-label="Ir al tablero"><span class="logo-mark">${ICON_CHECK}</span>Cuaderno</button>
+    <button class="appnav-brand" data-a="nav-tablero" aria-label="Ir al tablero"><span class="logo-mark">${ICON_CHECK}</span>Entreclases</button>
     <button class="navitem navitem-search" data-a="open-search" title="Buscar (atajo: /)">${ICON_SEARCH}<span class="navitem-label">Buscar</span></button>
     <div class="appnav-list">${itemsHtml}</div>
     <div class="appnav-foot">${syncChip()}${themeNavBtn()}${logoutNavBtn()}</div>
@@ -1154,10 +1154,10 @@ function buildAgendaIcs(){
     }
   });
   const stamp = start.replace(/-/g,"")+"T000000Z";
-  const lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Cuaderno de seguimiento//ES","CALSCALE:GREGORIAN"];
+  const lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Entreclases//ES","CALSCALE:GREGORIAN"];
   events.forEach((e,i)=>{
     lines.push("BEGIN:VEVENT");
-    lines.push("UID:"+stamp+"-"+i+"@cuaderno-seguimiento");
+    lines.push("UID:"+stamp+"-"+i+"@entreclases");
     lines.push("DTSTAMP:"+stamp);
     lines.push("DTSTART:"+icsDateTime(e.date,e.time));
     lines.push("DTEND:"+icsDateTime(e.date,addMinutesToTime(e.time,e.duration)));
@@ -1493,7 +1493,7 @@ function vInforme(){
       <textarea class="informe-comment" data-f="informeComment" placeholder="Agregá un comentario para este informe…">${esc(s.informeComment||"")}</textarea>
     </div>
 
-    <div class="informe-footer">Generado con Cuaderno de seguimiento — ${esc(fmtDate(today()))}</div>
+    <div class="informe-footer">Generado con Entreclases — ${esc(fmtDate(today()))}</div>
   </div>`;
   return h;
 }
@@ -1538,7 +1538,7 @@ function buildInformeText(s){
     lines.push(s.informeComment);
   }
   lines.push("");
-  lines.push("_Generado con Cuaderno de seguimiento_");
+  lines.push("_Generado con Entreclases_");
   return lines.join("\n");
 }
 
@@ -1635,7 +1635,7 @@ function vContrato(){
     </div>
 
     <div class="informe-footer" style="font-style:italic">Modelo orientativo: revisalo y adaptalo a tu caso; no constituye asesoramiento legal.</div>
-    <div class="informe-footer">Generado con Cuaderno de seguimiento — ${esc(fmtDate(today()))}</div>
+    <div class="informe-footer">Generado con Entreclases — ${esc(fmtDate(today()))}</div>
   </div>`;
   return h;
 }
@@ -1683,7 +1683,7 @@ function buildContratoText(s){
   lines.push(`Aclaración: ${doc.nombre||"________________"}            Aclaración: ${s.contratoResponsable||"________________"}`);
   lines.push("");
   lines.push("Modelo orientativo: revisalo y adaptalo a tu caso; no constituye asesoramiento legal.");
-  lines.push(`Generado con Cuaderno de seguimiento — ${fmtDate(today())}`);
+  lines.push(`Generado con Entreclases — ${fmtDate(today())}`);
   return lines.join("\n");
 }
 
@@ -1722,7 +1722,7 @@ function vRecibo(){
       ${r.saldo>0?`<div class="informe-row"><div class="informe-rowbody"><b>Saldo restante:</b> ${fmtMoney(r.saldo)}</div></div>`:""}
     </div>
 
-    <div class="informe-footer">Generado con Cuaderno de seguimiento — ${esc(fmtDate(today()))}</div>
+    <div class="informe-footer">Generado con Entreclases — ${esc(fmtDate(today()))}</div>
   </div>`;
   return h;
 }
@@ -1738,7 +1738,8 @@ function vAuth(){
     <div style="text-align:center;margin-bottom:20px">
       <div class="logo-mark" style="margin:0 auto 12px">${ICON_CHECK}</div>
       <div class="eyebrow">Clases particulares</div>
-      <h1 style="font-size:22px">Cuaderno de seguimiento</h1>
+      <h1 style="font-size:22px">Entreclases</h1>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:4px">Vos enseñás, del resto nos ocupamos.</div>
     </div>
     <div class="formcard">
       <div class="tabs" style="margin-bottom:14px">

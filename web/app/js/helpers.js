@@ -418,7 +418,7 @@ function buildReciboText(s, r){
   lines.push(`Alumno/a: ${s.name}`);
   if(doc.nombre) lines.push(`Docente: ${doc.nombre}`);
   lines.push("");
-  lines.push("_Generado con Cuaderno de seguimiento_");
+  lines.push("_Generado con Entreclases_");
   return lines.join("\n");
 }
 

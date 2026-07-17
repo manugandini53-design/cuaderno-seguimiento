@@ -1,6 +1,6 @@
 {
-  "name": "Cuaderno de seguimiento",
-  "short_name": "Cuaderno",
+  "name": "Entreclases",
+  "short_name": "Entreclases",
   "description": "Seguimiento de estudiantes de clases particulares de matemática",
   "lang": "es-AR",
   "start_url": "./index.html",
