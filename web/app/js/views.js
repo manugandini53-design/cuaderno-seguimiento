@@ -2980,7 +2980,7 @@ function render(){
     const p=document.getElementById("newpass1"); if(p) p.focus();
     return;
   }
-  if(!getSes()){
+  if(!getSes() && !IS_DEMO){
     document.body.classList.remove("has-nav");
     if(state.pendingConfirmEmail){
       document.getElementById("app").innerHTML = vConfirmEmail();
@@ -3006,6 +3006,13 @@ function render(){
   const ses = getSes();
   const isAdmin = sesIsAdmin(ses);
   let m = "";
+  if(IS_DEMO){
+    m += `<div class="no-print" style="position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
+      background:var(--bluebg);border:1px solid var(--blueline);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px;color:var(--status-aprobo-fg)">
+      <span><b>Modo demostración</b> — los cambios no se guardan</span>
+      <a class="chip" href="${esc(location.pathname)}" style="margin:0">Crear mi cuenta</a>
+    </div>`;
+  }
   if(IS_NATIVE && state.newVersionTag && !state.updateBannerDismissed){
     m += `<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
       background:var(--bluebg);border:1px solid var(--blueline);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px;color:var(--status-aprobo-fg)">

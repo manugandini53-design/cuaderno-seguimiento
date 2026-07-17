@@ -143,6 +143,7 @@ function packsContaining(subjectId){ return (state.catalog.packs||[]).filter(p=>
 const alive = () => state.students.filter(s => !s.deleted);
 
 function load(){
+  if(IS_DEMO){ const d=buildDemoData(); state.students=d.students; state.catalog=d.catalog; return; }
   try{
     const raw = localStorage.getItem(KEY);
     if(raw){ const p = JSON.parse(raw);
@@ -164,6 +165,7 @@ function trashDaysLeft(deletedAt){ return Math.max(0, TRASH_DAYS - Math.floor((D
 function setDirty(v){ try{ v ? localStorage.setItem(DIRTY_KEY,"1") : localStorage.removeItem(DIRTY_KEY); }catch(e){} }
 function isDirty(){ return localStorage.getItem(DIRTY_KEY)==="1"; }
 function save(){
+  if(IS_DEMO) return; // en modo demo nada se persiste — ni localStorage ni sync (ver IS_DEMO en config.js)
   try{ localStorage.setItem(KEY, JSON.stringify({students:state.students, catalog:state.catalog})); state.saveErr=false; }
   catch(e){ state.saveErr=true; }
   setDirty(true);
@@ -858,4 +860,130 @@ function openSearchResult(item){
     state.view="catalog"; state.selId=null; state.editSubjectId=item.id; state.editPackId=null;
     loadMateriales(item.id);
   }
+}
+
+/* ============ modo demo (paso 82): ?demo=1 carga este cuaderno ficticio en memoria — nunca
+   toca localStorage ni el backend (ver IS_DEMO en config.js, el guard de save() acá abajo y el
+   de ensureToken() en auth.js). Todas las fechas son relativas a hoy (addDays/today) para que la
+   demo se vea siempre vigente sin importar cuándo se abra. Los materiales son sólo la entrada
+   liviana que ya vive en catalog.subjects[].materiales — nunca se sube ni se lista nada de
+   Storage (ver materialesIndexFor() en sync.js: lee ese mismo array local). ============ */
+function buildDemoData(){
+  const unitsOf = id => (SUBJECT_TEMPLATES.find(t=>t.id===id)||{units:[]}).units;
+  const catalog = defaultCatalog();
+  catalog.careers = ["Ingeniería","Licenciatura"];
+  catalog.subjects = [
+    { id:"demo-am1", name:"Análisis Matemático I", units:unitsOf("tpl-analisis-1"), color:"teal",
+      materiales:[
+        {name:"Guía de ejercicios — Unidad 3.pdf", bytes:842000, compartido:true, uploadedAt:addDays(today(),-30)},
+        {name:"Resumen de derivadas.pdf", bytes:210000, compartido:true, uploadedAt:addDays(today(),-12)},
+      ] },
+    { id:"demo-fis1", name:"Física I", units:unitsOf("tpl-fisica-1"), color:"blue", materiales:[] },
+    { id:"demo-qui", name:"Química General", units:unitsOf("tpl-quimica-general"), color:"amber", materiales:[] },
+  ];
+  catalog.docente = {nombre:"Prof. Demo", telefono:"", dni:""};
+
+  const students = [];
+  const mk = (over) => ({
+    id: uid(), career:"Ingeniería", chair:"", notes:"", informeComment:"", phone:"",
+    tarifa:"", modalidad:"", pagos:[], recibos:[], examResults:[],
+    horarios:[], clasesPuntuales:[], seniaActiva:false, seniaTipo:"monto", seniaValor:"",
+    contratoResponsable:"", contratoDni:"", contratoFechaInicio:"", contratoClausulas:"",
+    startDate: addDays(today(),-60), status:"activo", semaforo:"sd", examDate:"",
+    topics:{}, sessions:[], simulacros:[], updatedAt:Date.now(),
+    ...over,
+  });
+  const sess = (daysAgo, topic, tarea, cobrada, objetivo, objetivoResult) => ({
+    id:uid(), date:addDays(today(),-daysAgo), topic, tarea:tarea||"sd", note:"",
+    duration:60, cobrada:!!cobrada,
+    objetivo: objetivo||"", objetivoResult: objetivoResult||null,
+  });
+
+  // 1) Lucía — al día, examen próximo, buen avance
+  students.push(mk({
+    name:"Lucía Fernández", subject:"Análisis Matemático I", subjectId:"demo-am1",
+    semaforo:"verde", examDate:addDays(today(),10), tarifa:8000, modalidad:"clase",
+    topics:{[unitsOf("tpl-analisis-1")[0]]:"parcial",[unitsOf("tpl-analisis-1")[1]]:"parcial",
+      [unitsOf("tpl-analisis-1")[2]]:"practica",[unitsOf("tpl-analisis-1")[3]]:"visto"},
+    sessions:[
+      sess(21,"Límites y continuidad","hecha",true,"Resolver límites por sustitución",{estado:"si",pct:100}),
+      sess(14,"Derivadas","hecha",true,"Reglas de derivación básicas",{estado:"si",pct:100}),
+      sess(7,"Aplicaciones de la derivada","intentada",true,"Optimización con derivadas",{estado:"medias",pct:60}),
+      sess(1,"Aplicaciones de la derivada","sd",false),
+    ],
+  }));
+
+  // 2) Martín — debe la mensualidad, en riesgo
+  students.push(mk({
+    name:"Martín Gómez", subject:"Física I", subjectId:"demo-fis1",
+    semaforo:"amarillo", examDate:addDays(today(),20), tarifa:35000, modalidad:"mensual",
+    pagos:[{id:uid(), date:addDays(today(),-5), amount:15000}],
+    topics:{[unitsOf("tpl-fisica-1")[0]]:"visto",[unitsOf("tpl-fisica-1")[1]]:"pendiente"},
+    sessions:[
+      sess(18,"Cinemática","hecha",false),
+      sess(11,"Leyes de Newton","intentada",false,"Resolver problemas de fuerzas",{estado:"medias",pct:50}),
+      sess(4,"Leyes de Newton","no",false,"Repasar diagramas de cuerpo libre",{estado:"no",pct:0}),
+    ],
+  }));
+
+  // 3) Sofía — cobra seña, tiene una clase puntual con seña pendiente esta semana
+  students.push(mk({
+    name:"Sofía Ibarra", subject:"Química General", subjectId:"demo-qui",
+    semaforo:"rojo", tarifa:9000, modalidad:"clase", seniaActiva:true, seniaTipo:"monto", seniaValor:"3000",
+    topics:{[unitsOf("tpl-quimica-general")[0]]:"pendiente"},
+    clasesPuntuales:[
+      {id:uid(), date:addDays(today(),3), time:"17:00", duration:60, cancelada:false, seniaEstado:"pendiente", seniaMonto:3000},
+    ],
+    sessions:[ sess(9,"Estructura atómica","no",true) ],
+  }));
+
+  // 4) Nicolás — pausado, sin actividad reciente
+  students.push(mk({
+    name:"Nicolás Paz", subject:"Análisis Matemático I", subjectId:"demo-am1",
+    status:"pausado", semaforo:"sd",
+    sessions:[ sess(75,"Números reales y funciones","hecha",true) ],
+  }));
+
+  // 5) Valentina — mensual, al día
+  students.push(mk({
+    name:"Valentina Ruiz", subject:"Física I", subjectId:"demo-fis1",
+    semaforo:"verde", tarifa:32000, modalidad:"mensual",
+    pagos:[{id:uid(), date:addDays(today(),-2), amount:32000}],
+    horarios:[{id:uid(), day:weekdayIdx(addDays(today(),2)), time:"16:00", duration:60}],
+    topics:{[unitsOf("tpl-fisica-1")[0]]:"parcial",[unitsOf("tpl-fisica-1")[1]]:"practica"},
+    sessions:[
+      sess(10,"Trabajo y energía","hecha",true,"Ejercicios de energía cinética",{estado:"si",pct:100}),
+      sess(3,"Trabajo y energía","hecha",true),
+    ],
+  }));
+
+  // 6) Tomás — no aprobó el último examen, a recuperar
+  students.push(mk({
+    name:"Tomás Herrera", subject:"Química General", subjectId:"demo-qui",
+    status:"desaprobo", semaforo:"rojo", examDate:addDays(today(),-6),
+    examResults:[{id:uid(), date:addDays(today(),-6), result:"desaprobo", grade:"3/10"}],
+    sessions:[ sess(20,"Enlace químico","intentada",true) ],
+  }));
+
+  // 7) Camila — buena racha de objetivos, horario habitual esta semana (agenda)
+  students.push(mk({
+    name:"Camila Torres", subject:"Análisis Matemático I", subjectId:"demo-am1",
+    semaforo:"amarillo", examDate:addDays(today(),30), tarifa:8000, modalidad:"clase",
+    horarios:[{id:uid(), day:weekdayIdx(today()), time:"18:30", duration:60}],
+    topics:{[unitsOf("tpl-analisis-1")[0]]:"parcial"},
+    sessions:[
+      sess(15,"Integrales indefinidas","hecha",true,"Resolver integrales por sustitución",{estado:"si",pct:100}),
+      sess(8,"Integrales definidas y aplicaciones","hecha",true,"Calcular áreas entre curvas",{estado:"si",pct:100}),
+      sess(2,"Integrales definidas y aplicaciones","intentada",false,"Aplicar el teorema fundamental",{estado:"medias",pct:70}),
+    ],
+  }));
+
+  // 8) Agustín — dejó, para las estadísticas de retención
+  students.push(mk({
+    name:"Agustín Molina", subject:"Física I", subjectId:"demo-fis1",
+    status:"dejo", semaforo:"sd", startDate:addDays(today(),-150),
+    sessions:[ sess(95,"Cinemática","hecha",true) ],
+  }));
+
+  return { students, catalog };
 }
