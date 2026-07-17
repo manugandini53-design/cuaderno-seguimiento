@@ -86,7 +86,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               newPackName:"", newPackSubjects:[], newPackError:"",
               view:"tablero", selId:null, filter:"activo", tab:"temas",
               listSearch:"", listSubject:"todas", listCareer:"todas", listSem:"todos",
-              listDeuda:"todas", listSort:"examen",
+              listDeuda:"todas", listSort:"examen", listTag:"todas",
               simTimer:null, simTimerLastMin:90, simPrefillNote:"",
               statsSubjectId:null,
               showNew:false, newStudentError:"", confirmDel:false, catConfirmDelId:null, trashPurgeConfirmKey:null, fichaError:"", saveErr:false,
@@ -143,6 +143,43 @@ function subjectDot(subjectOrId){
   const k = subjectColorKey(subjectOrId);
   return `<span class="subj-dot" style="background:var(--subj-${k}-fg)"></span>`;
 }
+// Etiquetas libres por alumno (paso 103): catalog.tags es la lista global {id,label,color} —
+// mismo patrón que subjects, así se autocompleta ("Verano" ya existente no se duplica al
+// escribir "verano") y se filtra/busca por igual sin importar qué alumno la use. El color sale
+// de la misma paleta accesible de SUBJECT_COLOR_KEYS (paso 73), repartido con el mismo criterio
+// de "el menos usado primero" que nextSubjectColor().
+function tagById(id){ return (state.catalog.tags||[]).find(t=>t.id===id) || null; }
+function findTagByLabel(label){
+  const n = String(label||"").trim().toLowerCase(); if(!n) return null;
+  return (state.catalog.tags||[]).find(t=>t.label.toLowerCase()===n) || null;
+}
+function nextTagColor(){
+  const counts = Object.fromEntries(SUBJECT_COLOR_KEYS.map(k=>[k,0]));
+  (state.catalog.tags||[]).forEach(t=>{ if(SUBJECT_COLOR_KEYS.includes(t.color)) counts[t.color]++; });
+  return SUBJECT_COLOR_KEYS.reduce((best,k)=>counts[k]<counts[best]?k:best, SUBJECT_COLOR_KEYS[0]);
+}
+// Devuelve la etiqueta existente (comparando sin importar mayúsculas) o crea una nueva en
+// catalog.tags — no guarda ni renderiza sola, eso lo hace el caller (ver "tag-add" en events.js)
+// junto con el patch al alumno, en un solo save().
+function getOrCreateTag(label){
+  const clean = String(label||"").trim(); if(!clean) return null;
+  const existing = findTagByLabel(clean); if(existing) return existing;
+  if(!Array.isArray(state.catalog.tags)) state.catalog.tags=[];
+  const tag = {id:uid(), label:clean, color:nextTagColor()};
+  state.catalog.tags.push(tag);
+  return tag;
+}
+function studentTags(s){ return (s.tagIds||[]).map(tagById).filter(Boolean); }
+// removableFor: id del alumno si el chip debe poder quitarse (ficha); omitido en la lista de
+// alumnos, donde las etiquetas son sólo informativas.
+function tagChip(tag, removableFor){
+  const remove = removableFor
+    ? `<button class="del" data-a="tag-remove" data-id="${esc(removableFor)}" data-tag="${esc(tag.id)}"
+        title="Quitar etiqueta «${esc(tag.label)}»" aria-label="Quitar etiqueta «${esc(tag.label)}»"
+        style="color:inherit;font-size:12px;margin-left:2px">×</button>`
+    : "";
+  return `<span class="subj-chip" style="background:var(--subj-${tag.color}-bg);color:var(--subj-${tag.color}-fg)">${esc(tag.label)}${remove}</span>`;
+}
 function unitsFor(s){ const m=subjById(s.subjectId); return m ? m.units : Object.keys(s.topics||{}); }
 function careerOptions(cur){ const l=[...state.catalog.careers]; if(cur && !l.includes(cur)) l.push(cur); return l; }
 function touchCatalog(){ state.catalog.updatedAt=Date.now(); save(); render(); }
@@ -185,6 +222,7 @@ function load(){
   }catch(e){}
   if(!Array.isArray(state.catalog.packs)) state.catalog.packs=[];
   if(!Array.isArray(state.catalog.trash)) state.catalog.trash=[];
+  if(!Array.isArray(state.catalog.tags)) state.catalog.tags=[];
   // papelera (paso 76): alumnos y materias borrados quedan restaurables 7 días y se purgan solos
   // pasado ese plazo — students usa el mismo flag "deleted" que antes (ahora con ventana de 7
   // días en vez de 90), catalog.trash guarda materias enteras sacadas de catalog.subjects.
@@ -216,7 +254,8 @@ function emptyStudent(){
     tarifa:"", modalidad:"", pagos:[], recibos:[], informeComment:"", phone:"", examResults:[],
     horarios:[], clasesPuntuales:[],
     seniaActiva:false, seniaTipo:"monto", seniaValor:"",
-    contratoResponsable:"", contratoDni:"", contratoFechaInicio:"", contratoClausulas:"" };
+    contratoResponsable:"", contratoDni:"", contratoFechaInicio:"", contratoClausulas:"",
+    tagIds:[] };
 }
 
 /* ============ regla: una ficha = un alumno en una materia ============
@@ -938,8 +977,17 @@ function jwtSub(tok){
 function globalSearchResults(query){
   const q = (query||"").trim().toLowerCase();
   if(!q) return {students:[], subjects:[], materiales:[], total:0};
-  const students = alive().filter(s=>s.name.toLowerCase().includes(q))
-    .slice(0,6).map(s=>({id:s.id, label:s.name, sub:s.subject||"Sin materia"}));
+  // paso 103: además del nombre, matchea por etiqueta (ej. buscar "verano" encuentra a los
+  // alumnos con esa etiqueta) — el "sub" muestra la etiqueta que matcheó cuando no matcheó el
+  // nombre, para que quede claro por qué apareció.
+  const students = alive().filter(s=>{
+    if(s.name.toLowerCase().includes(q)) return true;
+    return studentTags(s).some(t=>t.label.toLowerCase().includes(q));
+  }).slice(0,6).map(s=>{
+    if(s.name.toLowerCase().includes(q)) return {id:s.id, label:s.name, sub:s.subject||"Sin materia"};
+    const matchedTag = studentTags(s).find(t=>t.label.toLowerCase().includes(q));
+    return {id:s.id, label:s.name, sub:`Etiqueta: ${matchedTag.label}`};
+  });
   const subjects = state.catalog.subjects.filter(m=>m.name.toLowerCase().includes(q))
     .slice(0,6).map(m=>({id:m.id, label:m.name, sub:`${(m.units||[]).length} unidades`}));
   const materiales = [];

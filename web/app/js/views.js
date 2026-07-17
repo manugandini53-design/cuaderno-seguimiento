@@ -470,7 +470,8 @@ function vCobroItemRow(s,i){
 const SEM_SHORT = {sd:"Sin evaluar", verde:"Verde", amarillo:"Amarillo", rojo:"Rojo"};
 function listFiltersActive(){
   return !!(state.listSearch || state.listSubject!=="todas" || state.listCareer!=="todas" || state.listSem!=="todos" ||
-    state.filter!=="activo" || (state.listDeuda||"todas")!=="todas" || (state.listSort||"examen")!=="examen");
+    state.filter!=="activo" || (state.listDeuda||"todas")!=="todas" || (state.listSort||"examen")!=="examen" ||
+    (state.listTag||"todas")!=="todas");
 }
 // Última clase dictada (para ordenar/mostrar "por actividad") — null si nunca tuvo una.
 function lastSessionDate(s){
@@ -479,7 +480,7 @@ function lastSessionDate(s){
 function vLista(){
   const order=["activo","pausado","desaprobo","aprobo","dejo","todos"];
   const q = (state.listSearch||"").trim().toLowerCase();
-  const listDeuda = state.listDeuda||"todas", listSort = state.listSort||"examen";
+  const listDeuda = state.listDeuda||"todas", listSort = state.listSort||"examen", listTag = state.listTag||"todas";
   const shown = alive()
     .filter(s=>state.filter==="todos"||s.status===state.filter)
     .filter(s=>!q || s.name.toLowerCase().includes(q))
@@ -487,6 +488,7 @@ function vLista(){
     .filter(s=>state.listCareer==="todas"||s.career===state.listCareer)
     .filter(s=>state.listSem==="todos"||(s.semaforo||"sd")===state.listSem)
     .filter(s=>listDeuda==="todas" || (listDeuda==="debe" ? pendienteTotalFor(s)>0 : pendienteTotalFor(s)<=0))
+    .filter(s=>listTag==="todas" || (s.tagIds||[]).includes(listTag))
     .sort((a,b)=>{
       if(listSort==="actividad") return (lastSessionDate(b)||"0000-00-00").localeCompare(lastSessionDate(a)||"0000-00-00") || a.name.localeCompare(b.name);
       if(listSort==="nombre") return a.name.localeCompare(b.name);
@@ -524,6 +526,10 @@ function vLista(){
       <option value="actividad" ${listSort==="actividad"?"selected":""}>Por última clase</option>
       <option value="nombre" ${listSort==="nombre"?"selected":""}>Por nombre</option>
     </select>
+    ${(state.catalog.tags||[]).length ? `<select data-lf="tag" style="width:auto">
+      <option value="todas" ${listTag==="todas"?"selected":""}>Todas las etiquetas</option>
+      ${state.catalog.tags.map(t=>`<option value="${t.id}" ${t.id===listTag?"selected":""}>${esc(t.label)}</option>`).join("")}
+    </select>` : ""}
     ${listFiltersActive()?`<button class="chip" data-a="clear-filters">Limpiar filtros</button>`:""}</div>`;
 
   h += `<div class="hint" style="margin-bottom:10px">${shown.length} resultado${shown.length===1?"":"s"}</div>`;
@@ -550,7 +556,8 @@ function vLista(){
         <div class="main"><div class="name">${esc(s.name)} ${semDot(s.semaforo,13,false)} ${pill(s.status)} ${examplePill(s)}
           ${na?`<span class="mini-alert">${na} alerta${na>1?"s":""}</span>`:""}
           ${deuda>0?`<span class="pill" style="color:var(--status-desaprobo-fg);background:var(--redbg)">debe ${fmtMoney(deuda)}</span>`:""}</div>
-        <div class="sub">${esc(s.career)} · ${esc(s.subject||"materia s/d")} · temas ${seen}/${rel}${(state.listSort||"examen")==="actividad"?` · última clase ${lastAct?esc(fmtDate(lastAct)):"nunca"}`:""}</div></div>
+        <div class="sub">${esc(s.career)} · ${esc(s.subject||"materia s/d")} · temas ${seen}/${rel}${(state.listSort||"examen")==="actividad"?` · última clase ${lastAct?esc(fmtDate(lastAct)):"nunca"}`:""}</div>
+        ${studentTags(s).length?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${studentTags(s).map(t=>tagChip(t)).join("")}</div>`:""}</div>
         <div class="right">${right}</div>
       </button>
       ${hasPhone(s)?`<a class="wa-quick" title="Enviar WhatsApp" target="_blank" rel="noopener" href="${waLink(s,waQuickMessage(s))}">${ICON_CHAT}</a>`:""}
@@ -559,6 +566,21 @@ function vLista(){
   return h;
 }
 
+// Etiquetas libres (paso 103): chips con quitar + input con autocompletado (datalist) de las
+// etiquetas ya existentes en catalog.tags, para no duplicar "Verano" vs "verano" — el matching
+// real (case-insensitive) lo hace getOrCreateTag() en helpers.js, el datalist es sólo ayuda
+// visual del navegador. data-enter="tag-add" hace que Enter dispare el mismo botón "+".
+function vFichaTagsRow(s){
+  const tags = studentTags(s);
+  const existingLabels = [...new Set((state.catalog.tags||[]).map(t=>t.label))].sort((a,b)=>a.localeCompare(b));
+  return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+    ${tags.map(t=>tagChip(t,s.id)).join("")}
+    <input id="tag-input" list="tag-datalist" data-enter="tag-add" placeholder="+ etiqueta (ingreso, online…)"
+      style="width:150px;padding:5px 10px;font-size:12.5px;border-radius:99px;border:1px dashed var(--line);background:none;color:var(--ink)">
+    <button class="chip" data-a="tag-add" style="padding:5px 12px">Agregar</button>
+    <datalist id="tag-datalist">${existingLabels.map(l=>`<option value="${esc(l)}">`).join("")}</datalist>
+  </div>`;
+}
 function vDetalle(){
   const s = sel(); if(!s) return "";
   const d = daysTo(s.examDate);
@@ -573,6 +595,7 @@ function vDetalle(){
     </div>
     ${(s.examDate&&d!==null&&d>=0)?`<span class="count big ${d<=7?"urgent":""}">examen: ${d===0?"HOY":d+" día"+(d===1?"":"s")}</span>`:""}
   </div>`;
+  h += vFichaTagsRow(s);
   h += alerts.map(a=>`<div class="alert" style="cursor:default"><span class="dot"></span><span class="t">${esc(a.text)}</span></div>`).join("");
   h += vGoalClosure(s);
   // Pestañas (paso 78): Resumen / Clases / Pagos / Objetivos / Materiales / Portal — cada una

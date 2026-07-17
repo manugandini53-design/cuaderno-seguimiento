@@ -129,6 +129,7 @@ function defaultCatalog(){
       units:["Unidad 1: introducción","Unidad 2: desarrollo","Unidad 3: aplicaciones","Unidad 4: repaso final"] }],
     packs:[],
     trash:[],
+    tags:[], // etiquetas libres por alumno (paso 103) — {id,label,color}, ver getOrCreateTag() en helpers.js
     cancelPolicy: defaultCancelPolicy(),
     recordatorios: defaultRecordatorios(),
     costos: defaultCostos(),

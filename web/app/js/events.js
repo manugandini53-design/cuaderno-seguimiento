@@ -677,7 +677,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="filter"){ state.filter=el.dataset.f; }
   else if(a==="clear-filters"){
     state.filter="activo"; state.listSearch=""; state.listSubject="todas"; state.listCareer="todas"; state.listSem="todos";
-    state.listDeuda="todas"; state.listSort="examen";
+    state.listDeuda="todas"; state.listSort="examen"; state.listTag="todas";
   }
   else if(a==="cycle-topic" && s){
     const t=el.dataset.t, cur=s.topics[t]||"pendiente";
@@ -687,6 +687,18 @@ document.addEventListener("click", (e)=>{
   else if(a==="cycle-sem" && s){
     const next=SEM_CYCLE[(SEM_CYCLE.indexOf(s.semaforo||"sd")+1)%SEM_CYCLE.length];
     update(s.id,{semaforo:next}); return;
+  }
+  else if(a==="tag-add" && s){
+    const input=document.getElementById("tag-input");
+    const v=(input&&input.value||"").trim(); if(!v) return;
+    const tag=getOrCreateTag(v);
+    const ids=new Set(s.tagIds||[]);
+    if(ids.has(tag.id)) return; // ya la tiene — no duplica
+    update(s.id,{tagIds:[...ids,tag.id]}); return;
+  }
+  else if(a==="tag-remove"){
+    const sid=el.dataset.id, st=state.students.find(x=>x.id===sid); if(!st) return;
+    update(sid,{tagIds:(st.tagIds||[]).filter(id=>id!==el.dataset.tag)}); return;
   }
   else if(a==="save-session" && s){
     const date=document.getElementById("c-date").value; if(!date) return;
@@ -1154,6 +1166,7 @@ function handleFormChange(e){
     else if(lf.dataset.lf==="sem") state.listSem=lf.value;
     else if(lf.dataset.lf==="deuda") state.listDeuda=lf.value;
     else if(lf.dataset.lf==="sort") state.listSort=lf.value;
+    else if(lf.dataset.lf==="tag") state.listTag=lf.value;
     render(); return;
   }
   const el=e.target.closest("[data-f]"); if(!el) return;
