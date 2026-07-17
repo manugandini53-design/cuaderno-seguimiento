@@ -882,6 +882,9 @@ document.addEventListener("click", (e)=>{
     }); return;
   }
   else if(a==="pagos-tab"){ state.pagosTab=el.dataset.t; }
+  else if(a==="stats-mode"){ state.statsMode=el.dataset.m; }
+  else if(a==="compare-prev-month"){ state.compareA=monthKeyOffset(0); state.compareB=monthKeyOffset(-1); }
+  else if(a==="compare-last-year"){ state.compareA=monthKeyOffset(0); state.compareB=monthKeyOffset(-12); }
   else if(a==="add-costo-fijo"){
     const name=document.getElementById("costo-fijo-name").value.trim(); if(!name) return;
     const monto=Number(document.getElementById("costo-fijo-monto").value)||0;
@@ -1155,6 +1158,8 @@ function handleFormChange(e){
     touchCatalog(); return;
   }
   if(cf && cf.dataset.cf==="stats-subject"){ state.statsSubjectId=cf.value; render(); return; }
+  if(cf && cf.dataset.cf==="compare-a"){ state.compareA=cf.value; render(); return; }
+  if(cf && cf.dataset.cf==="compare-b"){ state.compareB=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-month"){ state.pagosMonth=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-export-period"){ state.pagosExportPeriod=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="renta-month"){ state.rentaMonth=cf.value; render(); return; }

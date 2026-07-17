@@ -2336,8 +2336,89 @@ function semaforoBars(counts){
       </div>`;
     }).join("") + `</div>`;
 }
+// Comparar períodos (paso 104): dos meses elegidos lado a lado — ingresos, clases dadas, horas,
+// alumnos con clase y % de objetivos cumplidos — todo calculado del historial local
+// (statsPeriodSummary() en helpers.js), sin ningún dato nuevo guardado. Mismo lenguaje visual que
+// el resto de Estadísticas: fila de progreso con el valor siempre visible al lado (nunca sólo la
+// barra) y trendBadge() para la diferencia con flecha (paso 79, ya usado en Retención).
+function compareBarRow(label, val, max, fmt, color){
+  const pct = max>0 ? Math.min(100, Math.round(val/max*100)) : 0;
+  return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:5px">
+    <div style="width:120px;flex-shrink:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</div>
+    <div role="progressbar" aria-label="${esc(label)}" aria-valuenow="${val}" aria-valuemin="0"
+      style="flex:1;background:var(--soft);border-radius:4px;overflow:hidden;height:14px">
+      <div class="grow-h" style="width:${pct}%;background:${color}"></div>
+    </div>
+    <div style="width:90px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted)">${fmt(val)}</div>
+  </div>`;
+}
+function compareMetricRow(title, labelA, labelB, valA, valB, fmt){
+  const max = Math.max(1, valA, valB);
+  return `<div class="stitle">${esc(title)}</div>`
+    + compareBarRow(labelA, valA, max, fmt, "var(--accent)")
+    + compareBarRow(labelB, valB, max, fmt, "var(--gray2)")
+    + trendBadge(valA, valB, labelB);
+}
+// % de objetivos cumplidos: la diferencia se muestra en puntos porcentuales (no % relativo como
+// trendBadge, que confundiría "% de cambio de un %") — mismo criterio de color/flecha.
+function compareObjetivosRow(a, b, labelA, labelB){
+  let h = `<div class="stitle">% de objetivos cumplidos</div>`;
+  if(a.objetivosTotal===0 && b.objetivosTotal===0)
+    return h + `<div class="empty">Sin objetivos de clase evaluados en ninguno de los dos períodos.</div>`;
+  const fmtPct = (v,total) => v===null ? "sin datos" : `${v.toFixed(0)}% (${total})`;
+  h += compareBarRow(labelA, a.objetivosPct||0, 100, v=>fmtPct(a.objetivosPct,a.objetivosTotal), "var(--accent)");
+  h += compareBarRow(labelB, b.objetivosPct||0, 100, v=>fmtPct(b.objetivosPct,b.objetivosTotal), "var(--gray2)");
+  if(a.objetivosPct===null || b.objetivosPct===null){
+    h += `<div class="hint" style="margin-bottom:6px">Sin objetivos evaluados en uno de los dos períodos — no se puede comparar la diferencia.</div>`;
+  }else{
+    const diff = a.objetivosPct-b.objetivosPct;
+    const flat = Math.round(diff)===0;
+    const color = flat?"var(--muted)":(diff>0?"var(--green)":"var(--red)");
+    const arrow = flat?"→":(diff>0?"↑":"↓");
+    h += `<div class="hint" style="margin-bottom:6px"><span style="color:${color};font-weight:700;font-family:var(--mono)">${arrow} ${Math.abs(diff).toFixed(0)} pto${Math.abs(diff)>=2?"s":""}</span> vs. ${esc(labelB)}</div>`;
+  }
+  return h;
+}
+function vEstadisticasComparar(){
+  const keys = recentMonthKeys(24);
+  const mkA = keys.includes(state.compareA) ? state.compareA : monthKeyOffset(0);
+  const mkB = keys.includes(state.compareB) ? state.compareB : monthKeyOffset(-1);
+  state.compareA = mkA; state.compareB = mkB;
+
+  let h = `<div class="frow" style="align-items:flex-end;margin-bottom:14px">
+    <div class="field" style="max-width:220px">
+      <div class="flabel">Período A</div>
+      <select data-cf="compare-a">${keys.map(k=>`<option value="${k}" ${k===mkA?"selected":""}>${esc(monthLabel(k))}</option>`).join("")}</select>
+    </div>
+    <div class="field" style="max-width:220px">
+      <div class="flabel">Período B</div>
+      <select data-cf="compare-b">${keys.map(k=>`<option value="${k}" ${k===mkB?"selected":""}>${esc(monthLabel(k))}</option>`).join("")}</select>
+    </div>
+    <button class="chip" data-a="compare-prev-month" style="margin-bottom:2px">Este mes vs. anterior</button>
+    <button class="chip" data-a="compare-last-year" style="margin-bottom:2px">Mismo mes, año pasado</button>
+  </div>`;
+
+  if(mkA===mkB) h += `<div class="hint" style="margin-bottom:14px">Elegiste el mismo período dos veces — cambiá uno para ver una diferencia real.</div>`;
+
+  const a = statsPeriodSummary(mkA), b = statsPeriodSummary(mkB);
+  const labelA = monthLabel(mkA), labelB = monthLabel(mkB);
+
+  h += compareMetricRow("Ingresos cobrados", labelA, labelB, a.ingresos, b.ingresos, fmtMoney);
+  h += compareMetricRow("Clases dadas", labelA, labelB, a.clases, b.clases, v=>String(v));
+  h += compareMetricRow("Horas dictadas", labelA, labelB, a.horas, b.horas, v=>v.toFixed(1));
+  h += compareMetricRow("Alumnos con clase", labelA, labelB, a.alumnosConClase, b.alumnosConClase, v=>String(v));
+  h += compareObjetivosRow(a, b, labelA, labelB);
+
+  return h;
+}
 function vEstadisticas(){
   let h = pageHead("Estadísticas","Panorama del grupo");
+  h += `<div class="tabs" style="margin-bottom:16px">
+    <button class="tabbtn ${(state.statsMode||"normal")==="normal"?"on":""}" data-a="stats-mode" data-m="normal">Vista normal</button>
+    <button class="tabbtn ${state.statsMode==="comparar"?"on":""}" data-a="stats-mode" data-m="comparar">Comparar períodos</button>
+  </div>`;
+  if(state.statsMode==="comparar") return h + vEstadisticasComparar();
+
   const subs = subjectsWithStudents();
   if(subs.length===0) return h + `<div class="empty">Todavía no hay alumnos con una materia asignada.</div>`;
 

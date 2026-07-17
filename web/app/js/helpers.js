@@ -88,7 +88,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               listSearch:"", listSubject:"todas", listCareer:"todas", listSem:"todos",
               listDeuda:"todas", listSort:"examen", listTag:"todas",
               simTimer:null, simTimerLastMin:90, simPrefillNote:"",
-              statsSubjectId:null,
+              statsSubjectId:null, statsMode:"normal", compareA:null, compareB:null,
               showNew:false, newStudentError:"", confirmDel:false, catConfirmDelId:null, trashPurgeConfirmKey:null, fichaError:"", saveErr:false,
               syncStatus:"idle", syncMsg:"", lastSync:null,
               authMode:"login", authEmail:"", recovery:null,
@@ -389,6 +389,18 @@ function goalCounts(students){
   let si=0, medias=0, no=0;
   students.forEach(s=>(s.sessions||[]).forEach(c=>{
     if(!c.objetivo || !c.objetivoResult) return;
+    if(c.objetivoResult.estado==="si") si++;
+    else if(c.objetivoResult.estado==="medias") medias++;
+    else if(c.objetivoResult.estado==="no") no++;
+  }));
+  return { si, medias, no, total: si+medias+no };
+}
+// Igual que goalCounts() pero acotado a los objetivos cerrados en clases de un mes puntual —
+// para "Comparar períodos" en Estadísticas (paso 104).
+function goalCountsInMonth(mk){
+  let si=0, medias=0, no=0;
+  alive().forEach(s=>(s.sessions||[]).forEach(c=>{
+    if(!c.objetivo || !c.objetivoResult || monthKeyOf(c.date)!==mk) return;
     if(c.objetivoResult.estado==="si") si++;
     else if(c.objetivoResult.estado==="medias") medias++;
     else if(c.objetivoResult.estado==="no") no++;
@@ -829,6 +841,24 @@ function rentabilidadMes(mk){
   const netoPorHora = horas>0 ? ganancia/horas : null;
 
   return { mk, ingresos, costoFijoTotal, costoVarTotal, costosTotal, ganancia, horas, clasesCount:clases.length, sinDuracion, netoPorHora };
+}
+// Resumen de un mes puntual para "Comparar períodos" en Estadísticas (paso 104) — todo salido
+// del historial local (sesiones, pagos, objetivos), sin ningún campo nuevo en el JSON. "Alumnos
+// con clase" es la mejor aproximación a "alumnos activos" de un mes pasado que se puede sacar del
+// historial: el estado actual (s.status) es un valor presente, no algo que quede registrado mes
+// a mes, así que no hay forma de saber quién estaba "activo" en un mes anterior salvo por si
+// tuvo clase ese mes.
+function statsPeriodSummary(mk){
+  const r = rentabilidadMes(mk);
+  const clases = classesInMonth(mk);
+  const alumnosConClase = new Set(clases.map(({s})=>s.id)).size;
+  const goals = goalCountsInMonth(mk);
+  return {
+    mk, ingresos:r.ingresos, clases:r.clasesCount, horas:r.horas,
+    alumnosConClase,
+    objetivosPct: goals.total>0 ? (goals.si/goals.total*100) : null,
+    objetivosTotal: goals.total,
+  };
 }
 // desglose por materia: ingresos/costos/horas atribuibles a cada una — los costos generales
 // (sin materia ni alumno asignado) no entran acá, sólo los que se asignaron a esa materia puntual.
