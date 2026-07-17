@@ -69,6 +69,9 @@ function authMsgShow(t,ok){
 
 /* ============ eventos ============ */
 document.addEventListener("click", (e)=>{
+  // Ayuda contextual (paso 74): un click afuera del popover abierto lo cierra, sin esperar
+  // a que el click caiga en algo con data-a (que es lo único que dispara render() más abajo).
+  if(state.helpOpen && !e.target.closest(".help-tip-wrap")){ state.helpOpen=null; render(); }
   const el = e.target.closest("[data-a]"); if(!el) return;
   const a = el.dataset.a, s = sel();
   if(a==="nav-tablero"){ state.view="tablero"; state.selId=null; }
@@ -670,6 +673,10 @@ document.addEventListener("click", (e)=>{
     update(id,{deleted:true});
     toast(s.sample?"Ejemplo eliminado":"Estudiante eliminado"); return;
   }
+  else if(a==="toggle-help"){ state.helpOpen = state.helpOpen===el.dataset.id ? null : el.dataset.id; }
+  else if(a==="toggle-faq"){
+    const i=+el.dataset.i; state.faqOpenIdx = state.faqOpenIdx===i ? null : i;
+  }
   else if(a==="open-search"){ state.searchOpen=true; state.searchQuery=""; state.searchSel=0; }
   else if(a==="close-search" || a==="close-search-bg"){ state.searchOpen=false; }
   else if(a==="search-modal-noop"){ return; }
@@ -706,7 +713,10 @@ document.addEventListener("keydown",(e)=>{
   if(!state.searchOpen && e.key==="/" && !typing && getSes() && !state.recovery){
     e.preventDefault(); state.searchOpen=true; state.searchQuery=""; state.searchSel=0; render(); return;
   }
-  if(!state.searchOpen) return;
+  if(!state.searchOpen){
+    if(e.key==="Escape" && state.helpOpen){ state.helpOpen=null; render(); }
+    return;
+  }
   if(e.key==="Escape"){ e.preventDefault(); state.searchOpen=false; render(); return; }
   if(e.key==="ArrowDown" || e.key==="ArrowUp"){
     e.preventDefault();

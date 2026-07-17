@@ -29,6 +29,7 @@ const ICON_CHART=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const ICON_ACCOUNT=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c0-4 3.5-7 7.5-7s7.5 3 7.5 7"/></svg>`;
 const ICON_SHIELD=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`;
 const ICON_SEARCH=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`;
+const ICON_CHEVRON=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
 /* ============ iconografía unificada (paso 73): mismo set de línea (viewBox 24, stroke-width 2,
    stroke-linecap/linejoin round) para todo lo que antes era un emoji suelto — WhatsApp, objetivo
    de clase, racha, superposición de horario y los tres resultados de objetivo (sí/a medias/no).
@@ -105,6 +106,16 @@ function emptyState(icon,title,text,actionHtml){
     ${actionHtml||""}
   </div>`;
 }
+/* ============ ayuda contextual (paso 74): iconito "?" junto a lo menos obvio (señas, política
+   de cancelación, portal, rentabilidad) — un popover corto al tocarlo, se cierra solo con Escape
+   o al tocar afuera (ver helpOpen en events.js). id es una key de HELP_TEXTS (config.js). ============ */
+function helpTip(id){
+  const open = state.helpOpen===id;
+  return `<span class="help-tip-wrap">
+    <button class="help-tip-btn" data-a="toggle-help" data-id="${id}" aria-label="Ayuda: ${esc(HELP_TEXTS[id]||"")}" aria-expanded="${open}">?</button>
+    ${open?`<div class="help-tip-pop" role="tooltip">${esc(HELP_TEXTS[id]||"")}</div>`:""}
+  </span>`;
+}
 const ICON_INBOX=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5.5 5h13l2.5 7v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7z"/></svg>`;
 const ICON_LINK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>`;
 
@@ -126,15 +137,33 @@ function toastWrap(){
 }
 
 /* ============ vistas ============ */
+// Guía de primeros pasos (paso 74): checklist de 4 pasos que se tilda sola en base a datos
+// reales (nunca se guarda el progreso aparte, se recalcula en cada render) — así no hay nada
+// que migrar ni desincronizar entre dispositivos. Se muestra mientras la cuenta esté "vacía"
+// (falta algún paso) y no se haya descartado a mano; se completa sola apenas se hacen los 4,
+// sin necesidad de tocar "descartar".
+const ONBOARDING_STEPS = [
+  {label:"Creá tu primera materia", action:"nav-catalog",
+    done:()=>state.catalog.subjects.some(m=>m.id!=="materia-ejemplo")},
+  {label:"Agregá un alumno", action:"new",
+    done:()=>alive().some(s=>!s.sample)},
+  {label:"Registrá una clase", action:"nav-lista",
+    done:()=>alive().some(s=>!s.sample && (s.sessions||[]).length>0)},
+  {label:"Activá tu portal", action:"nav-cuenta",
+    done:()=>!!(state.portal && state.portal.habilitado)},
+];
 function vTips(){
   if(tipsDismissed()) return "";
+  const steps = ONBOARDING_STEPS.map(s=>({...s, ok:s.done()}));
+  if(steps.every(s=>s.ok)) return "";
   return `<div class="formcard" style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between">
-    <div>
+    <div style="flex:1">
       <div class="ftitle" style="margin-bottom:8px">Primeros pasos</div>
-      <div style="font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:4px">
-        <span><b style="color:var(--ink)">1.</b> Cargá tu primer alumno</span>
-        <span><b style="color:var(--ink)">2.</b> Marcá los temas que ya vieron</span>
-        <span><b style="color:var(--ink)">3.</b> Registrá cada clase al terminarla</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${steps.map(s=>`<button class="tip-step ${s.ok?"done":""}" data-a="${s.action}">
+          <span class="tip-step-check">${s.ok?ICON_CHECK.replace('stroke="white"','stroke="currentColor"'):""}</span>
+          <span>${esc(s.label)}</span>
+        </button>`).join("")}
       </div>
     </div>
     <button class="del" style="font-size:20px" data-a="dismiss-tips" title="Descartar">×</button>
@@ -757,7 +786,7 @@ function vPuntualRow(s,p){
 // parte de la ficha ni en las clases puntuales (ver hasSenia() en helpers.js).
 function vSeniaCard(s){
   const activa = hasSenia(s);
-  let h = `<div class="formcard"><div class="ftitle">¿Cobrás seña?</div>
+  let h = `<div class="formcard"><div class="ftitle" style="display:flex;align-items:center;gap:7px">¿Cobrás seña?${helpTip("senia")}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${activa?"10px":"0"}">
       <button class="chip ${!activa?"on":""}" data-a="toggle-senia" data-f="no">No</button>
       <button class="chip ${activa?"on":""}" data-a="toggle-senia" data-f="si">Sí</button>
@@ -1071,7 +1100,7 @@ function vRentabilidad(){
 
   const r = rentabilidadMes(mk);
   h += `<div class="stats" style="margin-bottom:10px">
-    <div class="stat"><b style="font-size:34px;color:${r.horas>0?(r.ganancia>=0?"var(--green)":"var(--red)"):"var(--ink)"}">${r.horas>0?fmtMoneySigned(r.netoPorHora):"—"}</b><span>neto por hora real</span></div>
+    <div class="stat"><b style="font-size:34px;color:${r.horas>0?(r.ganancia>=0?"var(--green)":"var(--red)"):"var(--ink)"}">${r.horas>0?fmtMoneySigned(r.netoPorHora):"—"}</b><span>neto por hora real ${helpTip("rentabilidad")}</span></div>
   </div>`;
   h += `<div class="stats" style="margin-bottom:8px">
     <div class="stat"><b>${fmtMoney(r.ingresos)}</b><span>ingresos cobrados</span></div>
@@ -1552,7 +1581,7 @@ function vCuenta(){
     </div>
   </div>
   ${vRecordatoriosCard()}
-  <div class="formcard"><div class="ftitle">Política de cancelación</div>
+  <div class="formcard"><div class="ftitle" style="display:flex;align-items:center;gap:7px">Política de cancelación${helpTip("cancelPolicy")}</div>
     <div class="hint" style="margin-bottom:10px">Se aplica al cancelar una clase puntual con seña ya cobrada (ver la ficha de cada alumno). El texto queda guardado para reutilizarlo donde haga falta.</div>
     <div class="frow">
       <div class="field" style="max-width:200px"><div class="flabel">Horas mínimas de aviso</div>
@@ -1586,10 +1615,27 @@ function vCuenta(){
     <div class="hint" style="margin-bottom:10px">Se guarda una copia completa una vez por día, en la primera sincronización. Se conservan las últimas ${MAX_BACKUPS}. Esto no reemplaza la copia manual (.json) del tablero — conviven.</div>
     ${vBackupsList()}
   </div>
+  ${vCentroAyuda()}
   <div class="formcard"><div class="ftitle">Reportar un problema</div>
     <div class="field"><textarea id="report-msg" placeholder="Contanos qué pasó — cuanto más detalle, mejor.">${esc(state.reportMsg||"")}</textarea></div>
     <button class="primary" style="margin:10px 0 0;margin-left:0" data-a="send-report" ${state.reportStatus==="sending"?"disabled":""}>Enviar reporte</button>
     <div class="hint" id="reportMsg" style="margin-top:10px;min-height:16px;color:${state.reportStatus==="error"?"var(--red)":state.reportStatus==="ok"?"var(--green)":"var(--faint)"}">${esc(reportStatusText())}</div>
+  </div>`;
+}
+// Mini centro de ayuda (paso 74): acordeón simple sobre FAQ_ITEMS (config.js), un ítem
+// abierto por vez (alcanza para preguntas cortas; no hace falta que convivan varias abiertas).
+function vCentroAyuda(){
+  return `<div class="formcard"><div class="ftitle">Centro de ayuda</div>
+    <div class="hint" style="margin-bottom:8px">Preguntas frecuentes sobre la app.</div>
+    ${FAQ_ITEMS.map((it,i)=>{
+      const open = state.faqOpenIdx===i;
+      return `<div class="faq-item">
+        <button class="faq-q" data-a="toggle-faq" data-i="${i}" aria-expanded="${open}">
+          <span>${esc(it.q)}</span><span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
+        </button>
+        ${open?`<div class="faq-a">${esc(it.a)}</div>`:""}
+      </div>`;
+    }).join("")}
   </div>`;
 }
 function themeBtn(v,label){
@@ -1605,7 +1651,7 @@ function reportStatusText(){
 // Portal para tus alumnos (Cuenta) — activar/desactivar, ver/copiar el link, regenerar la
 // llave y publicar el JSON público (ver migración 013_portal.sql y portal.html/js/portal.js).
 function vPortalCard(){
-  let h = `<div class="formcard"><div class="ftitle">Portal para tus alumnos</div>`;
+  let h = `<div class="formcard"><div class="ftitle" style="display:flex;align-items:center;gap:7px">Portal para tus alumnos${helpTip("portal")}</div>`;
   if(state.portalError && !state.portal){
     h += `<div class="saveerr">${esc(state.portalError)}</div>
     <button class="chip" data-a="portal-reload">Reintentar</button></div>`;

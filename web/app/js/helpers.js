@@ -88,7 +88,8 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               portal:null, portalLoaded:false, portalError:"",
               portalSaving:false, portalSaveMsg:"", portalCopyMsg:"",
               toasts:[],
-              searchOpen:false, searchQuery:"", searchSel:0 };
+              searchOpen:false, searchQuery:"", searchSel:0,
+              helpOpen:null, faqOpenIdx:null };
 
 const subjById = (id) => state.catalog.subjects.find(m=>m.id===id) || null;
 // Color por materia (paso 73): key estable de SUBJECT_COLOR_KEYS. Si la materia ya tiene

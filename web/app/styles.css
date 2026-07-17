@@ -527,6 +527,38 @@
   .goalbtn-icon svg{width:100%;height:100%;display:block}
   .goalcard-emoji svg{width:100%;height:100%;display:block}
 
+  /* ============ guía de primeros pasos (paso 74): checklist, cada paso es un botón que
+     lleva directo a la acción; .done lo marca tildado sin desactivar el click (sigue siendo
+     un atajo aunque ya esté hecho) ============ */
+  .tip-step{display:flex;align-items:center;gap:9px;text-align:left;background:none;border:none;
+    padding:4px 0;font-size:13px;color:var(--muted);width:100%}
+  .tip-step:hover{color:var(--ink)}
+  .tip-step-check{width:18px;height:18px;border-radius:99px;border:1.5px solid var(--line);
+    flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--green)}
+  .tip-step-check svg{width:11px;height:11px}
+  .tip-step.done{color:var(--ink);font-weight:600}
+  .tip-step.done .tip-step-check{border-color:var(--green);background:var(--greenbg)}
+
+  /* ============ ayuda contextual (paso 74): iconito "?" + popover corto ============ */
+  .help-tip-wrap{position:relative;display:inline-flex;vertical-align:middle}
+  .help-tip-btn{width:17px;height:17px;border-radius:99px;border:1px solid var(--line);background:var(--soft);
+    color:var(--muted);font-size:11px;font-weight:700;line-height:1;padding:0;display:flex;
+    align-items:center;justify-content:center;flex-shrink:0}
+  .help-tip-btn:hover{background:var(--accent-soft);color:var(--accent-dark);border-color:var(--accent)}
+  .help-tip-pop{position:absolute;z-index:60;top:calc(100% + 6px);left:0;width:230px;max-width:70vw;
+    background:var(--modal-bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    font-size:12.5px;color:var(--muted);box-shadow:var(--shadow-md);text-align:left}
+
+  /* ============ centro de ayuda (paso 74): acordeón de preguntas frecuentes ============ */
+  .faq-item{border-bottom:1px solid var(--soft)}
+  .faq-item:last-child{border-bottom:none}
+  .faq-q{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+    text-align:left;background:none;border:none;padding:11px 2px;font-size:13.5px;font-weight:600;color:var(--ink)}
+  .faq-caret{width:16px;height:16px;flex-shrink:0;color:var(--faint);transition:transform .15s ease}
+  .faq-caret svg{width:100%;height:100%;display:block}
+  .faq-caret.open{transform:rotate(180deg)}
+  .faq-a{padding:0 2px 12px;font-size:13px;color:var(--muted);line-height:1.55}
+
   /* ============ toasts: feedback breve y no intrusivo tras una acción ============ */
   .toast-wrap{position:fixed;left:0;right:0;bottom:72px;z-index:70;display:flex;flex-direction:column;
     align-items:center;gap:8px;pointer-events:none;padding:0 12px}
