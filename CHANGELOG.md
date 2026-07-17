@@ -24,6 +24,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/), adaptado
 a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc.).
 
 ## [Sin publicar]
+- Búsqueda global (`web/app/js/helpers.js`, `js/views.js`, `js/events.js`): ícono de lupa siempre visible en el nav y atajo de teclado "/" abren un overlay que busca por nombre entre alumnos, materias y materiales (`globalSearchResults`), agrupados por tipo; navegación por flechas + Enter además de click, todo local sobre `state.catalog`/`state.students` sin backend nuevo. Precache del service worker en `cuaderno-v61`.
 - Rediseño del tablero como panel "Hoy" (`web/app/js/views.js`, `web/app/styles.css`): tres tarjetas arriba de todo — "Clases de hoy" (agenda del día con botón registrar/ver clase ya registrada), "Para cobrar" (reusa `cobrosAtrasadosSummary`/`vCobrosBanner`, el mismo recordatorio de cobro existente, ahora dentro de la tarjeta) y "Próximo" (exámenes dentro de 14 días, objetivos de clase por cerrar y clases de mañana) — cada una con su número grande, acceso directo a la vista completa y el estado vacío amable ya existente cuando no hay nada que mostrar; nuevos componentes `.hoy-grid`/`.hoy-card` en tarjetas, mobile-first (1 columna, 3 desde 860px) y con los mismos design tokens claro/oscuro que el resto de la app. Precache del service worker en `cuaderno-v60`.
 
 ## [2.0.4] - 2026-07-17

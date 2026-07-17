@@ -666,6 +666,12 @@ document.addEventListener("click", (e)=>{
     update(id,{deleted:true});
     toast(s.sample?"Ejemplo eliminado":"Estudiante eliminado"); return;
   }
+  else if(a==="open-search"){ state.searchOpen=true; state.searchQuery=""; state.searchSel=0; }
+  else if(a==="close-search" || a==="close-search-bg"){ state.searchOpen=false; }
+  else if(a==="search-modal-noop"){ return; }
+  else if(a==="search-select"){
+    openSearchResult({type:el.dataset.type, id:el.dataset.id});
+  }
   else if(a==="export"){
     const blob=new Blob([JSON.stringify({students:state.students},null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
@@ -687,6 +693,32 @@ document.addEventListener("keydown",(e)=>{
   e.preventDefault();
   const btn=document.querySelector(`[data-a="${el.dataset.enter}"]`);
   if(btn) btn.click();
+});
+
+// Búsqueda global (paso 72): atajo "/" para abrir desde cualquier lado (salvo si ya se está
+// escribiendo en otro campo) y navegación por teclado dentro del overlay una vez abierto.
+document.addEventListener("keydown",(e)=>{
+  const typing = /^(input|textarea|select)$/i.test(e.target.tagName);
+  if(!state.searchOpen && e.key==="/" && !typing && getSes() && !state.recovery){
+    e.preventDefault(); state.searchOpen=true; state.searchQuery=""; state.searchSel=0; render(); return;
+  }
+  if(!state.searchOpen) return;
+  if(e.key==="Escape"){ e.preventDefault(); state.searchOpen=false; render(); return; }
+  if(e.key==="ArrowDown" || e.key==="ArrowUp"){
+    e.preventDefault();
+    const res = globalSearchResults(state.searchQuery);
+    const n = res.total; if(n===0) return;
+    const dir = e.key==="ArrowDown" ? 1 : -1;
+    state.searchSel = ((state.searchSel||0)+dir+n)%n;
+    render(); return;
+  }
+  if(e.key==="Enter" && e.target.id==="global-search-input"){
+    e.preventDefault();
+    const flat = globalSearchFlat(state.searchQuery);
+    if(!flat.length) return;
+    openSearchResult(flat[Math.min(state.searchSel||0, flat.length-1)]);
+    render();
+  }
 });
 
 document.addEventListener("change",(e)=>{
@@ -762,6 +794,13 @@ document.addEventListener("input", (e)=>{
     state.listSearch=el.value;
     render();
     const ne=document.getElementById("lista-search");
+    if(ne){ ne.focus(); ne.setSelectionRange(pos,pos); }
+  }
+  if(el.dataset.live==="global-search"){
+    const pos=el.selectionStart;
+    state.searchQuery=el.value; state.searchSel=0;
+    render();
+    const ne=document.getElementById("global-search-input");
     if(ne){ ne.focus(); ne.setSelectionRange(pos,pos); }
   }
   if(el.dataset.live==="users-del-email"){

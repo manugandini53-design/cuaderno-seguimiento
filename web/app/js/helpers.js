@@ -87,7 +87,8 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               puntualCancelAskId:null, cobrosBannerOpen:false,
               portal:null, portalLoaded:false, portalError:"",
               portalSaving:false, portalSaveMsg:"", portalCopyMsg:"",
-              toasts:[] };
+              toasts:[],
+              searchOpen:false, searchQuery:"", searchSel:0 };
 
 const subjById = (id) => state.catalog.subjects.find(m=>m.id===id) || null;
 function unitsFor(s){ const m=subjById(s.subjectId); return m ? m.units : Object.keys(s.topics||{}); }
@@ -741,4 +742,44 @@ function rememberEmail(email){
 function jwtSub(tok){
   try{ return JSON.parse(atob(tok.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"))).sub; }
   catch(e){ return null; }
+}
+
+/* ============ búsqueda global (paso 72): alumnos, materias y materiales por nombre, todo
+   local sobre state (sin backend nuevo). Devuelve grupos ya recortados y con la acción de
+   navegación lista para data-a/data-id en el click delegado — ver vSearchOverlay en views.js. */
+function globalSearchResults(query){
+  const q = (query||"").trim().toLowerCase();
+  if(!q) return {students:[], subjects:[], materiales:[], total:0};
+  const students = alive().filter(s=>s.name.toLowerCase().includes(q))
+    .slice(0,6).map(s=>({id:s.id, label:s.name, sub:s.subject||"Sin materia"}));
+  const subjects = state.catalog.subjects.filter(m=>m.name.toLowerCase().includes(q))
+    .slice(0,6).map(m=>({id:m.id, label:m.name, sub:`${(m.units||[]).length} unidades`}));
+  const materiales = [];
+  state.catalog.subjects.forEach(m=>{
+    (m.materiales||[]).forEach(f=>{
+      if(f.name.toLowerCase().includes(q)) materiales.push({id:m.id, name:f.name, label:f.name, sub:m.name});
+    });
+  });
+  const materialesTrimmed = materiales.slice(0,6);
+  return {students, subjects, materiales:materialesTrimmed,
+    total: students.length+subjects.length+materialesTrimmed.length};
+}
+function globalSearchFlat(query){
+  const res = globalSearchResults(query);
+  return [...res.students.map(r=>({...r,type:"student"})),
+          ...res.subjects.map(r=>({...r,type:"subject"})),
+          ...res.materiales.map(r=>({...r,type:"material"}))];
+}
+// Navega al resultado elegido (alumno o materia/material) y cierra el overlay — compartido
+// entre el click delegado (search-select) y Enter dentro del buscador (ver events.js).
+function openSearchResult(item){
+  if(!item) return;
+  state.searchOpen=false;
+  if(item.type==="student"){
+    state.view="detalle"; state.selId=item.id; state.tab="temas"; state.confirmDel=false;
+    state.simTimer=null; state.simPrefillNote=""; state.fichaError=""; state.sessionPrefillDate="";
+  }else{
+    state.view="catalog"; state.selId=null; state.editSubjectId=item.id; state.editPackId=null;
+    loadMateriales(item.id);
+  }
 }

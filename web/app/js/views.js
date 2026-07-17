@@ -28,6 +28,7 @@ const ICON_BOOK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ICON_CHART=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>`;
 const ICON_ACCOUNT=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c0-4 3.5-7 7.5-7s7.5 3 7.5 7"/></svg>`;
 const ICON_SHIELD=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`;
+const ICON_SEARCH=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`;
 const THEME_NAV_ICONS = {
   system:`<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>`,
   light:`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
@@ -58,6 +59,7 @@ function navShell(isAdmin){
   ).join("");
   return `<nav class="appnav no-print">
     <div class="appnav-brand"><span class="logo-mark">${ICON_CHECK}</span>Cuaderno</div>
+    <button class="navitem navitem-search" data-a="open-search" title="Buscar (atajo: /)">${ICON_SEARCH}<span class="navitem-label">Buscar</span></button>
     <div class="appnav-list">${itemsHtml}</div>
     <div class="appnav-foot">${syncChip()}${themeNavBtn()}</div>
   </nav>`;
@@ -2469,6 +2471,52 @@ function vRecursos(){
   return h;
 }
 
+/* ============ búsqueda global (paso 72): overlay siempre accesible (ícono lupa en el nav +
+   atajo "/") que busca en un solo lugar alumnos, materias y materiales por nombre (ver
+   globalSearchResults en helpers.js). Resultados agrupados por tipo, en una única lista plana
+   para la navegación por teclado (flechas + Enter, ver keydown en events.js) y por click. */
+function searchRow(item, idx, sel){
+  const icon = item.type==="student" ? ICON_USERS : item.type==="subject" ? ICON_BOOK : ICON_LINK;
+  return `<button class="search-row ${idx===sel?"sel":""}" data-a="search-select" data-idx="${idx}"
+      data-type="${item.type}" data-id="${esc(item.id)}" ${item.type==="material"?`data-name="${esc(item.name)}"`:""}>
+    <span class="search-row-icon">${icon}</span>
+    <span class="search-row-text"><span class="search-row-label">${esc(item.label)}</span>
+      <span class="search-row-sub">${esc(item.sub)}</span></span>
+  </button>`;
+}
+function vSearchOverlay(){
+  const q = state.searchQuery||"";
+  const res = globalSearchResults(q);
+  const flat = globalSearchFlat(q);
+  const sel = Math.min(state.searchSel||0, Math.max(flat.length-1,0));
+  let body;
+  if(!q.trim()){
+    body = `<div class="hint" style="padding:16px 2px">Escribí para buscar alumnos, materias o materiales por nombre.</div>`;
+  }else if(flat.length===0){
+    body = emptyState(ICON_SEARCH, "Sin resultados", `No encontramos nada para "${q}".`);
+  }else{
+    let i=0;
+    body = "";
+    if(res.students.length) body += `<div class="search-group-title">Alumnos</div>` +
+      res.students.map(r=>searchRow({...r,type:"student"}, i++, sel)).join("");
+    if(res.subjects.length) body += `<div class="search-group-title">Materias</div>` +
+      res.subjects.map(r=>searchRow({...r,type:"subject"}, i++, sel)).join("");
+    if(res.materiales.length) body += `<div class="search-group-title">Materiales</div>` +
+      res.materiales.map(r=>searchRow({...r,type:"material"}, i++, sel)).join("");
+  }
+  return `<div class="overlay search-overlay" data-a="close-search-bg">
+    <div class="search-modal" data-a="search-modal-noop">
+      <div class="search-input-row">
+        <span class="search-row-icon">${ICON_SEARCH}</span>
+        <input id="global-search-input" data-live="global-search" type="text" autofocus
+          placeholder="Buscar alumnos, materias, materiales…" value="${esc(q)}">
+        <button class="chip" data-a="close-search" title="Cerrar (Esc)">Esc</button>
+      </div>
+      <div class="search-results">${body}</div>
+    </div>
+  </div>`;
+}
+
 function vModal(){
   return `<div class="overlay"><div class="modal">
     <div class="ftitle" style="font-size:16px">Nuevo estudiante</div>
@@ -2561,6 +2609,7 @@ function render(){
   if(state.view==="pagos") m += vPagos();
   if(state.view==="agenda") m += vAgenda();
   if(state.showNew) m += vModal();
+  if(state.searchOpen) m += vSearchOverlay();
   m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
   document.getElementById("app").innerHTML = navShell(isAdmin) + `<main class="appmain">${m}</main>` + toastWrap();
   const fi = document.getElementById("importFile");
@@ -2578,4 +2627,6 @@ function render(){
     r.readAsText(f);
   });
   const nn = document.getElementById("n-name"); if(nn) nn.focus();
+  const gs = document.getElementById("global-search-input");
+  if(gs && document.activeElement!==gs) gs.focus();
 }
