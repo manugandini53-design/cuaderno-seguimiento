@@ -62,6 +62,54 @@ function maybeNotifyCobros(){
   }catch(e){ /* silencioso: algún navegador/SO puntual puede bloquear la construcción */ }
 }
 
+/* ============ actualización asistida del service worker (paso 99, web/PWA) ============
+   El SW (ver sw.js) ya no hace skipWaiting() solo al instalar: una versión nueva se queda
+   "esperando" (reg.waiting) hasta que el usuario confirma acá — recién ahí se le manda
+   skipWaiting por postMessage, se espera a que tome el control (evento controllerchange)
+   y se recarga UNA sola vez (con _swReloading de guarda para no entrar en loop). Así el
+   usuario nunca más tiene que "reiniciar el caché" a mano: sólo tocar "Actualizar" cuando
+   aparece el aviso, o esperar a que se cierre y reabra la app (ahí sí toma la nueva sola). */
+let _swReloading = false;
+function promptSwUpdate(reg){
+  state.swRegistration = reg;
+  if(state.swUpdateReady) return;
+  state.swUpdateReady = true;
+  render();
+}
+function applySwUpdate(){
+  const reg = state.swRegistration;
+  if(!reg || !reg.waiting) return;
+  reg.waiting.postMessage({type:"SKIP_WAITING"});
+}
+function watchSwRegistration(reg){
+  state.swRegistration = reg;
+  if(reg.waiting) promptSwUpdate(reg);
+  reg.addEventListener("updatefound", ()=>{
+    const nw = reg.installing; if(!nw) return;
+    nw.addEventListener("statechange", ()=>{
+      // "installed" + ya hay un controller = hay una versión previa activa y ésta es una
+      // actualización (no la primera instalación, que no tiene nada que avisar todavía).
+      if(nw.state==="installed" && navigator.serviceWorker.controller) promptSwUpdate(reg);
+    });
+  });
+}
+// Botón "Buscar actualización" en Cuenta: fuerza el chequeo y avisa si ya está al día.
+function checkSwUpdateNow(){
+  if(!("serviceWorker" in navigator) || !state.swRegistration){
+    toast("No disponible en este dispositivo"); return;
+  }
+  state.swCheckStatus="checking"; render();
+  state.swRegistration.update().then(()=>{
+    state.swCheckStatus="idle";
+    if(!state.swUpdateReady) toast("Ya tenés la última versión");
+    render();
+  }).catch(()=>{
+    state.swCheckStatus="idle";
+    toast("No se pudo buscar actualizaciones — probá de nuevo","error");
+    render();
+  });
+}
+
 function authMsgShow(t,ok){
   const el=document.getElementById("authMsg");
   if(el){ el.textContent=t; el.style.color = ok ? "var(--green)" : "var(--red)"; }
@@ -414,6 +462,8 @@ document.addEventListener("click", (e)=>{
   else if(a==="set-theme"){ setTheme(el.dataset.f); }
   else if(a==="sync-now"){ syncNow(true); return; }
   else if(a==="dismiss-update-banner"){ state.updateBannerDismissed=true; }
+  else if(a==="sw-update-apply"){ applySwUpdate(); return; }
+  else if(a==="sw-check-update"){ checkSwUpdateNow(); return; }
   else if(a==="restore-ask"){ state.confirmRestoreId=el.dataset.id; }
   else if(a==="restore-cancel"){ state.confirmRestoreId=null; }
   else if(a==="restore-confirm"){ restoreBackup(el.dataset.id); return; }
@@ -1135,5 +1185,19 @@ maybeNotifyCobros();
    ni dentro de un contenedor nativo como Tauri o Capacitor, que ya resuelven
    los archivos locales sin necesidad de cache de service worker) */
 if ("serviceWorker" in navigator && location.protocol.startsWith("http") && !IS_NATIVE) {
-  navigator.serviceWorker.register("sw.js").catch(()=>{});
+  navigator.serviceWorker.register("sw.js").then(reg=>{
+    watchSwRegistration(reg);
+    // Además del chequeo automático del navegador (poco frecuente y no garantizado),
+    // se pide explícitamente cada SW_UPDATE_CHECK_INTERVAL_MS y cada vez que se vuelve
+    // a la pestaña — para que una versión nueva no tarde en avisar.
+    setInterval(()=>reg.update().catch(()=>{}), SW_UPDATE_CHECK_INTERVAL_MS);
+    document.addEventListener("visibilitychange", ()=>{
+      if(document.visibilityState==="visible") reg.update().catch(()=>{});
+    });
+  }).catch(()=>{});
+  navigator.serviceWorker.addEventListener("controllerchange", ()=>{
+    if(_swReloading) return;
+    _swReloading = true;
+    location.reload();
+  });
 }

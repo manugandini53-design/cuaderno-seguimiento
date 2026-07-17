@@ -95,6 +95,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               materialesUploading:false, materialesUploadError:"",
               materialesConfirmDelName:null, materialesDeleteStatus:"idle",
               newVersionTag:null, updateBannerDismissed:false,
+              swUpdateReady:false, swRegistration:null, swCheckStatus:"idle",
               pagosMonth:null,
               informePeriod:"3m",
               agendaWeekOffset:0, sessionPrefillDate:"",

@@ -9,6 +9,7 @@ const DIRTY_KEY = "tutoria-sync-dirty"; // "1" mientras hay cambios locales sin 
 const LAST_REMOTE_KEY = "tutoria-last-remote-updated"; // último updated_at de la fila remota que ya vimos, para el chequeo liviano
 const VERSION_CHECK_KEY = "tutoria-last-version-check"; // timestamp del último chequeo de versión (apps nativas)
 const VERSION_CHECK_INTERVAL_MS = 24*60*60*1000;
+const SW_UPDATE_CHECK_INTERVAL_MS = 60*60*1000; // cada cuánto se pide al service worker que busque una versión nueva (además del chequeo al cargar y al volver a la pestaña)
 const ONBOARDING_TIPS_KEY = "tutoria-onboarding-tips-dismissed"; // "1" una vez que el usuario descarta la guía de primeros pasos
 const LAST_EXPORT_KEY = "tutoria-last-export"; // timestamp de la última descarga manual del .json
 const BACKUP_REMINDER_DISMISS_KEY = "tutoria-backup-reminder-dismissed-at"; // timestamp del último "descartar" del aviso de respaldo
@@ -111,6 +112,7 @@ const FAQ_ITEMS = [
   {q:"¿Para qué sirve el Portal?", a:"Le da a tus alumnos un link propio, sin necesidad de crear cuenta, donde ven los materiales que compartiste y (si generás su llave individual) su próxima clase y avance por unidades — nunca notas, pagos ni comentarios privados. También podés generar una llave grupal por materia, para compartirle a todo un grupo la biblioteca y las próximas clases/exámenes sin datos de ningún alumno en particular."},
   {q:"¿Cómo veo si estoy ganando plata de verdad?", a:"En Pagos → Rentabilidad: descontando los costos que le asignaste a cada materia o alumno (fijos y variables), te muestra cuánto te queda neto por hora dictada, por mes."},
   {q:"¿Mis datos están a salvo si se me rompe la compu?", a:"Sí — con sesión iniciada se sincronizan solos a la nube y podés entrar desde cualquier dispositivo. Además se guarda un respaldo automático diario (ver «Respaldos automáticos» acá abajo) y podés descargar una copia .json manual cuando quieras."},
+  {q:"A veces veo una versión vieja de la app, ¿qué hago?", a:"La app se actualiza sola, pero a veces tarda un rato en avisar. Si arriba de todo aparece «Hay una versión nueva de Entreclases», tocá «Actualizar» — no perdés nada, ni tus datos ni la sesión. Si no ves el aviso y sospechás que algo está desactualizado, andá a Cuenta → Versión y tocá «Buscar actualización». Como último recurso, recargá con Ctrl+Shift+R (o Cmd+Shift+R en Mac) o cerrá la app del todo y volvela a abrir."},
 ];
 const CAREERS = ["Ingeniería","Licenciatura","Arquitectura","Ingresante"];
 function defaultCatalog(){

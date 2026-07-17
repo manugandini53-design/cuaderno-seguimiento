@@ -1880,6 +1880,11 @@ function vCuenta(){
       <button class="chip" data-a="sync-now">Sincronizar ahora</button>
       <button class="danger" data-a="auth-logout">Cerrar sesión</button>
     </div>
+    ${!IS_NATIVE?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
+      <div class="flabel" style="margin-bottom:6px">Versión</div>
+      <div class="hint" style="margin-bottom:8px">Estás usando la v${esc(APP_VERSION)}${state.swUpdateReady?" — hay una versión nueva esperando arriba de todo, tocá «Actualizar».":"."}</div>
+      <button class="chip" data-a="sw-check-update" ${state.swCheckStatus==="checking"?"disabled":""}>${state.swCheckStatus==="checking"?"Buscando…":"Buscar actualización"}</button>
+    </div>`:""}
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
       <div class="flabel" style="margin-bottom:6px">Resumen semanal por mail</div>
       <div class="hint" style="margin-bottom:8px">Clases dadas, plata cobrada y pendiente, próximos exámenes/objetivos y alumnos que se están enfriando — todos los domingos a la noche.</div>
@@ -3155,6 +3160,13 @@ function render(){
       background:var(--bluebg);border:1px solid var(--blueline);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px;color:var(--status-aprobo-fg)">
       <span>Hay una versión nueva disponible (${esc(state.newVersionTag)}). <a href="${DOWNLOADS_URL}" target="_blank" rel="noopener" style="color:var(--status-aprobo-fg);font-weight:600">Ir a descargas</a></span>
       <button data-a="dismiss-update-banner" title="Cerrar aviso" aria-label="Cerrar aviso" style="background:none;border:none;color:var(--status-aprobo-fg);font-size:16px;line-height:1;padding:0 4px">×</button>
+    </div>`;
+  }
+  if(state.swUpdateReady){
+    m += `<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
+      background:var(--bluebg);border:1px solid var(--blueline);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:14px;color:var(--status-aprobo-fg)">
+      <span>Hay una versión nueva de Entreclases</span>
+      <button class="chip on" data-a="sw-update-apply" style="margin:0">Actualizar</button>
     </div>`;
   }
   if(state.saveErr) m += `<div class="saveerr">No se pudo guardar el último cambio. Descargá una copia de respaldo por las dudas.</div>`;

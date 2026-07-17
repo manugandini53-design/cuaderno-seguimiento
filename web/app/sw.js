@@ -1,12 +1,15 @@
 /* Entreclases — funcionamiento sin conexión */
-const CACHE = "cuaderno-v88";
+const CACHE = "cuaderno-v89";
 const FILES = ["./", "./index.html", "./styles.css", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "./fonts/inter-latin.woff2", "./fonts/poppins-600.woff2", "./fonts/poppins-700.woff2", "./fonts/poppins-800.woff2",
   "./js/qrcode.js", "./js/config.js", "./js/helpers.js", "./js/auth.js", "./js/sync.js", "./js/views.js", "./js/events.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));
-  self.skipWaiting();
+  // Ya no hay skipWaiting() acá: el SW nuevo se queda "esperando" (registration.waiting)
+  // hasta que la app lo pide explícitamente (ver el mensaje SKIP_WAITING más abajo) —
+  // así la pestaña abierta puede avisar antes de recargar, en vez de cambiar el código
+  // por debajo sin avisar (paso 99, "Actualización asistida").
 });
 
 self.addEventListener("activate", (e) => {
@@ -16,6 +19,10 @@ self.addEventListener("activate", (e) => {
     )
   );
   self.clients.claim();
+});
+
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("fetch", (e) => {
