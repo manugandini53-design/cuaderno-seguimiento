@@ -107,7 +107,7 @@ function showPortal(res){
   const nombre = (res.data && res.data.nombre) ? res.data.nombre.trim() : "";
   const titulo = nombre ? `Portal de ${nombre}` : "Portal de tu profesor";
   const biblioteca = (res.data && Array.isArray(res.data.biblioteca)) ? res.data.biblioteca : [];
-  let h = `<div class="eyebrow">Cuaderno de seguimiento</div><h1>${esc(titulo)}</h1>`;
+  let h = `<h1>${esc(titulo)}</h1>`;
   // Llave de alumno: su bloque personal va primero, arriba de lo general (biblioteca/links) —
   // es lo que más le importa a él en particular.
   if(res.tipo==="alumno" && res.alumno) h += personalHtml(res.alumno);

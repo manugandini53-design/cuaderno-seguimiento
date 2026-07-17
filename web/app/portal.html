@@ -7,31 +7,46 @@
      sin conexión no tiene nada guardado para mostrar. CSS propio, sin depender de styles.css,
      mismo criterio que la landing (web/index.html): cada archivo standalone de este repo
      duplica sus estilos en vez de compartir hoja. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src https://*.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src https://*.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Portal — Cuaderno de seguimiento</title>
 <style>
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:400 700; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Poppins'; font-style:normal; font-weight:700; font-display:swap;
+    src:url('fonts/poppins-700.woff2') format('woff2');
+  }
   :root{
-    --bg:#E7E8EB; --card:#FFFFFF; --ink:#1E2B4D; --muted:#5B6072; --faint:#8B90A0;
-    --line:#D8DAE3; --soft:#E4E4E0; --red:#C43C2B; --redbg:#FAE9E4;
-    --blue:#2C4A9A; --green:#2E9958; --amber:#E0A422;
-    --accent:#1E2B4D;
-    --sans:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --bg:#F6F8FC; --card:#FFFFFF; --ink:#12192E; --muted:#5C6480; --faint:#8B90A0;
+    --line:#E4E9F5; --soft:#EEF1F9; --red:#EF4444; --redbg:#FEE2E2;
+    --blue:#3B82F6; --green:#22C55E; --amber:#F59E0B;
+    --navy:#1E2B4D; --navy-2:#2F4272; --accent:#14B8A6; --accent-dark:#0E9488; --accent-soft:#CFF7F0;
+    --sans:'Inter',-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --display:'Poppins',var(--sans);
   }
   @media (prefers-color-scheme:dark){
     :root{
-      --bg:#12141A; --card:#1B1E27; --ink:#E8E9EE; --muted:#A8ADBD; --faint:#7A8096;
-      --line:#2E3240; --soft:#242836; --red:#FF6B57; --redbg:#3A211D;
-      --blue:#8CA6F5; --green:#4ADE80; --amber:#FBBF24;
-      --accent:#8CA6F5;
+      --bg:#0F1420; --card:#1B2333; --ink:#EDEFF7; --muted:#A8ADBD; --faint:#7A8096;
+      --line:#2B3348; --soft:#171D2C; --red:#FF6B6B; --redbg:#3A211D;
+      --blue:#60A5FA; --green:#4ADE80; --amber:#FBBF24;
+      --navy:#2B3A63; --navy-2:#3D5089; --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38;
     }
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
        font-size:15px;line-height:1.5;padding:24px 16px 48px}
   .shell{max-width:520px;margin:0 auto}
+  .brandhead{display:flex;align-items:center;gap:9px;margin-bottom:18px}
+  .logo-mark{width:28px;height:28px;border-radius:8px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--navy),var(--navy-2));
+    display:flex;align-items:center;justify-content:center}
+  .logo-mark svg{width:14px;height:14px;display:block}
+  .brandhead b{font-family:var(--display);font-weight:700;font-size:14px}
   .eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
-  h1{font-size:22px;margin:0 0 18px;letter-spacing:-.01em}
+  h1{font-family:var(--display);font-weight:700;font-size:22px;margin:0 0 18px;letter-spacing:-.01em}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
   .ctitle{font-weight:600;font-size:14.5px;margin-bottom:6px}
   .empty{color:var(--faint);font-size:13.5px}
@@ -69,8 +84,14 @@
 </style>
 </head>
 <body>
-<div class="shell" id="app">
-  <div class="msg"><div class="big">Cargando…</div></div>
+<div class="shell">
+  <div class="brandhead">
+    <span class="logo-mark"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+    <b>Cuaderno de seguimiento</b>
+  </div>
+  <div id="app">
+    <div class="msg"><div class="big">Cargando…</div></div>
+  </div>
 </div>
 <script src="js/portal.js"></script>
 </body>

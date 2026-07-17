@@ -10,6 +10,59 @@ const pill = (st) => { const m=STATUS_META[st];
 const tabbtn = (a,on,label) => `<button class="tabbtn ${on?"on":""}" data-a="${a}">${label}</button>`;
 const examplePill = (s) => s.sample ? `<span class="pill" style="color:var(--blue);background:var(--bluebg)">Ejemplo</span>` : "";
 
+/* ============ título de sección (eyebrow + h2 + acción principal opcional), reusado en cada
+   vista de la app para dar jerarquía visual consistente ============ */
+const pageHead = (eyebrow,title,actionHtml) =>
+  `<div class="pagehead"><div><div class="eyebrow">${esc(eyebrow)}</div><h2>${esc(title)}</h2></div>${
+    actionHtml?`<div class="pagehead-action">${actionHtml}</div>`:""}</div>`;
+
+/* ============ navegación persistente (sidebar en escritorio / barra inferior en mobile) ============
+   Íconos SVG inline, mismo estilo trazo que la landing (web/index.html). El check del logo
+   reusa exactamente el mark de la identidad de marca (ver .logo-mark en styles.css). */
+const ICON_CHECK=`<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
+const ICON_HOME=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>`;
+const ICON_USERS=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.3c2.6.5 4.5 2.6 4.5 5.7"/></svg>`;
+const ICON_CALENDAR=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>`;
+const ICON_WALLET=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10h19"/><circle cx="17" cy="14.5" r="1.3"/></svg>`;
+const ICON_BOOK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5C4 4 5 3 7 3h6v16H7c-2 0-3 1-3 2.5z"/><path d="M20 5.5C20 4 19 3 17 3h-4v16h4c2 0 3 1 3 2.5z"/></svg>`;
+const ICON_CHART=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>`;
+const ICON_ACCOUNT=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c0-4 3.5-7 7.5-7s7.5 3 7.5 7"/></svg>`;
+const ICON_SHIELD=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`;
+const THEME_NAV_ICONS = {
+  system:`<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>`,
+  light:`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
+  dark:`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>`,
+};
+const THEME_NAV_LABELS = {system:"Automático",light:"Claro",dark:"Oscuro"};
+const NAV_ITEMS = [
+  {view:"tablero", action:"nav-tablero", label:"Tablero", icon:ICON_HOME},
+  {view:"lista", altViews:["detalle"], action:"nav-lista", label:"Estudiantes", icon:ICON_USERS},
+  {view:"agenda", action:"nav-agenda", label:"Agenda", icon:ICON_CALENDAR},
+  {view:"pagos", action:"nav-pagos", label:"Pagos", icon:ICON_WALLET},
+  {view:"catalog", action:"nav-catalog", label:"Materias", icon:ICON_BOOK},
+  {view:"stats", action:"nav-stats", label:"Estadísticas", icon:ICON_CHART},
+  {view:"cuenta", action:"nav-cuenta", label:"Cuenta", icon:ICON_ACCOUNT},
+];
+function themeNavBtn(){
+  const cur = getTheme();
+  const order = ["system","light","dark"];
+  const next = order[(order.indexOf(cur)+1)%order.length];
+  return `<button class="navitem" data-a="set-theme" data-f="${next}"
+    title="Tema: ${THEME_NAV_LABELS[cur]} — tocá para cambiar">${THEME_NAV_ICONS[cur]}<span class="navitem-label">Tema</span></button>`;
+}
+function navShell(isAdmin){
+  const items = isAdmin ? [...NAV_ITEMS,{view:"panel",action:"nav-panel",label:"Panel",icon:ICON_SHIELD}] : NAV_ITEMS;
+  const isOn = (it) => state.view===it.view || (it.altViews||[]).includes(state.view);
+  const itemsHtml = items.map(it=>
+    `<button class="navitem ${isOn(it)?"on":""}" data-a="${it.action}">${it.icon}<span class="navitem-label">${esc(it.label)}</span></button>`
+  ).join("");
+  return `<nav class="appnav no-print">
+    <div class="appnav-brand"><span class="logo-mark">${ICON_CHECK}</span>Cuaderno</div>
+    <div class="appnav-list">${itemsHtml}</div>
+    <div class="appnav-foot">${themeNavBtn()}</div>
+  </nav>`;
+}
+
 /* ============ vistas ============ */
 function vTips(){
   if(tipsDismissed()) return "";
@@ -68,13 +121,14 @@ function vTablero(){
   const upcoming = activos.filter(s=>s.examDate && daysTo(s.examDate)>=0)
                           .sort((a,b)=>a.examDate.localeCompare(b.examDate));
   const enRiesgo = new Set(alerts.map(a=>a.s.id)).size;
-  let h = vTips();
+  let h = pageHead("Tablero","Panorama general",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`);
+  h += vTips();
   h += vBackupReminder();
   h += `<div class="stats">
     <div class="stat"><b>${activos.length}</b><span>activos</span></div>
     <div class="stat"><b>${upcoming.length}</b><span>con examen a la vista</span></div>
     <div class="stat ${enRiesgo?"warn":""}"><b>${enRiesgo}</b><span>con alertas</span></div>
-    <button class="primary" data-a="new">+ Nuevo estudiante</button></div>`;
+  </div>`;
 
   h += vCobrosBanner();
 
@@ -183,7 +237,8 @@ function vLista(){
     .filter(s=>state.listSem==="todos"||(s.semaforo||"sd")===state.listSem)
     .sort((a,b)=>((a.examDate||"9999").localeCompare(b.examDate||"9999"))||a.name.localeCompare(b.name));
 
-  let h = `<div class="field" style="margin-bottom:10px">
+  let h = pageHead("Estudiantes","Tus alumnos",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`);
+  h += `<div class="field" style="margin-bottom:10px">
     <input id="lista-search" data-live="lista-search" type="text" placeholder="Buscar por nombre…" value="${esc(state.listSearch||"")}"></div>`;
 
   h += `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">` +
@@ -203,8 +258,7 @@ function vLista(){
       <option value="todos" ${state.listSem==="todos"?"selected":""}>Todo el semáforo</option>
       ${Object.entries(SEM_SHORT).map(([k,l])=>`<option value="${k}" ${k===state.listSem?"selected":""}>${esc(l)}</option>`).join("")}
     </select>
-    ${listFiltersActive()?`<button class="chip" data-a="clear-filters">Limpiar filtros</button>`:""}
-    <span style="flex:1"></span><button class="primary" data-a="new">+ Nuevo</button></div>`;
+    ${listFiltersActive()?`<button class="chip" data-a="clear-filters">Limpiar filtros</button>`:""}</div>`;
 
   h += `<div class="hint" style="margin-bottom:10px">${shown.length} resultado${shown.length===1?"":"s"}</div>`;
 
@@ -575,8 +629,8 @@ function vSeniaCard(s){
 /* ============ vista "Agenda": semana o mes, todos los alumnos ============ */
 function vAgenda(){
   const mode = state.agendaViewMode||"semana";
-  let h = `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
-  <div class="tabs" style="margin-bottom:16px">
+  let h = pageHead("Agenda","Calendario de clases");
+  h += `<div class="tabs" style="margin-bottom:16px">
     ${tabbtn("agenda-view-semana",mode==="semana","Semana")}
     ${tabbtn("agenda-view-mes",mode==="mes","Mes")}
   </div>`;
@@ -789,7 +843,8 @@ function vPagosMensuales(s){
    "Rentabilidad" (cuánto se gana de verdad por hora, ver vRentabilidad más abajo) ============ */
 function vPagos(){
   const tab = state.pagosTab||"resumen";
-  let h = `<div class="tabs" style="margin-bottom:14px">
+  let h = pageHead("Pagos","Cobros y rentabilidad");
+  h += `<div class="tabs" style="margin-bottom:14px">
     <button class="tabbtn ${tab==="resumen"?"on":""}" data-a="pagos-tab" data-t="resumen">Resumen</button>
     <button class="tabbtn ${tab==="rentabilidad"?"on":""}" data-a="pagos-tab" data-t="rentabilidad">Rentabilidad</button>
   </div>`;
@@ -1237,6 +1292,7 @@ function vAuth(){
   const mainAction = isLogin?"auth-login":"auth-signup";
   return `<div style="max-width:360px;margin:64px auto 0">
     <div style="text-align:center;margin-bottom:20px">
+      <div class="logo-mark" style="margin:0 auto 12px">${ICON_CHECK}</div>
       <div class="eyebrow">Clases particulares</div>
       <h1 style="font-size:22px">Cuaderno de seguimiento</h1>
     </div>
@@ -1261,6 +1317,7 @@ function vAuth(){
 function vConfirmEmail(){
   return `<div style="max-width:360px;margin:64px auto 0">
     <div style="text-align:center;margin-bottom:20px">
+      <div class="logo-mark" style="margin:0 auto 12px">${ICON_CHECK}</div>
       <div class="eyebrow">Clases particulares</div>
       <h1 style="font-size:22px">Revisá tu correo</h1>
     </div>
@@ -1283,6 +1340,7 @@ function confirmStatusText(){
 function vSetPassword(){
   return `<div style="max-width:360px;margin:64px auto 0">
     <div style="text-align:center;margin-bottom:20px">
+      <div class="logo-mark" style="margin:0 auto 12px">${ICON_CHECK}</div>
       <div class="eyebrow">Clases particulares</div>
       <h1 style="font-size:22px">Elegí una contraseña nueva</h1>
     </div>
@@ -1329,7 +1387,7 @@ function vCuenta(){
   const ses=getSes();
   const pol=cancelPolicyFor();
   const doc=docenteFor();
-  return `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
+  return pageHead("Cuenta","Tu cuenta y preferencias") + `
   <div class="formcard"><div class="ftitle">Datos del docente</div>
     <div class="hint" style="margin-bottom:10px">Se cargan una sola vez acá y se reutilizan donde haga falta (por ahora, el generador de contratos de servicio, en la ficha de cada alumno).</div>
     <div class="frow">
@@ -1455,7 +1513,7 @@ function vBackupsList(){
 
 function vCatalog(){
   const c=state.catalog;
-  let h = `<button class="back" data-a="nav-tablero">← Volver al tablero</button>`;
+  let h = pageHead("Materias","Materias, carreras y materiales");
   const em = state.editSubjectId ? subjById(state.editSubjectId) : null;
   if(em){
     h += `<div class="formcard"><div class="ftitle">Editar materia</div>
@@ -1629,7 +1687,7 @@ function semaforoBars(counts){
     }).join("") + `</div>`;
 }
 function vEstadisticas(){
-  let h = `<button class="back" data-a="nav-tablero">← Volver al tablero</button>`;
+  let h = pageHead("Estadísticas","Panorama del grupo");
   const subs = subjectsWithStudents();
   if(subs.length===0) return h + `<div class="empty">Todavía no hay alumnos con una materia asignada.</div>`;
 
@@ -1888,8 +1946,8 @@ function vTuActividad(){
 
 function vPanel(){
   const tab = state.panelTab||"reportes";
-  let h = `<button class="back" data-a="nav-tablero">← Volver al tablero</button>
-  <div class="tabs" style="margin-bottom:14px">
+  let h = pageHead("Panel","Administración");
+  h += `<div class="tabs" style="margin-bottom:14px">
     ${tabbtn("panel-tab-reportes",tab==="reportes","Reportes")}
     ${tabbtn("panel-tab-usuarios",tab==="usuarios","Usuarios")}
     ${tabbtn("panel-tab-actividad",tab==="actividad","Actividad")}
@@ -2312,12 +2370,17 @@ function syncStatusText(){
 
 /* ============ render ============ */
 function render(){
+  // el shell de navegación (sidebar/barra inferior) sólo existe con sesión activa, fuera de
+  // recovery e informe/contrato (documentos pensados para imprimir/compartir, sin nav) — la
+  // clase "has-nav" en <body> reserva ese espacio fijo sólo cuando el nav realmente se pinta.
   if(state.recovery){
+    document.body.classList.remove("has-nav");
     document.getElementById("app").innerHTML = vSetPassword();
     const p=document.getElementById("newpass1"); if(p) p.focus();
     return;
   }
   if(!getSes()){
+    document.body.classList.remove("has-nav");
     if(state.pendingConfirmEmail){
       document.getElementById("app").innerHTML = vConfirmEmail();
       return;
@@ -2328,54 +2391,36 @@ function render(){
   }
   if(state.view==="informe"){
     if(!sel()){ state.view="tablero"; }
-    else{ document.getElementById("app").innerHTML = vInforme(); return; }
+    else{ document.body.classList.remove("has-nav"); document.getElementById("app").innerHTML = vInforme(); return; }
   }
   if(state.view==="contrato"){
     if(!sel()){ state.view="tablero"; }
-    else{ document.getElementById("app").innerHTML = vContrato(); return; }
+    else{ document.body.classList.remove("has-nav"); document.getElementById("app").innerHTML = vContrato(); return; }
   }
-  const activos = alive().filter(s=>s.status==="activo").length;
+  document.body.classList.add("has-nav");
   const ses = getSes();
   const isAdmin = sesIsAdmin(ses);
-  let h = "";
+  let m = "";
   if(IS_NATIVE && state.newVersionTag && !state.updateBannerDismissed){
-    h += `<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
+    m += `<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
       background:var(--bluebg);border:1px solid var(--blueline);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px;color:var(--blue)">
       <span>Hay una versión nueva disponible (${esc(state.newVersionTag)}). <a href="${DOWNLOADS_URL}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600">Ir a descargas</a></span>
       <button data-a="dismiss-update-banner" title="Cerrar aviso" style="background:none;border:none;color:var(--blue);font-size:16px;line-height:1;padding:0 4px">×</button>
     </div>`;
   }
-  h += `<div class="header"><div>
-      <div class="eyebrow">Clases particulares</div>
-      <h1>Cuaderno de seguimiento</h1></div>
-    <div class="tabs">
-      ${tabbtn("nav-tablero",state.view==="tablero","Tablero")}
-      ${tabbtn("nav-lista",state.view==="lista"||state.view==="detalle",`Estudiantes <span class="n">${activos}</span>`)}
-    </div></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:-6px 0 14px">
-    <span class="hint" id="syncStatus">${syncStatusText()}</span>
-    <span style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="chip ${state.view==="catalog"?"on":""}" data-a="nav-catalog">Materias y carreras</button>
-      <button class="chip ${state.view==="stats"?"on":""}" data-a="nav-stats">Estadísticas</button>
-      <button class="chip ${state.view==="agenda"?"on":""}" data-a="nav-agenda">Agenda</button>
-      <button class="chip ${state.view==="pagos"?"on":""}" data-a="nav-pagos">Pagos</button>
-      <button class="chip ${state.view==="cuenta"?"on":""}" data-a="nav-cuenta">Cuenta</button>
-      ${isAdmin?`<button class="chip ${state.view==="panel"?"on":""}" data-a="nav-panel">Panel</button>`:""}
-    </span>
-  </div>`;
-  if(state.saveErr) h += `<div class="saveerr">No se pudo guardar el último cambio. Descargá una copia de respaldo por las dudas.</div>`;
-  if(state.view==="tablero") h += vTablero();
-  if(state.view==="lista") h += vLista();
-  if(state.view==="detalle") h += vDetalle();
-  if(state.view==="cuenta") h += vCuenta();
-  if(state.view==="panel") h += isAdmin ? vPanel() : vTablero();
-  if(state.view==="catalog") h += vCatalog();
-  if(state.view==="stats") h += vEstadisticas();
-  if(state.view==="pagos") h += vPagos();
-  if(state.view==="agenda") h += vAgenda();
-  if(state.showNew) h += vModal();
-  h += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
-  document.getElementById("app").innerHTML = h;
+  if(state.saveErr) m += `<div class="saveerr">No se pudo guardar el último cambio. Descargá una copia de respaldo por las dudas.</div>`;
+  if(state.view==="tablero") m += vTablero();
+  if(state.view==="lista") m += vLista();
+  if(state.view==="detalle") m += vDetalle();
+  if(state.view==="cuenta") m += vCuenta();
+  if(state.view==="panel") m += isAdmin ? vPanel() : vTablero();
+  if(state.view==="catalog") m += vCatalog();
+  if(state.view==="stats") m += vEstadisticas();
+  if(state.view==="pagos") m += vPagos();
+  if(state.view==="agenda") m += vAgenda();
+  if(state.showNew) m += vModal();
+  m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
+  document.getElementById("app").innerHTML = navShell(isAdmin) + `<main class="appmain">${m}</main>`;
   const fi = document.getElementById("importFile");
   if(fi) fi.addEventListener("change", e=>{
     const f = e.target.files && e.target.files[0]; if(!f) return;

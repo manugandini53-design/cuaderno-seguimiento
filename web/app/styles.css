@@ -115,7 +115,48 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
        font-size:14px;line-height:1.45;padding:18px 12px 44px}
+  /* body.has-nav: sólo se pinta el nav (sidebar/barra inferior) con sesión activa fuera de
+     recovery/informe/contrato (ver render() en views.js) — el padding extra reserva su lugar
+     nada más que ahí, así login/informe/contrato quedan centrados sin un hueco vacío. */
+  body.has-nav{padding-bottom:78px}
+  @media (min-width:860px){
+    body.has-nav{padding:26px 26px 26px 246px}
+  }
   .shell{max-width:860px;margin:0 auto}
+
+  /* ============ navegación persistente: sidebar (escritorio) / barra inferior (mobile) ============ */
+  .appnav{position:fixed;z-index:40;background:var(--card);display:flex;
+    bottom:0;left:0;right:0;border-top:1px solid var(--line);
+    align-items:stretch;gap:2px;padding:5px 6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .appnav-brand{display:none}
+  .appnav-list{display:flex;gap:2px;flex:1}
+  .appnav-foot{display:flex;align-items:center;flex-shrink:0}
+  .navitem{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    flex:1;min-width:58px;padding:6px 4px;border-radius:10px;border:none;background:none;
+    color:var(--muted);font-size:9.5px;font-weight:600;font-family:inherit;cursor:pointer;
+    white-space:nowrap}
+  .navitem svg{width:20px;height:20px;flex-shrink:0}
+  .navitem.on{color:var(--accent-dark);background:var(--accent-soft)}
+  .navitem-label{max-width:60px;overflow:hidden;text-overflow:ellipsis}
+  @media (min-width:860px){
+    .appnav{top:0;left:0;bottom:0;right:auto;width:220px;flex-direction:column;
+      border-top:none;border-right:1px solid var(--line);padding:22px 14px;overflow-x:visible}
+    .appnav-brand{display:flex;align-items:center;gap:9px;margin-bottom:20px;padding:0 8px;
+      font-family:var(--display);font-weight:700;font-size:14.5px;color:var(--ink)}
+    .appnav-list{flex-direction:column;flex:1;gap:2px}
+    .appnav-foot{margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}
+    .navitem{flex-direction:row;justify-content:flex-start;gap:11px;padding:10px 12px;
+      font-size:13.5px;flex:none;width:100%}
+    .navitem svg{width:18px;height:18px}
+    .navitem-label{max-width:none}
+  }
+
+  /* ============ encabezado de sección por vista: eyebrow + título + acción principal ============ */
+  .pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+    flex-wrap:wrap;margin-bottom:18px}
+  .pagehead h2{font-family:var(--display);font-weight:700;font-size:21px;margin:4px 0 0;
+    letter-spacing:-.01em}
+  .pagehead-action{flex-shrink:0}
   button{cursor:pointer;font-family:inherit;font-size:13px}
   input,select,textarea{font-family:inherit;font-size:13.5px;width:100%;
     border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--input-bg);color:var(--ink)}
