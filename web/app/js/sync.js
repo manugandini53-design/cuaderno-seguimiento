@@ -151,6 +151,26 @@ async function maybeHeartbeat(uid_, s){
   }
 }
 
+// Opt-in del resumen semanal por mail (perfiles.resumen_semanal — ver 014_resumen_semanal.sql
+// en cuaderno-supabase): arranca apagado por defecto; se guarda acá y lo respeta la función de
+// cron del backend. Optimista (cambia el toggle al toque) con rollback si falla el PATCH.
+async function setResumenSemanal(v){
+  const ses=getSes(); if(!ses) return;
+  setSes({...ses, resumenSemanal:v}); render();
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+    const r=await fetch(SUPA_URL+"/rest/v1/perfiles?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
+      body:JSON.stringify({resumen_semanal:v})});
+    if(!r.ok) throw new Error("error "+r.status);
+  }catch(e){
+    const cur=getSes(); if(cur) setSes({...cur, resumenSemanal:!v});
+    toast("No se pudo guardar — probá de nuevo.", "error");
+    render();
+  }
+}
+
 /* ============ respaldos automáticos con historial ============ */
 // Un snapshot completo por día (primera sync exitosa del día), silencioso; se guardan hasta
 // MAX_BACKUPS y se recortan los más viejos. Vive aparte de la exportación manual (.json).

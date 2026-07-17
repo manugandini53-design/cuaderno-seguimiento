@@ -1748,6 +1748,14 @@ function vCuenta(){
       <button class="chip" data-a="sync-now">Sincronizar ahora</button>
       <button class="danger" data-a="auth-logout">Cerrar sesión</button>
     </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
+      <div class="flabel" style="margin-bottom:6px">Resumen semanal por mail</div>
+      <div class="hint" style="margin-bottom:8px">Clases dadas, plata cobrada y pendiente, próximos exámenes/objetivos y alumnos que se están enfriando — todos los domingos a la noche.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="chip ${!ses.resumenSemanal?"on":""}" data-a="toggle-resumen-semanal" data-f="no">Apagado</button>
+        <button class="chip ${ses.resumenSemanal?"on":""}" data-a="toggle-resumen-semanal" data-f="si">Recibir el resumen semanal por mail</button>
+      </div>
+    </div>
   </div>
   ${vPortalCard()}
   <div class="formcard"><div class="ftitle">Apariencia</div>

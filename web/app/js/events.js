@@ -622,6 +622,7 @@ document.addEventListener("click", (e)=>{
     update(sid,{sessions:st.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:true}:x)});
     toast("Clase marcada como cobrada"); return;
   }
+  else if(a==="toggle-resumen-semanal"){ setResumenSemanal(el.dataset.f==="si"); return; }
   else if(a==="toggle-recordatorios"){
     state.catalog.recordatorios = {...recordatoriosFor(), activo: el.dataset.f==="si"};
     touchCatalog(); return;
