@@ -35,8 +35,8 @@ function applyTheme(theme){
 }
 function setTheme(theme){ localStorage.setItem(THEME_KEY, theme); applyTheme(theme); }
 applyTheme(getTheme()); // se aplica de entrada, antes del primer render, para evitar parpadeo
-const RELEASES_API = "https://api.github.com/repos/manugandini53-design/manugandini53-design.github.io/releases/latest";
-const DOWNLOADS_URL = "https://manugandini53-design.github.io/#usala";
+const RELEASES_API = "https://api.github.com/repos/entreclases/entreclases.github.io/releases/latest";
+const DOWNLOADS_URL = "https://entreclases.github.io/#usala";
 // Backend de sincronización: un único proyecto Supabase para todos los usuarios de la app.
 // La anon key es pública por diseño — la seguridad la dan las políticas RLS de la tabla
 // `cuaderno` (cada cuenta solo puede leer/escribir su propia fila; ver el repo cuaderno-supabase).

@@ -12,12 +12,12 @@ cuenta (correo + contraseña).
 
 ## Empezar a usarla
 
-Entrá a **https://manugandini53-design.github.io/** y elegí cómo instalarla,
+Entrá a **https://entreclases.github.io/** y elegí cómo instalarla,
 o abrila directo desde el navegador.
 
 ### Versión web (sin instalar nada)
 
-Abrí **https://manugandini53-design.github.io/app/** en cualquier navegador.
+Abrí **https://entreclases.github.io/app/** en cualquier navegador.
 Anda igual, con o sin conexión.
 
 ### Instalar en Windows
