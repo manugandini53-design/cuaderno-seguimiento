@@ -685,20 +685,20 @@ function vFichaResumen(s){
 function vFichaClases(s){
   let h = `<div class="formcard"><div class="ftitle">Registrar clase (30 segundos, apenas termina)</div>
     <div class="frow">
-      <div class="field"><div class="flabel">Fecha</div><input type="date" id="c-date" value="${esc(state.sessionPrefillDate||today())}"></div>
-      <div class="field"><div class="flabel">Tema principal</div><select id="c-topic"><option value="">—</option>
+      <div class="field"><div class="flabel">Fecha</div><input type="date" id="c-date" value="${esc(state.sessionPrefillDate||today())}" data-enter="save-session"></div>
+      <div class="field"><div class="flabel">Tema principal</div><select id="c-topic" data-enter="save-session"><option value="">—</option>
         ${unitsFor(s).map(t=>`<option>${esc(t)}</option>`).join("")}
         <option>Nivelación</option><option>Repaso / parciales viejos</option></select></div>
-      <div class="field"><div class="flabel">¿Trajo la tarea?</div><select id="c-tarea">
+      <div class="field"><div class="flabel">¿Trajo la tarea?</div><select id="c-tarea" data-enter="save-session">
         <option value="sd">—</option><option value="hecha">Hecha</option>
         <option value="intentada">Intentada</option><option value="no">No hecha</option></select></div>
       <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div>
-        <input type="number" min="1" id="c-duration" value="60"></div>
+        <input type="number" min="1" id="c-duration" value="60" data-enter="save-session"></div>
     </div>
     <div class="field"><div class="flabel">Nota rápida (qué costó, tarea que dejaste)</div>
-      <input id="c-note" placeholder="Ej: se traba en cadena+cociente. Tarea: guía 5, ej. 8-12"></div>
+      <input id="c-note" placeholder="Ej: se traba en cadena+cociente. Tarea: guía 5, ej. 8-12" data-enter="save-session"></div>
     <div class="field"><div class="flabel">Objetivo de hoy (opcional)</div>
-      <input id="c-goal" placeholder="Ej: que resuelva sola sistemas 2x2"></div>
+      <input id="c-goal" placeholder="Ej: que resuelva sola sistemas 2x2" data-enter="save-session"></div>
     <button class="primary" style="margin-top:10px;margin-left:0" data-a="save-session">Guardar clase</button></div>`;
   const cobraPorClase = hasPagos(s) && s.modalidad==="clase";
   const sorted=[...s.sessions].sort((a,b)=>b.date.localeCompare(a.date));
@@ -718,11 +718,11 @@ function vFichaClases(s){
   h += vSimTimer();
   h += `<div class="formcard"><div class="ftitle">Registrar simulacro (parcial viejo, cronometrado)</div>
     <div class="frow">
-      <div class="field"><div class="flabel">Fecha</div><input type="date" id="s-date" value="${today()}"></div>
-      <div class="field"><div class="flabel">Nota</div><input id="s-grade" placeholder="Ej: 5.5 / 10"></div>
+      <div class="field"><div class="flabel">Fecha</div><input type="date" id="s-date" value="${today()}" data-enter="save-sim"></div>
+      <div class="field"><div class="flabel">Nota</div><input id="s-grade" placeholder="Ej: 5.5 / 10" data-enter="save-sim"></div>
     </div>
     <div class="field"><div class="flabel">Diagnóstico: errores conceptuales / de cuenta / de tiempo</div>
-      <input id="s-note" placeholder="Ej: 2 conceptuales en límites, 1 de cuenta, le faltó tiempo en el último" value="${esc(state.simPrefillNote||"")}"></div>
+      <input id="s-note" placeholder="Ej: 2 conceptuales en límites, 1 de cuenta, le faltó tiempo en el último" value="${esc(state.simPrefillNote||"")}" data-enter="save-sim"></div>
     <button class="primary" style="margin-top:10px;margin-left:0" data-a="save-sim">Guardar simulacro</button></div>`;
   const sortedSim=[...s.simulacros].sort((a,b)=>b.date.localeCompare(a.date));
   h += sortedSim.length===0 ? `<div class="empty">Sin simulacros. Idealmente el primero va 10–14 días antes del examen.</div>`
@@ -904,10 +904,10 @@ function vHorariosCard(s){
       <div class="body">${esc(DIAS_SEMANA[hr.day])} ${esc(hr.time)} · ${hr.duration||60} min</div>
       <button class="del" data-a="del-horario" data-id="${hr.id}" title="Borrar" aria-label="Borrar">×</button></div>`).join("");
   h += `<div class="frow" style="margin-top:8px;align-items:flex-end">
-    <div class="field"><div class="flabel">Día</div><select id="h-day">
+    <div class="field"><div class="flabel">Día</div><select id="h-day" data-enter="add-horario">
       ${DIAS_SEMANA.map((d,i)=>`<option value="${i}">${esc(d)}</option>`).join("")}</select></div>
-    <div class="field"><div class="flabel">Hora</div><input type="time" id="h-time" value="18:00"></div>
-    <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" id="h-duration" value="60" min="15" step="15"></div>
+    <div class="field"><div class="flabel">Hora</div><input type="time" id="h-time" value="18:00" data-enter="add-horario"></div>
+    <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" id="h-duration" value="60" min="15" step="15" data-enter="add-horario"></div>
     <button class="chip" data-a="add-horario" style="margin-bottom:2px">+ Agregar horario</button></div>
   </div>`;
   return h;
@@ -919,9 +919,9 @@ function vPuntualesCard(s){
   h += list.length===0 ? `<div class="empty">Sin clases puntuales cargadas.</div>`
     : list.map(p=>vPuntualRow(s,p)).join("");
   h += `<div class="frow" style="margin-top:8px;align-items:flex-end">
-    <div class="field"><div class="flabel">Fecha</div><input type="date" id="p-date" value="${today()}"></div>
-    <div class="field"><div class="flabel">Hora</div><input type="time" id="p-time" value="18:00"></div>
-    <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" id="p-duration" value="60" min="15" step="15"></div>
+    <div class="field"><div class="flabel">Fecha</div><input type="date" id="p-date" value="${today()}" data-enter="add-puntual"></div>
+    <div class="field"><div class="flabel">Hora</div><input type="time" id="p-time" value="18:00" data-enter="add-puntual"></div>
+    <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" id="p-duration" value="60" min="15" step="15" data-enter="add-puntual"></div>
     <button class="chip" data-a="add-puntual" style="margin-bottom:2px">+ Agregar clase puntual</button></div>
   </div>`;
   return h;
@@ -1195,8 +1195,8 @@ function vPagosMensuales(s){
   let h = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--soft)">
     <div class="flabel" style="margin-bottom:6px">Pagos registrados</div>
     <div class="frow" style="align-items:flex-end">
-      <div class="field"><div class="flabel">Fecha</div><input type="date" id="pago-date" value="${today()}"></div>
-      <div class="field"><div class="flabel">Monto</div><input type="number" min="0" id="pago-amount" placeholder="Ej: ${esc(s.tarifa||"")}"></div>
+      <div class="field"><div class="flabel">Fecha</div><input type="date" id="pago-date" value="${today()}" data-enter="save-pago"></div>
+      <div class="field"><div class="flabel">Monto</div><input type="number" min="0" id="pago-amount" placeholder="Ej: ${esc(s.tarifa||"")}" data-enter="save-pago"></div>
       <button class="chip" data-a="save-pago" style="margin-bottom:2px">+ Registrar pago</button></div>`;
   h += sorted.length===0 ? `<div class="empty" style="margin-top:8px">Sin pagos registrados todavía este mes ni anteriores.</div>`
     : sorted.map(p=>`<div class="log" style="margin-top:6px"><div class="d">${fmtDate(p.date)}</div>
@@ -1368,9 +1368,9 @@ function vCostosConfig(){
       <button class="del" data-a="del-costo-fijo" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button>
     </div>`).join("")}
     <div class="frow" style="align-items:flex-end;margin-top:8px">
-      <div class="field"><div class="flabel">Nombre</div><input id="costo-fijo-name" placeholder="Ej: alquiler de aula"></div>
-      <div class="field" style="max-width:130px"><div class="flabel">Monto mensual</div><input type="number" min="0" id="costo-fijo-monto"></div>
-      <div class="field"><div class="flabel">Alcance</div><select id="costo-fijo-scope">${scopeOptionsHtml("")}</select></div>
+      <div class="field"><div class="flabel">Nombre</div><input id="costo-fijo-name" placeholder="Ej: alquiler de aula" data-enter="add-costo-fijo"></div>
+      <div class="field" style="max-width:130px"><div class="flabel">Monto mensual</div><input type="number" min="0" id="costo-fijo-monto" data-enter="add-costo-fijo"></div>
+      <div class="field"><div class="flabel">Alcance</div><select id="costo-fijo-scope" data-enter="add-costo-fijo">${scopeOptionsHtml("")}</select></div>
       <button class="chip" data-a="add-costo-fijo" style="margin-bottom:2px">+ Agregar</button>
     </div>
   </div>`;
@@ -1384,9 +1384,9 @@ function vCostosConfig(){
       <button class="del" data-a="del-costo-variable" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button>
     </div>`).join("")}
     <div class="frow" style="align-items:flex-end;margin-top:8px">
-      <div class="field"><div class="flabel">Nombre</div><input id="costo-var-name" placeholder="Ej: viáticos"></div>
-      <div class="field" style="max-width:130px"><div class="flabel">Monto por clase</div><input type="number" min="0" id="costo-var-monto"></div>
-      <div class="field"><div class="flabel">Alcance</div><select id="costo-var-scope">${scopeOptionsHtml("")}</select></div>
+      <div class="field"><div class="flabel">Nombre</div><input id="costo-var-name" placeholder="Ej: viáticos" data-enter="add-costo-variable"></div>
+      <div class="field" style="max-width:130px"><div class="flabel">Monto por clase</div><input type="number" min="0" id="costo-var-monto" data-enter="add-costo-variable"></div>
+      <div class="field"><div class="flabel">Alcance</div><select id="costo-var-scope" data-enter="add-costo-variable">${scopeOptionsHtml("")}</select></div>
       <button class="chip" data-a="add-costo-variable" style="margin-bottom:2px">+ Agregar</button>
     </div>
   </div>`;
@@ -2024,7 +2024,7 @@ function vCatalog(){
     ${em.units.map((u,i)=>`<div class="log" style="padding:7px 12px"><div class="body">${esc(u)}</div>
       <button class="del" data-a="cat-del-unit" data-i="${i}" title="Quitar unidad" aria-label="Quitar unidad">×</button></div>`).join("") || `<div class="empty">Sin unidades todavía. Agregá la primera acá abajo.</div>`}
     <div class="frow" style="margin-top:8px;align-items:flex-end">
-      <div class="field"><input id="new-unit" placeholder="Ej: Límites y continuidad"></div>
+      <div class="field"><input id="new-unit" placeholder="Ej: Límites y continuidad" data-enter="cat-add-unit"></div>
       <button class="chip" data-a="cat-add-unit" style="margin-bottom:2px">+ Agregar unidad</button></div>
     <button class="primary" style="margin:12px 0 0;margin-left:0" data-a="cat-close-edit">Listo</button>
     <div class="hint" style="margin-top:8px">Los cambios se guardan solos. Si quitás una unidad, los alumnos que ya la tenían registrada no pierden nada; las unidades nuevas les aparecen como «Pendiente».</div>
@@ -2051,7 +2051,7 @@ function vCatalog(){
   ${c.careers.map((x,i)=>`<div class="log" style="padding:7px 12px"><div class="body">${esc(x)}</div>
     <button class="del" data-a="cat-del-career" data-i="${i}" title="Quitar" aria-label="Quitar">×</button></div>`).join("") || `<div class="empty">Sin carreras cargadas.</div>`}
   <div class="frow" style="margin-top:8px;align-items:flex-end">
-    <div class="field"><input id="new-career" placeholder="Ej: Contador Público"></div>
+    <div class="field"><input id="new-career" placeholder="Ej: Contador Público" data-enter="cat-add-career"></div>
     <button class="chip" data-a="cat-add-career" style="margin-bottom:2px">+ Agregar carrera</button></div>
   <div class="hint" style="margin-top:6px">Quitar una carrera no afecta a los alumnos que ya la tienen: la conservan en su ficha.</div></div>`;
   h += `<div class="formcard"><div class="ftitle">Materias y sus unidades</div>
@@ -2076,7 +2076,7 @@ function vCatalog(){
   </div>
   <div class="hint" style="margin-bottom:8px">Crea la materia con las unidades típicas ya cargadas — se editan como cualquier otra.</div>
   <div class="frow" style="margin-top:8px;align-items:flex-end">
-    <div class="field"><input id="new-subject" placeholder="O escribí un nombre nuevo"></div>
+    <div class="field"><input id="new-subject" placeholder="O escribí un nombre nuevo" data-enter="cat-add-subject"></div>
     <button class="chip" data-a="cat-add-subject" style="margin-bottom:2px">+ Agregar materia</button></div>
   <div class="hint" style="margin-top:6px">Al crear una materia se abre su editor para cargarle las unidades. Después, al dar de alta un alumno, la elegís de la lista y su grilla de temas se arma sola. Eliminar una materia no borra el avance de los alumnos que la usaban.</div></div>`;
   h += `<div class="formcard"><div class="ftitle">Packs</div>
@@ -2093,7 +2093,7 @@ function vCatalog(){
     <button class="del" data-a="cat-ask-del-pack" data-id="${p.id}" title="Eliminar pack" aria-label="Eliminar pack">×</button></div>`;
   }).join("") || `<div class="empty">Sin packs todavía.</div>`}
   <div class="field" style="margin-top:10px"><div class="flabel">Nombre del pack nuevo</div>
-    <input id="new-pack-name" data-cf="new-pack-name" placeholder="Ej: Ingreso a Medicina" value="${esc(state.newPackName||"")}"></div>
+    <input id="new-pack-name" data-cf="new-pack-name" placeholder="Ej: Ingreso a Medicina" value="${esc(state.newPackName||"")}" data-enter="cat-add-pack"></div>
   <div class="flabel" style="margin-top:10px">Materias del pack (elegí 2 o más)</div>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px">
     ${c.subjects.length ? c.subjects.map(m=>`<button class="chip ${(state.newPackSubjects||[]).includes(m.id)?"on":""}" data-a="toggle-newpack-subject" data-id="${m.id}">${esc(m.name)}</button>`).join("") : `<div class="empty">Primero creá alguna materia.</div>`}
@@ -2974,11 +2974,11 @@ function vModal(){
     <div class="ftitle" style="font-size:16px">Nuevo estudiante</div>
     ${state.newStudentError?`<div class="saveerr">${esc(state.newStudentError)}</div>`:""}
     <div class="frow">
-      <div class="field"><div class="flabel">Nombre *</div><input id="n-name" autofocus></div>
-      <div class="field"><div class="flabel">Carrera</div><select id="n-career">
+      <div class="field"><div class="flabel">Nombre *</div><input id="n-name" autofocus data-enter="create"></div>
+      <div class="field"><div class="flabel">Carrera</div><select id="n-career" data-enter="create">
         ${state.catalog.careers.map(c=>`<option>${esc(c)}</option>`).join("")}</select></div></div>
     <div class="frow">
-      <div class="field"><div class="flabel">Materia</div><select id="n-subject">
+      <div class="field"><div class="flabel">Materia</div><select id="n-subject" data-enter="create">
         <optgroup label="Materias">
           ${state.catalog.subjects.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("")}
         </optgroup>
@@ -2986,7 +2986,7 @@ function vModal(){
           ${state.catalog.packs.filter(p=>p.subjectIds.length>=2).map(p=>`<option value="pack:${p.id}">${esc(p.name)}</option>`).join("")}
         </optgroup>` : ""}
         <option value="">Otra / sin materia por ahora</option></select></div>
-      <div class="field"><div class="flabel">Fecha de examen (si ya la sabe)</div><input type="date" id="n-exam"></div></div>
+      <div class="field"><div class="flabel">Fecha de examen (si ya la sabe)</div><input type="date" id="n-exam" data-enter="create"></div></div>
     <div class="field"><div class="flabel">Notas iniciales (de dónde arranca, qué le cuesta)</div><textarea id="n-notes"></textarea></div>
     <div class="hint" style="margin-top:8px">¿Cursa más de una materia? Cargalo una vez por cada materia — o elegí un pack para crear todas sus fichas de una.</div>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">

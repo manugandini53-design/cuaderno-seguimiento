@@ -935,7 +935,37 @@ document.addEventListener("keydown",(e)=>{
   }
 });
 
+// Un "change" dispara al perder el foco (blur) — por ejemplo al tabular hacia el campo
+// siguiente. Si el handler reconstruye todo el DOM ahí mismo, de forma sincrónica, el
+// navegador todavía no terminó de mover el foco: termina cayendo a <body> y Tab "no avanza"
+// al campo de la derecha (confirmado con Playwright en un navegador real — jsdom no simula
+// el avance de foco por Tab, así que no lo hubiera detectado). Se difiere cualquier render()
+// que dispare este handler un tick, para que el navegador mueva el foco primero con el DOM
+// viejo intacto, y recién ahí se reconstruye — restaurando el foco al equivalente del
+// elemento que quedó enfocado (ver focusSelectorFor en helpers.js).
 document.addEventListener("change",(e)=>{
+  const realRender=render;
+  let pending=false;
+  render=()=>{ pending=true; };
+  try{ handleFormChange(e); }
+  finally{ render=realRender; }
+  if(pending){
+    setTimeout(()=>{
+      const active=document.activeElement;
+      const sel=focusSelectorFor(active);
+      const pos=(active && typeof active.selectionStart==="number") ? active.selectionStart : null;
+      realRender();
+      if(sel){
+        const ne=document.querySelector(sel);
+        if(ne){
+          ne.focus();
+          if(pos!=null && typeof ne.setSelectionRange==="function"){ try{ ne.setSelectionRange(pos,pos); }catch(err){} }
+        }
+      }
+    },0);
+  }
+});
+function handleFormChange(e){
   const cf=e.target.closest("[data-cf]");
   if(cf && cf.dataset.cf==="subj-name"){
     const m=subjById(state.editSubjectId); if(!m) return;
@@ -1000,7 +1030,7 @@ document.addEventListener("change",(e)=>{
     state.fichaError="";
   }
   update(s.id,{[el.dataset.f]:el.value});
-});
+}
 
 // render() rehace todo el innerHTML de #app, así que un input en vivo (buscador de
 // la lista) perdería foco y cursor en cada tecla si no se restauran a mano acá.

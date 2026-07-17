@@ -4,6 +4,20 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6
 const today = () => new Date().toISOString().slice(0,10);
 const esc = (s) => String(s??"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
+// Selector estable para volver a encontrar un elemento después de un render() completo (que
+// reconstruye todo el innerHTML de #app) — por id si tiene, si no por el primer atributo data-*
+// que lo identifique dentro de la vista actual. Usado para no perder el foco de teclado (ver el
+// listener "change" en events.js).
+function focusSelectorFor(el){
+  if(!el || el===document.body || el===document.documentElement) return null;
+  if(el.id) return "#"+CSS.escape(el.id);
+  for(const attr of ["data-f","data-cf","data-lf"]){
+    const v=el.getAttribute && el.getAttribute(attr);
+    if(v) return `[${attr}="${CSS.escape(v)}"]`;
+  }
+  return null;
+}
+
 function daysTo(ds){ if(!ds) return null;
   const d=new Date(ds+"T12:00:00"), n=new Date(); n.setHours(12,0,0,0);
   return Math.round((d-n)/86400000); }
