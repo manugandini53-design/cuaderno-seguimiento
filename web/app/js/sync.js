@@ -738,7 +738,7 @@ function materialObjectUrl(path){
 }
 
 // Índice liviano de materiales (nombre, bytes, fecha) guardado dentro de state.catalog, por
-// materia — así uploadMaterial puede chequear el total de las 20MB sin listar Storage en cada
+// materia — así uploadMaterial puede chequear el total de MATERIAL_MAX_TOTAL_BYTES sin listar Storage en cada
 // subida. Es un espejo del list() real de Storage, así que puede desincronizarse (borrados desde
 // otro dispositivo, subidas a mitad de camino): loadMateriales lo reconcilia contra Storage cada
 // vez que se abre la sección Materiales de una materia.
