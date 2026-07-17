@@ -25,6 +25,9 @@ a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc
 
 ## [Sin publicar]
 
+## [2.1.0] - 2026-07-17
+- Landing al día (`web/index.html`): sección de características actualizada con lo real de la serie 2.x — panel "Hoy" rediseñado, buscador global, pagos con recibos numerados, export contable a Excel, portal con QR para el aula, agenda con color por materia, estadísticas con retención y salud del negocio, papelera con deshacer, resumen semanal por mail y modo demo — sobre las que ya estaban (informes, WhatsApp, materiales, modo oscuro, respaldos automáticos); mismo diseño y selector de tema de siempre, sin tocarlos. `APP_VERSION` a 2.1.0, precache del service worker en `cuaderno-v75`.
+
 ## [2.0.7] - 2026-07-17
 - QR del portal (`web/app/js/qrcode.js` nuevo, `views.js`, `events.js`, `styles.css`, `index.html`, `sw.js`): botón "Ver QR" junto a "Copiar link" del portal general (Cuenta) y del portal por alumno (ficha) — abre un overlay con el código generado al momento, en grande, para escanear en clase. Usa `qrcode-generator` de Kazuhiko Arase (MIT, sin dependencias) vendorizado íntegro en un solo archivo local (`js/qrcode.js`, cargado antes que el resto); sin CDN en runtime, respeta la CSP existente (`script-src 'self'`). Precache del service worker en `cuaderno-v74`.
 - Export contable (`web/app/js/helpers.js`, `views.js`, `events.js`): botón "Exportar CSV" en Pagos → Resumen, con un selector de rango (este mes / últimos 3, 6 o 12 meses, terminando en el mes elegido arriba) — una fila por movimiento (fecha, alumno, materia, concepto clase/mensualidad/seña, monto, estado) más un resumen por mes al final. Generación y descarga 100% locales (`buildPagosCsv()` + Blob), sin backend; BOM UTF-8 y separador `;` para que Excel en español lo abra bien de entrada. Precache del service worker en `cuaderno-v73`.

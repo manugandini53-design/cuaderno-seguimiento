@@ -48,7 +48,7 @@ const MATERIALES_BUCKET = "materiales";
 const MATERIAL_MAX_BYTES = 10*1024*1024;
 const MATERIAL_MAX_COUNT = 20;
 const MATERIAL_MAX_TOTAL_BYTES = 20*1024*1024; // por usuario, sumando materiales de todas sus materias
-const APP_VERSION = "2.0.7";
+const APP_VERSION = "2.1.0";
 // Modo demo (paso 82): ?demo=1 carga un cuaderno ficticio en memoria (ver buildDemoData() en
 // helpers.js), sin cuenta, sin sync y sin tocar localStorage ni el backend — ver el guard de
 // save() en helpers.js y el de ensureToken() en auth.js, y el gate de render() en views.js.
