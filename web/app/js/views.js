@@ -278,7 +278,7 @@ function vBackupReminder(){
    vacío amable de emptyState() en vez de dejar la tarjeta en blanco. */
 function hoyCard(title, num, body, action){
   return `<div class="ds-card hoy-card">
-    <div class="hoy-card-head"><span class="ds-eyebrow">${esc(title)}</span><span class="hoy-num">${num}</span></div>
+    <div class="hoy-card-head"><span class="ds-eyebrow">${esc(title)}</span><span class="hoy-num">${countSpan(num)}</span></div>
     <div class="hoy-card-body">${body}</div>
     ${action?`<button class="btn btn-ghost btn-block hoy-card-action" data-a="${action.a}">${esc(action.label)}</button>`:""}
   </div>`;
@@ -368,9 +368,9 @@ function vTablero(){
   h += `<div class="hoy-grid">${vHoyClasesHoy()}${vHoyCobrar()}${vHoyProximo()}</div>`;
 
   h += `<div class="stats">
-    <div class="stat"><b>${activos.length}</b><span>activos</span></div>
-    <div class="stat"><b>${upcoming.length}</b><span>con examen a la vista</span></div>
-    <div class="stat ${enRiesgo?"warn":""}"><b>${enRiesgo}</b><span>con alertas</span></div>
+    <div class="stat"><b>${countSpan(activos.length)}</b><span>activos</span></div>
+    <div class="stat"><b>${countSpan(upcoming.length)}</b><span>con examen a la vista</span></div>
+    <div class="stat ${enRiesgo?"warn":""}"><b>${countSpan(enRiesgo)}</b><span>con alertas</span></div>
   </div>`;
 
   const examPrompts = pendingExamResults();
@@ -2294,7 +2294,7 @@ function semaforoBars(counts){
       const v=counts[k]||0, hgt=Math.max(2,Math.round(v/total*70));
       return `<div style="flex:1;max-width:80px;display:flex;flex-direction:column;align-items:center">
         <div style="height:70px;width:100%;display:flex;align-items:flex-end;justify-content:center">
-          <div title="${esc(lbl)}: ${v}" style="width:28px;background:${SEM_META[k].color};border-radius:4px 4px 0 0;height:${hgt}px"></div>
+          <div class="grow-v" title="${esc(lbl)}: ${v}" style="width:28px;background:${SEM_META[k].color};border-radius:4px 4px 0 0;height:${hgt}px"></div>
         </div>
         <b style="font-family:var(--mono);font-size:13px;margin-top:4px">${v}</b>
         <div class="hint" style="text-align:center">${esc(lbl)}</div>
@@ -2318,8 +2318,8 @@ function vEstadisticas(){
   const proximo = conExamen.length ? [...conExamen].sort((a,b)=>daysTo(a.examDate)-daysTo(b.examDate))[0] : null;
 
   h += `<div class="stats" style="margin-bottom:6px">
-    <div class="stat"><b>${grupo.length}</b><span>alumnos activos</span></div>
-    <div class="stat"><b>${conExamen.length}</b><span>con examen a la vista</span></div>
+    <div class="stat"><b>${countSpan(grupo.length)}</b><span>alumnos activos</span></div>
+    <div class="stat"><b>${countSpan(conExamen.length)}</b><span>con examen a la vista</span></div>
   </div>`;
   h += proximo
     ? `<div class="hint" style="margin-bottom:20px">Más próximo: <b>${esc(proximo.name)}</b> — ${daysTo(proximo.examDate)===0?"hoy":"en "+daysTo(proximo.examDate)+" día"+(daysTo(proximo.examDate)===1?"":"s")} (${fmtDate(proximo.examDate)})</div>`
@@ -2336,10 +2336,10 @@ function vEstadisticas(){
     h += `<div class="empty">Sin datos de temas todavía.</div>`;
   }else{
     const avg = progresos.reduce((a,b)=>a+b,0)/progresos.length;
-    h += `<div class="stats" style="margin-bottom:8px"><div class="stat"><b>${avg.toFixed(0)}%</b><span>en nivel parcial, promedio del grupo</span></div></div>
+    h += `<div class="stats" style="margin-bottom:8px"><div class="stat"><b>${countSpan(avg,{decimals:0,suffix:"%"})}</b><span>en nivel parcial, promedio del grupo</span></div></div>
     <div role="progressbar" aria-label="Avance promedio de temas" aria-valuenow="${avg.toFixed(0)}" aria-valuemin="0" aria-valuemax="100"
       style="background:var(--soft);border-radius:99px;height:14px;overflow:hidden;max-width:320px;margin-bottom:20px">
-      <div style="height:100%;width:${avg.toFixed(1)}%;background:var(--green);border-radius:99px"></div>
+      <div class="grow-h" style="height:100%;width:${avg.toFixed(1)}%;background:var(--green);border-radius:99px"></div>
     </div>`;
   }
 
@@ -2353,20 +2353,20 @@ function vEstadisticas(){
     if(!isNaN(n)) notas.push(n);
   }));
   h += notas.length
-    ? `<div class="stats"><div class="stat"><b>${(notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(1)}</b><span>promedio (${notas.length} simulacro${notas.length===1?"":"s"})</span></div></div>`
+    ? `<div class="stats"><div class="stat"><b>${countSpan(notas.reduce((a,b)=>a+b,0)/notas.length,{decimals:1})}</b><span>promedio (${notas.length} simulacro${notas.length===1?"":"s"})</span></div></div>`
     : `<div class="empty">Sin simulacros recientes.</div>`;
 
   h += `<div class="stitle">Tasa de aprobación de esta materia</div>`;
   const materiaResult = examResultCounts(alive().filter(s=>s.subjectId===curId));
   h += materiaResult.total===0
     ? `<div class="empty">Sin resultados de examen registrados en esta materia todavía.</div>`
-    : `<div class="stats"><div class="stat"><b>${(materiaResult.aprobo/materiaResult.total*100).toFixed(0)}%</b><span>aprobados sobre ${materiaResult.total} examen${materiaResult.total===1?"":"es"} rendido${materiaResult.total===1?"":"s"}</span></div></div>`;
+    : `<div class="stats"><div class="stat"><b>${countSpan(materiaResult.aprobo/materiaResult.total*100,{suffix:"%"})}</b><span>aprobados sobre ${materiaResult.total} examen${materiaResult.total===1?"":"es"} rendido${materiaResult.total===1?"":"s"}</span></div></div>`;
 
   h += `<div class="stitle">Objetivos de clase cumplidos en esta materia</div>`;
   const materiaGoals = goalCounts(alive().filter(s=>s.subjectId===curId));
   h += materiaGoals.total===0
     ? `<div class="empty">Sin objetivos de clase evaluados todavía en esta materia.</div>`
-    : `<div class="stats"><div class="stat"><b>${(materiaGoals.si/materiaGoals.total*100).toFixed(0)}%</b><span>cumplidos sobre ${materiaGoals.total} objetivo${materiaGoals.total===1?"":"s"} evaluado${materiaGoals.total===1?"":"s"}</span></div></div>`;
+    : `<div class="stats"><div class="stat"><b>${countSpan(materiaGoals.si/materiaGoals.total*100,{suffix:"%"})}</b><span>cumplidos sobre ${materiaGoals.total} objetivo${materiaGoals.total===1?"":"s"} evaluado${materiaGoals.total===1?"":"s"}</span></div></div>`;
 
   h += vAula(grupo);
   h += vTuActividad();
@@ -2394,7 +2394,7 @@ function vRetencion(){
   h += `<div class="stitle">Duración promedio de un alumno</div>`;
   h += durations.length===0
     ? `<div class="empty">Hace falta más de una clase registrada por alumno para calcular esto.</div>`
-    : `<div class="stats" style="margin-bottom:16px"><div class="stat"><b>${(durations.reduce((a,b)=>a+b,0)/durations.length).toFixed(1)}</b><span>meses en promedio, de la 1ª a la última clase (${durations.length} alumno${durations.length===1?"":"s"} con 2+ clases)</span></div></div>`;
+    : `<div class="stats" style="margin-bottom:16px"><div class="stat"><b>${countSpan(durations.reduce((a,b)=>a+b,0)/durations.length,{decimals:1})}</b><span>meses en promedio, de la 1ª a la última clase (${durations.length} alumno${durations.length===1?"":"s"} con 2+ clases)</span></div></div>`;
 
   h += `<div class="stitle">Altas y bajas por mes (últimos 6)</div>`;
   const keys = recentMonthKeys(6).reverse();
@@ -2406,8 +2406,8 @@ function vRetencion(){
     h += `<div class="empty">Sin altas ni bajas en los últimos 6 meses.</div>`;
   }else{
     h += `<div class="stats" style="margin-bottom:8px">
-      <div class="stat"><b>${totalAltas}</b><span>altas</span></div>
-      <div class="stat"><b>${totalBajas}</b><span>bajas</span></div>
+      <div class="stat"><b>${countSpan(totalAltas)}</b><span>altas</span></div>
+      <div class="stat"><b>${countSpan(totalBajas)}</b><span>bajas</span></div>
     </div>`;
     h += `<div class="hint" style="margin-bottom:6px">Neto por mes (altas − bajas) — verde: crece, rojo: baja</div>`;
     const axisLabels = keys.map(monthLabelShort);
@@ -2430,9 +2430,9 @@ function vSaludDelMes(){
   const enfriando = activos.filter(s=>{ const w=semanasSin(s); return w>SALUD_ENFRIANDO_SEMANAS && w<=SALUD_INACTIVO_SEMANAS; });
   const inactivos = activos.filter(s=>semanasSin(s)>SALUD_INACTIVO_SEMANAS);
   h += `<div class="stats" style="margin-bottom:12px">
-    <div class="stat"><b>${recientes.length}</b><span>con clase en las últimas ${SALUD_ENFRIANDO_SEMANAS} semanas</span></div>
-    <div class="stat"><b>${enfriando.length}</b><span>enfriándose (${SALUD_ENFRIANDO_SEMANAS}–${SALUD_INACTIVO_SEMANAS} semanas)</span></div>
-    <div class="stat"><b>${inactivos.length}</b><span>inactivos (${SALUD_INACTIVO_SEMANAS}+ semanas o nunca)</span></div>
+    <div class="stat"><b>${countSpan(recientes.length)}</b><span>con clase en las últimas ${SALUD_ENFRIANDO_SEMANAS} semanas</span></div>
+    <div class="stat"><b>${countSpan(enfriando.length)}</b><span>enfriándose (${SALUD_ENFRIANDO_SEMANAS}–${SALUD_INACTIVO_SEMANAS} semanas)</span></div>
+    <div class="stat"><b>${countSpan(inactivos.length)}</b><span>inactivos (${SALUD_INACTIVO_SEMANAS}+ semanas o nunca)</span></div>
   </div>`;
   const alertList=[...enfriando, ...inactivos];
   h += alertList.length===0 ? `<div class="hint">Ningún alumno activo se está enfriando — todos con clase reciente.</div>`
@@ -2452,10 +2452,10 @@ function vObjetivosGeneral(){
   const general = goalCounts(students);
   if(general.total===0) return h + `<div class="empty">Todavía no hay objetivos de clase evaluados.</div>`;
   const pct = general.si/general.total*100;
-  h += `<div class="stats" style="margin-bottom:8px"><div class="stat"><b>${pct.toFixed(0)}%</b><span>cumplidos sobre ${general.total} objetivo${general.total===1?"":"s"} evaluado${general.total===1?"":"s"}</span></div></div>
+  h += `<div class="stats" style="margin-bottom:8px"><div class="stat"><b>${countSpan(pct,{suffix:"%"})}</b><span>cumplidos sobre ${general.total} objetivo${general.total===1?"":"s"} evaluado${general.total===1?"":"s"}</span></div></div>
   <div role="progressbar" aria-label="Objetivos de clase cumplidos" aria-valuenow="${pct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100"
     style="background:var(--soft);border-radius:99px;height:14px;overflow:hidden;max-width:320px;margin-bottom:16px">
-    <div style="height:100%;width:${pct.toFixed(1)}%;background:var(--green);border-radius:99px"></div>
+    <div class="grow-h" style="height:100%;width:${pct.toFixed(1)}%;background:var(--green);border-radius:99px"></div>
   </div>`;
 
   const bySubject = state.catalog.subjects
@@ -2476,10 +2476,10 @@ function vTasaAprobacionGeneral(){
   const general = examResultCounts(students);
   if(general.total===0) return h + `<div class="empty">Todavía no hay resultados de examen registrados.</div>`;
   const pct = general.aprobo/general.total*100;
-  h += `<div class="stats" style="margin-bottom:8px"><div class="stat"><b>${pct.toFixed(0)}%</b><span>aprobados sobre ${general.total} examen${general.total===1?"":"es"} rendido${general.total===1?"":"s"}</span></div></div>
+  h += `<div class="stats" style="margin-bottom:8px"><div class="stat"><b>${countSpan(pct,{suffix:"%"})}</b><span>aprobados sobre ${general.total} examen${general.total===1?"":"es"} rendido${general.total===1?"":"s"}</span></div></div>
   <div role="progressbar" aria-label="Tasa de aprobación general" aria-valuenow="${pct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100"
     style="background:var(--soft);border-radius:99px;height:14px;overflow:hidden;max-width:320px;margin-bottom:16px">
-    <div style="height:100%;width:${pct.toFixed(1)}%;background:var(--green);border-radius:99px"></div>
+    <div class="grow-h" style="height:100%;width:${pct.toFixed(1)}%;background:var(--green);border-radius:99px"></div>
   </div>`;
 
   const bySubject = state.catalog.subjects
@@ -2500,7 +2500,7 @@ function tasaAprobacionBars(entries){
         ${subjectId?subjectDot(subjectId):""}${esc(label)}</div>
       <div role="progressbar" aria-label="${esc(label)}" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
         style="flex:1;background:var(--soft);border-radius:4px;overflow:hidden;height:14px">
-        <div class="subj-bar" style="width:${pct}%;background:${color}"></div>
+        <div class="subj-bar grow-h" style="width:${pct}%;background:${color}"></div>
       </div>
       <div style="width:70px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted)">${pct}% (${c.total})</div>
     </div>`;
@@ -2526,7 +2526,7 @@ function deskHtml(s){
   const firstName = (s.name||"").trim().split(/\s+/)[0] || "—";
   const title = `${s.name||"—"} — ${SEM_META[sem].label} — avance: ${pctVal}%${done?" — ya rindió":""}`;
   return `<button class="desk" data-a="open" data-id="${esc(s.id)}" title="${esc(title)}">
-    <div class="desk-top"><div class="desk-progress" style="width:${pctVal}%"></div></div>
+    <div class="desk-top"><div class="desk-progress grow-h" style="width:${pctVal}%"></div></div>
     <div class="desk-body" style="background:${color}">
       ${showBadge?`<span class="desk-badge">${d===0?"hoy":d+"d"}</span>`:""}
       ${done?`<span class="desk-done" title="Ya rindió este examen">✓</span>`:""}
@@ -2807,7 +2807,7 @@ function barRow(dataset, axisLabels){
     return `<div title="${esc(d.label)}: ${d.v}" style="flex:${dense?"0 0 14px":"1"};min-width:${dense?"14px":"2px"};display:flex;flex-direction:column;
       align-items:center;justify-content:flex-end;height:100%">
       ${val}
-      <div style="width:100%;background:var(--accent);border-radius:2px 2px 0 0;height:${hgt}px"></div>
+      <div class="grow-v" style="width:100%;background:var(--accent);border-radius:2px 2px 0 0;height:${hgt}px"></div>
     </div>`;
   }).join("");
   const chart = `<div style="display:flex;align-items:flex-end;gap:${gap};height:74px;margin-bottom:4px">${bars}</div>`;
@@ -2846,10 +2846,10 @@ function signedBarChart(dataset, axisLabels, fmt){
     const hgt = d.v===0 ? 0 : Math.max(2, Math.round(Math.abs(d.v)/max*half));
     const label = `<span style="font-size:9px;font-family:var(--mono);color:var(--muted);white-space:nowrap">${esc(fmt(d.v))}</span>`;
     const posBar = d.v>0
-      ? `${label}<div style="width:70%;max-width:16px;background:var(--green);border-radius:2px 2px 0 0;height:${hgt}px;margin-top:2px"></div>`
+      ? `${label}<div class="grow-v" style="width:70%;max-width:16px;background:var(--green);border-radius:2px 2px 0 0;height:${hgt}px;margin-top:2px"></div>`
       : (d.v===0 ? `<span style="font-size:9px;font-family:var(--mono);color:var(--faint)">–</span>` : "");
     const negBar = d.v<0
-      ? `<div style="width:70%;max-width:16px;background:var(--red);border-radius:0 0 2px 2px;height:${hgt}px;margin-bottom:2px"></div>${label}`
+      ? `<div class="grow-v-down" style="width:70%;max-width:16px;background:var(--red);border-radius:0 0 2px 2px;height:${hgt}px;margin-bottom:2px"></div>${label}`
       : "";
     return `<div title="${esc(d.label)}: ${esc(fmt(d.v))}" style="flex:1;min-width:2px;display:flex;flex-direction:column;height:100%">
       <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center">${posBar}</div>
@@ -3112,37 +3112,42 @@ function syncStatusText(){
 }
 
 /* ============ render ============ */
+// Recuerda la última vista realmente pintada (paso 100) para que la transición de entrada
+// (fade/stagger) sólo se dispare al navegar de verdad, no en cada re-render disparado por
+// datos que cambian estando en la misma vista (buscador en vivo, cronómetro, sync…) — si
+// eso animara también, la app se sentiría con parpadeo constante en vez de fluida.
+let _prevViewKey = null;
 function render(){
   // el shell de navegación (sidebar/barra inferior) sólo existe con sesión activa, fuera de
   // recovery e informe/contrato (documentos pensados para imprimir/compartir, sin nav) — la
   // clase "has-nav" en <body> reserva ese espacio fijo sólo cuando el nav realmente se pinta.
   if(state.recovery){
-    document.body.classList.remove("has-nav");
-    document.getElementById("app").innerHTML = vSetPassword();
+    document.body.classList.remove("has-nav"); _prevViewKey=null;
+    document.getElementById("app").innerHTML = `<div class="view-fade">${vSetPassword()}</div>`;
     const p=document.getElementById("newpass1"); if(p) p.focus();
     return;
   }
   if(!getSes() && !IS_DEMO){
-    document.body.classList.remove("has-nav");
+    document.body.classList.remove("has-nav"); _prevViewKey=null;
     if(state.pendingConfirmEmail){
-      document.getElementById("app").innerHTML = vConfirmEmail();
+      document.getElementById("app").innerHTML = `<div class="view-fade">${vConfirmEmail()}</div>`;
       return;
     }
-    document.getElementById("app").innerHTML = vAuth();
+    document.getElementById("app").innerHTML = `<div class="view-fade">${vAuth()}</div>`;
     const em=document.getElementById("auth-email"); if(em) em.focus();
     return;
   }
   if(state.view==="informe"){
     if(!sel()){ state.view="tablero"; }
-    else{ document.body.classList.remove("has-nav"); document.getElementById("app").innerHTML = vInforme()+toastWrap(); return; }
+    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vInforme()}</div>`+toastWrap(); return; }
   }
   if(state.view==="contrato"){
     if(!sel()){ state.view="tablero"; }
-    else{ document.body.classList.remove("has-nav"); document.getElementById("app").innerHTML = vContrato()+toastWrap(); return; }
+    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vContrato()}</div>`+toastWrap(); return; }
   }
   if(state.view==="recibo"){
     if(!sel() || !reciboFor(sel(), state.reciboId)){ state.view="tablero"; }
-    else{ document.body.classList.remove("has-nav"); document.getElementById("app").innerHTML = vRecibo()+toastWrap(); return; }
+    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vRecibo()}</div>`+toastWrap(); return; }
   }
   document.body.classList.add("has-nav");
   const ses = getSes();
@@ -3184,7 +3189,12 @@ function render(){
   if(state.fabPick) m += vFabPickOverlay();
   if(state.qrOverlay) m += vQrOverlay();
   m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
-  document.getElementById("app").innerHTML = navShell(isAdmin) + fabHtml() + `<main class="appmain">${m}</main>` + toastWrap();
+  const viewKey = state.view;
+  const viewChanged = viewKey!==_prevViewKey;
+  _prevViewKey = viewKey;
+  document.getElementById("app").innerHTML = navShell(isAdmin) + fabHtml() + `<main class="appmain${viewChanged?" view-enter":""}">${m}</main>` + toastWrap();
+  if(typeof observeGrowBars==="function") observeGrowBars();
+  if(viewChanged && typeof animateCounters==="function") animateCounters();
   const fi = document.getElementById("importFile");
   if(fi) fi.addEventListener("change", e=>{
     const f = e.target.files && e.target.files[0]; if(!f) return;

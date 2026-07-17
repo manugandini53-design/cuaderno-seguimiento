@@ -653,11 +653,56 @@
   .btn,.primary,.chip,.tabbtn,.danger,.goalbtn,.navitem,.sembtn{
     transition:transform .1s ease,filter .12s ease,background-color .12s ease,border-color .12s ease,color .12s ease}
   .btn:active,.primary:active,.chip:active,.danger:active,.goalbtn:active{transform:scale(.96)}
-  .formcard,.ds-card,.examresult,.goalcard{transition:box-shadow .15s ease}
+  .formcard,.ds-card,.examresult,.goalcard{transition:transform .15s ease,box-shadow .15s ease}
   @media (prefers-reduced-motion:reduce){
-    .row,.examcard,.topic,.cal-cell,.desk-body,.btn,.primary,.chip,.tabbtn,.danger,.goalbtn,.navitem,.sembtn{transition:none}
+    .row,.examcard,.topic,.cal-cell,.desk-body,.btn,.primary,.chip,.tabbtn,.danger,.goalbtn,.navitem,.sembtn,.formcard,.ds-card,.examresult,.goalcard{transition:none}
   }
   .hoy-row-click{transition:color .12s ease}
+
+  /* ============ hover con más cuerpo: elevación + sombra en tarjetas/botones grandes
+     (paso 100) — sólo transform/box-shadow, nunca propiedades que disparen layout ============ */
+  .ds-card:hover,.formcard:hover,.examresult:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(0) scale(.97)}
+  @media (prefers-reduced-motion:reduce){
+    .ds-card:hover,.formcard:hover,.examresult:hover,.btn:hover{transform:none}
+  }
+
+  /* ============ animaciones (paso 100): transición de vista, entrada escalonada de listas/
+     tarjetas, barras/gráficos que crecen al entrar en pantalla y números que cuentan — todo
+     con transform/opacity (nunca propiedades de layout) y respetando prefers-reduced-motion,
+     que ya apaga toda animation/transition más arriba (ver la regla global de la línea 366). */
+  @keyframes viewFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .view-fade{animation:viewFadeIn .2s ease-out}
+  .appmain.view-enter{animation:viewFadeIn .18s ease-out}
+
+  @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .view-enter .row,.view-enter .examcard,.view-enter .topic,.view-enter .hoy-row,.view-enter .desk,
+  .view-enter .ds-card,.view-enter .agenda-day,.view-enter .cal-cell{
+    animation:cardIn .3s cubic-bezier(.16,1,.3,1) backwards;
+  }
+  .view-enter :is(.row,.examcard,.topic,.hoy-row,.desk,.ds-card,.agenda-day,.cal-cell):nth-child(1){animation-delay:0ms}
+  .view-enter :is(.row,.examcard,.topic,.hoy-row,.desk,.ds-card,.agenda-day,.cal-cell):nth-child(2){animation-delay:25ms}
+  .view-enter :is(.row,.examcard,.topic,.hoy-row,.desk,.ds-card,.agenda-day,.cal-cell):nth-child(3){animation-delay:50ms}
+  .view-enter :is(.row,.examcard,.topic,.hoy-row,.desk,.ds-card,.agenda-day,.cal-cell):nth-child(4){animation-delay:75ms}
+  .view-enter :is(.row,.examcard,.topic,.hoy-row,.desk,.ds-card,.agenda-day,.cal-cell):nth-child(5){animation-delay:100ms}
+  .view-enter :is(.row,.examcard,.topic,.hoy-row,.desk,.ds-card,.agenda-day,.cal-cell):nth-child(6){animation-delay:125ms}
+  .view-enter :is(.row,.examcard,.topic,.hoy-row,.desk,.ds-card,.agenda-day,.cal-cell):nth-child(7){animation-delay:150ms}
+  .view-enter :is(.row,.examcard,.topic,.hoy-row,.desk,.ds-card,.agenda-day,.cal-cell):nth-child(n+8){animation-delay:175ms}
+  @media (prefers-reduced-motion:reduce){
+    .view-fade,.appmain.view-enter,.view-enter .row,.view-enter .examcard,.view-enter .topic,
+    .view-enter .hoy-row,.view-enter .desk,.view-enter .ds-card,.view-enter .agenda-day,.view-enter .cal-cell{animation:none}
+  }
+
+  /* barras/gráficos que crecen al entrar en pantalla (IntersectionObserver, ver observeGrowBars()
+     en events.js) — transform:scale en vez de animar width/height para no tocar layout; el
+     tamaño final ya está puesto por inline style, sólo se "revela" con un scale. */
+  .grow-h,.grow-v,.grow-v-down{transition:transform .55s cubic-bezier(.16,1,.3,1)}
+  .grow-h{transform:scaleX(0);transform-origin:left}
+  .grow-v{transform:scaleY(0);transform-origin:bottom}
+  .grow-v-down{transform:scaleY(0);transform-origin:top}
+  .grow-h.in,.grow-v.in,.grow-v-down.in{transform:none}
+  @media (prefers-reduced-motion:reduce){.grow-h,.grow-v,.grow-v-down{transition:none;transform:none}}
 
   /* ============ toque cómodo en móvil (paso 75): ~44px mínimo en los botones/íconos que
      quedaban chicos (borrar, seña, ayuda, swatch de color, WhatsApp) — el tamaño visual del

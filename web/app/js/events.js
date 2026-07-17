@@ -1,4 +1,55 @@
 "use strict";
+/* ============ animaciones (paso 100) ============
+   render() reconstruye todo el innerHTML de #app, así que estas dos funciones se llaman de
+   nuevo en cada render — cada elemento .cnt/.grow-h/.grow-v es siempre un nodo nuevo, nunca
+   uno que ya haya animado. Ambas respetan prefers-reduced-motion mostrando el valor/tamaño
+   final directo, sin animar. */
+function prefersReducedMotion(){
+  return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+// Números que cuentan hasta su valor (tablero Hoy / Estadísticas) — el texto ya arranca en el
+// valor final (ver countSpan() en helpers.js), así que si esto no corre el número visible
+// siempre es igual el correcto.
+function animateCounters(){
+  const els = document.querySelectorAll(".cnt");
+  if(prefersReducedMotion()) return;
+  const dur = 600;
+  els.forEach(el=>{
+    const target = parseFloat(el.dataset.count);
+    if(isNaN(target)) return;
+    const decimals = parseInt(el.dataset.decimals||"0",10);
+    const suffix = el.dataset.suffix||"";
+    const start = performance.now();
+    function step(now){
+      const p = Math.min(1, (now-start)/dur);
+      const eased = 1-Math.pow(1-p,3);
+      const val = target*eased;
+      el.textContent = (decimals>0 ? val.toFixed(decimals) : Math.round(val)) + suffix;
+      if(p<1) requestAnimationFrame(step);
+      else el.textContent = (decimals>0 ? target.toFixed(decimals) : Math.round(target)) + suffix;
+    }
+    requestAnimationFrame(step);
+  });
+}
+// Barras/gráficos que crecen al entrar en pantalla, una sola vez por elemento (se desconectan
+// del observer apenas animan) — ver .grow-h/.grow-v/.grow-v-down en styles.css.
+let _growBarObserver = null;
+function observeGrowBars(){
+  const bars = document.querySelectorAll(".grow-h:not(.in),.grow-v:not(.in),.grow-v-down:not(.in)");
+  if(prefersReducedMotion()){
+    bars.forEach(el=>el.classList.add("in"));
+    return;
+  }
+  if(!_growBarObserver){
+    _growBarObserver = new IntersectionObserver((entries)=>{
+      entries.forEach(en=>{
+        if(en.isIntersecting){ en.target.classList.add("in"); _growBarObserver.unobserve(en.target); }
+      });
+    }, {threshold:.15});
+  }
+  bars.forEach(el=>_growBarObserver.observe(el));
+}
+
 /* ============ aviso de versión nueva (apps nativas) ============ */
 // Compara por partes numéricas en vez de string-equality para no avisar de una "versión
 // nueva" cuando el tag remoto es igual o más viejo que APP_VERSION (build local adelantado).

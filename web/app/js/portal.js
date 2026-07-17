@@ -129,6 +129,22 @@ function bibliotecaHtml(items, filtro){
       </div>`).join("")}
     </div>`).join("");
 }
+// Barras de avance que crecen al entrar en pantalla (paso 100) — mismo criterio que
+// observeGrowBars() en la app (events.js), pero standalone: portal.js no la carga.
+function observeUnitBars(){
+  const bars = document.querySelectorAll(".unitfill:not(.in)");
+  if(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+    bars.forEach(el=>el.classList.add("in"));
+    return;
+  }
+  if(!window.IntersectionObserver){ bars.forEach(el=>el.classList.add("in")); return; }
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(en=>{
+      if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); }
+    });
+  }, {threshold:.2});
+  bars.forEach(el=>io.observe(el));
+}
 function showPortal(res){
   const nombre = (res.data && res.data.nombre) ? res.data.nombre.trim() : "";
   const esGrupo = res.tipo==="grupo" && res.grupo;
@@ -152,6 +168,7 @@ function showPortal(res){
   </div>`;
   h += `<div class="card"><div class="ctitle">Links útiles</div><div class="empty">Todavía no hay links compartidos.</div></div>`;
   document.getElementById("app").innerHTML = h;
+  observeUnitBars();
   const search = document.getElementById("biblio-search");
   if(search){
     search.addEventListener("input", ()=>{

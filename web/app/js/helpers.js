@@ -58,6 +58,16 @@ function fmtBytes(n){
   if(n<1024*1024) return (n/1024).toFixed(1)+" KB";
   return (n/1024/1024).toFixed(1)+" MB";
 }
+// Número grande que cuenta desde 0 hasta su valor al entrar a la vista (paso 100), sin
+// depender de JS para mostrar el valor correcto: el texto inicial ya es el valor final
+// formateado (por si el conteo no llega a correr — reduced-motion, print, etc.), y
+// animateCounters() (events.js) lo pisa temporalmente sólo si corresponde animar.
+function countSpan(value, opts){
+  opts = opts||{};
+  const decimals = opts.decimals||0, suffix = opts.suffix||"";
+  const display = decimals>0 ? Number(value).toFixed(decimals) : String(Math.round(value));
+  return `<span class="cnt" data-count="${value}" data-decimals="${decimals}" data-suffix="${esc(suffix)}">${esc(display)}${esc(suffix)}</span>`;
+}
 function fmtMoney(n){ return "$"+Math.round(n||0).toLocaleString("es-AR"); }
 // como fmtMoney pero con el signo antes del "$" (fmtMoney(-500) da "$-500"; esto da "-$500") —
 // para ganancias que pueden dar negativas (rentabilidad).
