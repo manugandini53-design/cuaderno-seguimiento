@@ -88,6 +88,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               portal:null, portalLoaded:false, portalError:"",
               portalSaving:false, portalSaveMsg:"", portalCopyMsg:"",
               toasts:[],
+              fabOpen:false, fabPick:null,
               searchOpen:false, searchQuery:"", searchSel:0,
               helpOpen:null, faqOpenIdx:null };
 

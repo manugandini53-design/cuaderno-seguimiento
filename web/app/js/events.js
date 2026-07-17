@@ -72,6 +72,7 @@ document.addEventListener("click", (e)=>{
   // Ayuda contextual (paso 74): un click afuera del popover abierto lo cierra, sin esperar
   // a que el click caiga en algo con data-a (que es lo único que dispara render() más abajo).
   if(state.helpOpen && !e.target.closest(".help-tip-wrap")){ state.helpOpen=null; render(); }
+  if(state.fabOpen && !e.target.closest(".fab-wrap")){ state.fabOpen=false; render(); }
   const el = e.target.closest("[data-a]"); if(!el) return;
   const a = el.dataset.a, s = sel();
   if(a==="nav-tablero"){ state.view="tablero"; state.selId=null; }
@@ -209,6 +210,7 @@ document.addEventListener("click", (e)=>{
     state.editSubjectId=el.dataset.id; state.editPackId=null;
     loadMateriales(el.dataset.id); return;
   }
+  else if(a==="cat-duplicate-subject"){ duplicateSubject(el.dataset.id); return; }
   else if(a==="cat-ask-del-subject"){ state.catConfirmDelId={type:"subject", id:el.dataset.id}; }
   else if(a==="cat-cancel-del"){ state.catConfirmDelId=null; }
   else if(a==="cat-confirm-del-subject"){
@@ -409,6 +411,28 @@ document.addEventListener("click", (e)=>{
     state.view="detalle"; state.selId=st.id; state.tab="temas";
   }
   else if(a==="dismiss-tips"){ dismissTips(); }
+  // FAB de acciones rápidas (paso 77): siempre visible, con las 3 acciones más repetitivas.
+  // Precarga lo que puede según el contexto — si ya estás en la ficha de un alumno, "nueva
+  // clase"/"registrar pago" van directo a su pestaña; si no, primero piden elegir a quién.
+  else if(a==="fab-toggle"){ state.fabOpen=!state.fabOpen; }
+  else if(a==="fab-new-student"){ state.fabOpen=false; state.showNew=true; state.newStudentError=""; }
+  else if(a==="fab-new-clase"){
+    state.fabOpen=false;
+    if(sel()){ state.tab="clases"; state.sessionPrefillDate=today(); state.confirmDel=false; state.fichaError=""; }
+    else state.fabPick={target:"clases"};
+  }
+  else if(a==="fab-new-pago"){
+    state.fabOpen=false;
+    if(sel()){ state.tab="ficha"; state.confirmDel=false; state.fichaError=""; }
+    else state.fabPick={target:"ficha"};
+  }
+  else if(a==="fab-pick-close"){ state.fabPick=null; }
+  else if(a==="fab-pick-student"){
+    const target=(state.fabPick&&state.fabPick.target)||"temas";
+    state.fabPick=null;
+    state.view="detalle"; state.selId=el.dataset.id; state.tab=target; state.confirmDel=false; state.fichaError="";
+    if(target==="clases") state.sessionPrefillDate=today();
+  }
   else if(a==="cancel-new"){ state.showNew=false; state.newStudentError=""; }
   else if(a==="create"){
     const name=document.getElementById("n-name").value.trim();
@@ -817,6 +841,8 @@ document.addEventListener("keydown",(e)=>{
   }
   if(!state.searchOpen){
     if(e.key==="Escape" && state.showNew){ state.showNew=false; state.newStudentError=""; render(); return; }
+    if(e.key==="Escape" && state.fabPick){ state.fabPick=null; render(); return; }
+    if(e.key==="Escape" && state.fabOpen){ state.fabOpen=false; render(); return; }
     if(e.key==="Escape" && state.helpOpen){ state.helpOpen=null; render(); }
     return;
   }

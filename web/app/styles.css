@@ -569,7 +569,8 @@
     font-size:11px;font-weight:600;color:var(--ink);flex-shrink:0}
 
   /* ============ toasts: feedback breve y no intrusivo tras una acción ============ */
-  .toast-wrap{position:fixed;left:0;right:0;bottom:72px;z-index:70;display:flex;flex-direction:column;
+  /* bottom:140px en mobile deja lugar arriba del FAB (ver .fab-wrap) sin que se tapen */
+  .toast-wrap{position:fixed;left:0;right:0;bottom:140px;z-index:70;display:flex;flex-direction:column;
     align-items:center;gap:8px;pointer-events:none;padding:0 12px}
   .toast{background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;padding:10px 16px;
     border-radius:10px;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:9px;
@@ -580,9 +581,26 @@
     padding:2px;margin:-2px;cursor:pointer;flex-shrink:0;min-height:auto}
   @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   @media (min-width:860px){
-    .toast-wrap{left:auto;right:24px;bottom:24px;align-items:flex-end}
+    .toast-wrap{left:auto;right:24px;bottom:92px;align-items:flex-end}
   }
   @media (prefers-reduced-motion:reduce){.toast{animation:none}}
+
+  /* ============ FAB de acciones rápidas (paso 77): botón flotante siempre visible, arriba de
+     la barra inferior en mobile / esquina inferior derecha en escritorio ============ */
+  .fab-wrap{position:fixed;right:16px;bottom:90px;z-index:60;display:flex;flex-direction:column;
+    align-items:flex-end;gap:10px}
+  @media (min-width:860px){ .fab-wrap{right:24px;bottom:24px} }
+  .fab-main{width:56px;height:56px;border-radius:99px;border:none;background:var(--accent);
+    color:var(--on-accent);display:flex;align-items:center;justify-content:center;
+    box-shadow:var(--shadow-lg);transition:transform .15s ease}
+  .fab-main svg{width:24px;height:24px}
+  .fab-main.open{transform:rotate(45deg);background:var(--ink)}
+  .fab-menu{display:flex;flex-direction:column;align-items:flex-end;gap:8px;animation:toastIn .16s ease-out}
+  .fab-menu-item{display:flex;align-items:center;gap:8px;background:var(--card);color:var(--ink);
+    border:1px solid var(--line);border-radius:99px;padding:9px 16px 9px 14px;font-size:13px;
+    font-weight:600;box-shadow:var(--shadow-lg);white-space:nowrap}
+  .fab-menu-item svg{width:18px;height:18px;flex-shrink:0;color:var(--accent-dark)}
+  @media (prefers-reduced-motion:reduce){ .fab-main{transition:none} .fab-menu{animation:none} }
 
   /* ============ chip de estado de datos (guardado/sincronizando/sin conexión), en el nav ============ */
   .statuschip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;

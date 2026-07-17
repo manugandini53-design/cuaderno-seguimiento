@@ -78,6 +78,44 @@ function navShell(isAdmin){
   </nav>`;
 }
 
+/* ============ FAB de acciones rápidas (paso 77): botón flotante siempre visible con lo más
+   repetitivo — nuevo alumno, nueva clase, registrar pago — para no tener que navegar hasta la
+   ficha primero. Precarga contexto cuando puede (ver fab-new-clase/fab-new-pago en events.js). */
+const ICON_PLUS=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`;
+const FAB_ACTIONS = [
+  {action:"fab-new-pago", label:"Registrar pago", icon:ICON_WALLET},
+  {action:"fab-new-clase", label:"Nueva clase", icon:ICON_CALENDAR},
+  {action:"fab-new-student", label:"Nuevo alumno", icon:ICON_USERS},
+];
+function fabHtml(){
+  const open = state.fabOpen;
+  return `<div class="fab-wrap no-print">
+    ${open ? `<div class="fab-menu">${FAB_ACTIONS.map(a=>
+      `<button class="fab-menu-item" data-a="${a.action}">${a.icon}${esc(a.label)}</button>`
+    ).join("")}</div>` : ""}
+    <button class="fab-main ${open?"open":""}" data-a="fab-toggle" aria-label="${open?"Cerrar acciones rápidas":"Acciones rápidas"}" aria-expanded="${open}">${ICON_PLUS}</button>
+  </div>`;
+}
+// Overlay para elegir a qué alumno aplica la acción rápida, cuando no hay uno ya en pantalla
+// (ver fab-pick-student en events.js) — lista simple de alumnos activos, sin buscador (para eso
+// ya está "/").
+function vFabPickOverlay(){
+  const list = alive();
+  return `<div class="overlay" data-a="fab-pick-close">
+    <div class="modal" data-a="search-modal-noop" style="max-width:420px">
+      <div class="ftitle" style="font-size:16px">¿Para quién?</div>
+      <div class="search-results" style="max-height:52vh">
+        ${list.length ? list.map(s=>`<div class="row" style="cursor:pointer" data-a="fab-pick-student" data-id="${s.id}">
+          <div class="main"><b>${esc(s.name)}</b><div class="sub">${esc(s.subject||"materia s/d")}</div></div>
+        </div>`).join("") : emptyState(ICON_USERS,"Sin alumnos todavía","Creá el primero con «Nuevo alumno».")}
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px">
+        <button class="chip" data-a="fab-pick-close">Cancelar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 /* ============ chip de estado de datos: guardado/sincronizando/sin conexión/error, siempre
    visible en el nav. El id="syncStatus" en el span interno es a propósito: setStatus() (sync.js)
    ya lo pisa directo con innerHTML en cada tick de sync, sin pasar por un render() completo. */
@@ -1823,7 +1861,10 @@ function vCatalog(){
     return `<div class="row" style="cursor:pointer" data-a="cat-edit-subject" data-id="${m.id}">
     <div class="main"><b style="display:inline-flex;align-items:center;gap:7px">${subjectDot(m)}${esc(m.name)}</b> ${packNames.map(n=>`<span class="pill" style="color:var(--status-aprobo-fg);background:var(--bluebg)">${esc(n)}</span>`).join(" ")}
       <div class="sub">${m.units.length} unidad${m.units.length===1?"":"es"}</div></div>
-    <button class="del" data-a="cat-ask-del-subject" data-id="${m.id}" title="Eliminar materia" aria-label="Eliminar materia">×</button></div>`;
+    <div style="display:flex;align-items:center;gap:4px">
+      <button class="chip" data-a="cat-duplicate-subject" data-id="${m.id}" title="Duplicar materia" aria-label="Duplicar materia" style="padding:6px 10px;font-size:12px">Duplicar</button>
+      <button class="del" data-a="cat-ask-del-subject" data-id="${m.id}" title="Eliminar materia" aria-label="Eliminar materia">×</button>
+    </div></div>`;
   }).join("") || `<div class="empty">Sin materias cargadas.</div>`}
   <div class="flabel" style="margin-top:12px">Empezar desde una plantilla</div>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">
@@ -2743,8 +2784,9 @@ function render(){
   if(state.view==="agenda") m += vAgenda();
   if(state.showNew) m += vModal();
   if(state.searchOpen) m += vSearchOverlay();
+  if(state.fabPick) m += vFabPickOverlay();
   m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
-  document.getElementById("app").innerHTML = navShell(isAdmin) + `<main class="appmain">${m}</main>` + toastWrap();
+  document.getElementById("app").innerHTML = navShell(isAdmin) + fabHtml() + `<main class="appmain">${m}</main>` + toastWrap();
   const fi = document.getElementById("importFile");
   if(fi) fi.addEventListener("change", e=>{
     const f = e.target.files && e.target.files[0]; if(!f) return;

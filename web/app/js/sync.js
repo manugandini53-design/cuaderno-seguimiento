@@ -848,3 +848,31 @@ function purgeSubjectFromTrash(subjectId){
   state.catalog.trash=(state.catalog.trash||[]).filter(t=>!(t.type==="subject" && t.subject.id===subjectId));
   touchCatalog();
 }
+
+/* ============ duplicar materia (paso 77) ============ */
+// Copia una materia con su estructura (unidades, color, materiales de referencia) a una nueva —
+// sin alumnos ni historial, para armar rápido una materia parecida a otra. La copia queda con
+// "(copia)" en el nombre y se abre su editor directo, igual que al crear una materia nueva. Los
+// materiales se copian en Storage en segundo plano (best-effort, requiere conexión) — la materia
+// nueva queda usable de inmediato aunque la copia de archivos todavía esté en curso.
+async function duplicateSubject(subjectId){
+  const src=subjById(subjectId); if(!src) return;
+  const nm={id:uid(), name:src.name+" (copia)", units:[...src.units], color:nextSubjectColor(), materiales:[]};
+  state.catalog.subjects.push(nm);
+  state.editSubjectId=nm.id; state.editPackId=null; state.catConfirmDelId=null;
+  loadMateriales(nm.id);
+  touchCatalog();
+  toast("Materia duplicada");
+  if(!navigator.onLine) return;
+  const {uid_, s, files} = await listMaterialsForSubject(subjectId);
+  if(!files.length) return;
+  const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+  for(const f of files){
+    try{
+      await fetch(SUPA_URL+"/storage/v1/object/copy", {method:"POST", headers:h,
+        body:JSON.stringify({bucketId:MATERIALES_BUCKET,
+          sourceKey:materialPath(uid_, subjectId, f.name), destinationKey:materialPath(uid_, nm.id, f.name)})});
+    }catch(e){ /* best-effort: seguimos con los demás */ }
+  }
+  if(state.materialesSubjectId===nm.id) loadMateriales(nm.id);
+}
