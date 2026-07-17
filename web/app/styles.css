@@ -1,69 +1,116 @@
+  /* ============ tipografía local (sin CDN, ver web/app/fonts/) ============ */
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:400; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:500; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:600; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:700; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Poppins'; font-style:normal; font-weight:600; font-display:swap;
+    src:url('fonts/poppins-600.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Poppins'; font-style:normal; font-weight:700; font-display:swap;
+    src:url('fonts/poppins-700.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Poppins'; font-style:normal; font-weight:800; font-display:swap;
+    src:url('fonts/poppins-800.woff2') format('woff2');
+  }
+
+  /* ============ design tokens — misma identidad que la landing (web/index.html) ============ */
   :root{
-    --bg:#E7E8EB; --card:#FFFFFF; --ink:#1E2B4D; --muted:#5B6072; --faint:#8B90A0;
-    --line:#D8DAE3; --soft:#E4E4E0; --red:#C43C2B; --redbg:#FAE9E4; --redline:#E0A99E; --redline2:#E8CFC7;
-    --green:#2E9958; --greenbg:#E4F1E9; --amber:#E0A422; --amberbg:#FBF3DC;
-    --blue:#2C4A9A; --bluebg:#E8EDFB; --blueline:#B9C6E8; --gray:#C9CCD6; --gray2:#B4B6BE;
-    --accent:#1E2B4D; --input-bg:#FDFDFB; --overlay:rgba(30,43,77,.4); --modal-bg:#F2F3F5;
+    --bg:#F6F8FC; --card:#FFFFFF; --ink:#12192E; --muted:#5C6480; --faint:#8B90A0;
+    --line:#E4E9F5; --soft:#EEF1F9; --red:#EF4444; --redbg:#FEE2E2; --redline:#FCA5A5; --redline2:#FECACA;
+    --green:#22C55E; --greenbg:#DCFCE7; --amber:#F59E0B; --amberbg:#FEF3C7;
+    --blue:#3B82F6; --bluebg:#DBEAFE; --blueline:#93C5FD; --gray:#C7CCDC; --gray2:#9AA3BE;
+    --navy:#1E2B4D; --navy-2:#2F4272;
+    --accent:#14B8A6; --accent-dark:#0E9488; --accent-soft:#CFF7F0;
+    --input-bg:#FFFFFF; --overlay:rgba(18,25,46,.4); --modal-bg:#F2F4FA;
     --empty-bg:rgba(255,255,255,.7); --shadow-ring:rgba(0,0,0,.12); --shadow-ring2:rgba(0,0,0,.14);
-    --stitle-line:rgba(30,43,77,.14);
-    --topic-pendiente-bg:#FFFFFF; --topic-pendiente-fg:#8B90A0; --topic-pendiente-bd:#D8DAE3;
-    --topic-visto-bg:#EEF1F8; --topic-visto-fg:#3D4A6B; --topic-visto-bd:#B9C2D8;
+    --stitle-line:rgba(18,25,46,.14);
+    --topic-pendiente-bg:var(--card); --topic-pendiente-fg:var(--faint); --topic-pendiente-bd:var(--line);
+    --topic-visto-bg:#EAF1FC; --topic-visto-fg:#2E4A82; --topic-visto-bd:#B7C7E8;
     --topic-practica-bg:#FBF3DC; --topic-practica-fg:#8A6410; --topic-practica-bd:#E3C878;
     --topic-parcial-bg:#E4F1E9; --topic-parcial-fg:#1F6B44; --topic-parcial-bd:#8FC4A6;
-    --topic-noentra-bg:#F4F4F2; --topic-noentra-fg:#B4B6BE; --topic-noentra-bd:#E4E4E0;
+    --topic-noentra-bg:var(--soft); --topic-noentra-fg:var(--gray2); --topic-noentra-bd:var(--line);
     --status-activo-fg:#1F6B44; --status-activo-bg:#E4F1E9;
     --status-pausado-fg:#8A6410; --status-pausado-bg:#FBF3DC;
     --status-aprobo-fg:#2C4A9A; --status-aprobo-bg:#E8EDFB;
     --status-desaprobo-fg:#A23A2A; --status-desaprobo-bg:#FAE9E4;
     --status-dejo-fg:#8B90A0; --status-dejo-bg:#F0F0EE;
-    --sem-sd:#C9CCD6; --sem-verde:#2E9958; --sem-amarillo:#E0A422; --sem-rojo:#C43C2B;
+    --sem-sd:var(--gray); --sem-verde:var(--green); --sem-amarillo:var(--amber); --sem-rojo:var(--red);
     --tarea-hecha-fg:#1F6B44; --tarea-intentada-fg:#8A6410; --tarea-no-fg:#A23A2A;
-    --sans:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --sans:'Inter',-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --display:'Poppins',var(--sans);
     --mono:ui-monospace,"Cascadia Mono",Consolas,"Roboto Mono",monospace;
+    --fs-xs:11px; --fs-sm:12.5px; --fs-base:14px; --fs-md:15.5px; --fs-lg:18px; --fs-xl:22px; --fs-2xl:28px;
+    --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-pill:999px;
+    --shadow-sm:0 1px 2px rgba(18,25,46,.06); --shadow-md:0 8px 20px -6px rgba(18,25,46,.16);
+    --shadow-lg:0 20px 40px -20px rgba(18,25,46,.28); --shadow-accent:0 8px 20px -6px rgba(20,184,166,.45);
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
   }
   @media (prefers-color-scheme:dark){
     :root:not(.theme-light){
-      --bg:#12141A; --card:#1B1E27; --ink:#E8E9EE; --muted:#A8ADBD; --faint:#7A8096;
-      --line:#2E3240; --soft:#242836; --red:#FF6B57; --redbg:#3A211D; --redline:#6B3A32; --redline2:#5A2E27;
+      --bg:#0F1420; --card:#1B2333; --ink:#EDEFF7; --muted:#A8ADBD; --faint:#7A8096;
+      --line:#2B3348; --soft:#171D2C; --red:#FF6B6B; --redbg:#3A211D; --redline:#6B3A32; --redline2:#5A2E27;
       --green:#4ADE80; --greenbg:#173324; --amber:#FBBF24; --amberbg:#3A2E10;
-      --blue:#8CA6F5; --bluebg:#1B2340; --blueline:#33427A; --gray:#3A3F52; --gray2:#6B7086;
-      --accent:#4C5FAB; --input-bg:#20232E; --overlay:rgba(0,0,0,.6); --modal-bg:#1B1E27;
+      --blue:#60A5FA; --bluebg:#1B2340; --blueline:#33427A; --gray:#3A3F52; --gray2:#6B7086;
+      --navy:#2B3A63; --navy-2:#3D5089;
+      --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38;
+      --input-bg:#1F2536; --overlay:rgba(0,0,0,.6); --modal-bg:#1B2333;
       --empty-bg:rgba(255,255,255,.04); --shadow-ring:rgba(255,255,255,.14); --shadow-ring2:rgba(255,255,255,.16);
-      --stitle-line:rgba(232,233,238,.14);
-      --topic-pendiente-bg:#1B1E27; --topic-pendiente-fg:#7A8096; --topic-pendiente-bd:#2E3240;
+      --stitle-line:rgba(237,239,247,.14);
+      --topic-pendiente-bg:var(--card); --topic-pendiente-fg:var(--faint); --topic-pendiente-bd:var(--line);
       --topic-visto-bg:#232A40; --topic-visto-fg:#AEB9DE; --topic-visto-bd:#3A4568;
       --topic-practica-bg:#332B12; --topic-practica-fg:#E3C878; --topic-practica-bd:#6B5A22;
       --topic-parcial-bg:#173324; --topic-parcial-fg:#8FC4A6; --topic-parcial-bd:#2E6B47;
-      --topic-noentra-bg:#20222A; --topic-noentra-fg:#6B7086; --topic-noentra-bd:#2E3240;
+      --topic-noentra-bg:var(--soft); --topic-noentra-fg:var(--gray2); --topic-noentra-bd:var(--line);
       --status-activo-fg:#8FC4A6; --status-activo-bg:#173324;
       --status-pausado-fg:#E3C878; --status-pausado-bg:#332B12;
       --status-aprobo-fg:#9BB4EF; --status-aprobo-bg:#1B2340;
       --status-desaprobo-fg:#E8A093; --status-desaprobo-bg:#3A211D;
       --status-dejo-fg:#8B90A0; --status-dejo-bg:#242836;
-      --sem-sd:#4A4F63; --sem-verde:#4ADE80; --sem-amarillo:#FBBF24; --sem-rojo:#FF6B57;
+      --sem-sd:var(--gray); --sem-verde:var(--green); --sem-amarillo:var(--amber); --sem-rojo:var(--red);
       --tarea-hecha-fg:#8FC4A6; --tarea-intentada-fg:#E3C878; --tarea-no-fg:#E8A093;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 8px 20px -6px rgba(0,0,0,.45);
+      --shadow-lg:0 20px 40px -20px rgba(0,0,0,.6); --shadow-accent:0 8px 20px -6px rgba(45,212,192,.4);
     }
   }
   html.theme-dark{
-    --bg:#12141A; --card:#1B1E27; --ink:#E8E9EE; --muted:#A8ADBD; --faint:#7A8096;
-    --line:#2E3240; --soft:#242836; --red:#FF6B57; --redbg:#3A211D; --redline:#6B3A32; --redline2:#5A2E27;
+    --bg:#0F1420; --card:#1B2333; --ink:#EDEFF7; --muted:#A8ADBD; --faint:#7A8096;
+    --line:#2B3348; --soft:#171D2C; --red:#FF6B6B; --redbg:#3A211D; --redline:#6B3A32; --redline2:#5A2E27;
     --green:#4ADE80; --greenbg:#173324; --amber:#FBBF24; --amberbg:#3A2E10;
-    --blue:#8CA6F5; --bluebg:#1B2340; --blueline:#33427A; --gray:#3A3F52; --gray2:#6B7086;
-    --accent:#4C5FAB; --input-bg:#20232E; --overlay:rgba(0,0,0,.6); --modal-bg:#1B1E27;
+    --blue:#60A5FA; --bluebg:#1B2340; --blueline:#33427A; --gray:#3A3F52; --gray2:#6B7086;
+    --navy:#2B3A63; --navy-2:#3D5089;
+    --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38;
+    --input-bg:#1F2536; --overlay:rgba(0,0,0,.6); --modal-bg:#1B2333;
     --empty-bg:rgba(255,255,255,.04); --shadow-ring:rgba(255,255,255,.14); --shadow-ring2:rgba(255,255,255,.16);
-    --stitle-line:rgba(232,233,238,.14);
-    --topic-pendiente-bg:#1B1E27; --topic-pendiente-fg:#7A8096; --topic-pendiente-bd:#2E3240;
+    --stitle-line:rgba(237,239,247,.14);
+    --topic-pendiente-bg:var(--card); --topic-pendiente-fg:var(--faint); --topic-pendiente-bd:var(--line);
     --topic-visto-bg:#232A40; --topic-visto-fg:#AEB9DE; --topic-visto-bd:#3A4568;
     --topic-practica-bg:#332B12; --topic-practica-fg:#E3C878; --topic-practica-bd:#6B5A22;
     --topic-parcial-bg:#173324; --topic-parcial-fg:#8FC4A6; --topic-parcial-bd:#2E6B47;
-    --topic-noentra-bg:#20222A; --topic-noentra-fg:#6B7086; --topic-noentra-bd:#2E3240;
+    --topic-noentra-bg:var(--soft); --topic-noentra-fg:var(--gray2); --topic-noentra-bd:var(--line);
     --status-activo-fg:#8FC4A6; --status-activo-bg:#173324;
     --status-pausado-fg:#E3C878; --status-pausado-bg:#332B12;
     --status-aprobo-fg:#9BB4EF; --status-aprobo-bg:#1B2340;
     --status-desaprobo-fg:#E8A093; --status-desaprobo-bg:#3A211D;
     --status-dejo-fg:#8B90A0; --status-dejo-bg:#242836;
-    --sem-sd:#4A4F63; --sem-verde:#4ADE80; --sem-amarillo:#FBBF24; --sem-rojo:#FF6B57;
+    --sem-sd:var(--gray); --sem-verde:var(--green); --sem-amarillo:var(--amber); --sem-rojo:var(--red);
     --tarea-hecha-fg:#8FC4A6; --tarea-intentada-fg:#E3C878; --tarea-no-fg:#E8A093;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 8px 20px -6px rgba(0,0,0,.45);
+    --shadow-lg:0 20px 40px -20px rgba(0,0,0,.6); --shadow-accent:0 8px 20px -6px rgba(45,212,192,.4);
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
@@ -77,8 +124,8 @@
     outline:2px solid var(--ink);outline-offset:1px}
   .header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:18px}
   .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
-  h1{font-size:24px;margin:4px 0 0;letter-spacing:-.01em}
-  h2{font-size:20px;margin:0}
+  h1{font-family:var(--display);font-weight:700;font-size:24px;margin:4px 0 0;letter-spacing:-.01em}
+  h2{font-family:var(--display);font-weight:700;font-size:20px;margin:0}
   .tabs{display:flex;gap:6px;flex-wrap:wrap}
   .tabbtn{border:1px solid var(--line);background:var(--card);border-radius:8px;
           padding:7px 14px;font-weight:500;color:var(--muted)}
@@ -275,3 +322,59 @@
     .informe-comment,.contrato-field{border:none!important;padding:0!important;background:none!important;color:#111!important;resize:none}
     .contrato-firmaline{border-color:#111!important}
   }
+
+  /* ============================================================================
+     SISTEMA VISUAL — componentes genéricos reutilizables (misma identidad que
+     la landing, web/index.html). No están cableados a ninguna vista todavía:
+     son la base para el rediseño de views.js que viene después. Usan los
+     design tokens de arriba, así que ya responden a claro/oscuro/automático.
+     ============================================================================ */
+
+  .brand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:700;
+    font-size:15px;color:var(--ink)}
+  .logo-mark{width:30px;height:30px;border-radius:9px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--navy),var(--navy-2));
+    display:flex;align-items:center;justify-content:center}
+  .logo-mark svg{width:15px;height:15px;display:block}
+
+  .ds-eyebrow{display:inline-block;background:var(--accent-soft);color:var(--accent-dark);
+    font-weight:700;font-size:var(--fs-xs);letter-spacing:.06em;text-transform:uppercase;
+    padding:5px 12px;border-radius:var(--radius-pill)}
+
+  .ds-section{padding:var(--space-5) 0}
+  .ds-section-head{margin-bottom:var(--space-4)}
+  .ds-section-head h2{font-size:var(--fs-2xl);margin:8px 0 6px}
+  .ds-section-head p{font-size:var(--fs-md);color:var(--muted)}
+
+  .ds-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:var(--space-4);box-shadow:var(--shadow-sm)}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    border-radius:var(--radius-sm);padding:10px 18px;font-weight:600;font-size:var(--fs-base);
+    cursor:pointer;border:1px solid transparent;font-family:inherit;white-space:nowrap}
+  .btn svg{width:16px;height:16px;flex-shrink:0}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;
+    box-shadow:var(--shadow-accent)}
+  .btn-primary:hover{filter:brightness(1.04)}
+  .btn-secondary{background:var(--card);color:var(--ink);border-color:var(--line)}
+  .btn-secondary:hover{border-color:var(--ink)}
+  .btn-ghost{background:none;color:var(--ink);border-color:transparent}
+  .btn-ghost:hover{color:var(--accent-dark)}
+  .btn-block{width:100%}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;pointer-events:none}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;
+    letter-spacing:.02em;padding:4px 11px;border-radius:var(--radius-pill)}
+  .badge-neutral{background:var(--soft);color:var(--muted)}
+  .badge-accent{background:var(--accent-soft);color:var(--accent-dark)}
+  .badge-green{background:var(--greenbg);color:var(--status-activo-fg)}
+  .badge-amber{background:var(--amberbg);color:var(--status-pausado-fg)}
+  .badge-red{background:var(--redbg);color:var(--status-desaprobo-fg)}
+  .badge-blue{background:var(--bluebg);color:var(--status-aprobo-fg)}
+
+  .ds-field{display:flex;flex-direction:column;gap:5px}
+  .ds-field-label{font-size:var(--fs-xs);font-family:var(--mono);letter-spacing:.04em;
+    text-transform:uppercase;color:var(--faint)}
+  .ds-input,.ds-select{font-family:inherit;font-size:var(--fs-base);width:100%;border:1px solid var(--line);
+    border-radius:var(--radius-sm);padding:10px 12px;background:var(--input-bg);color:var(--ink)}
+  .ds-input:focus-visible,.ds-select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}

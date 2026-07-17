@@ -1,6 +1,7 @@
 /* Cuaderno de seguimiento — funcionamiento sin conexión */
-const CACHE = "cuaderno-v56";
+const CACHE = "cuaderno-v57";
 const FILES = ["./", "./index.html", "./styles.css", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
+  "./fonts/inter-latin.woff2", "./fonts/poppins-600.woff2", "./fonts/poppins-700.woff2", "./fonts/poppins-800.woff2",
   "./js/config.js", "./js/helpers.js", "./js/auth.js", "./js/sync.js", "./js/views.js", "./js/events.js"];
 
 self.addEventListener("install", (e) => {
