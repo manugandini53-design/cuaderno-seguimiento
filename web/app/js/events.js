@@ -427,6 +427,9 @@ document.addEventListener("click", (e)=>{
     else state.fabPick={target:"pagos"};
   }
   else if(a==="fab-pick-close"){ state.fabPick=null; }
+  else if(a==="qr-open"){ state.qrOverlay={url:el.dataset.url, title:el.dataset.title||""}; }
+  else if(a==="close-qr"){ state.qrOverlay=null; }
+  else if(a==="qr-modal-noop"){ return; }
   else if(a==="fab-pick-student"){
     const target=(state.fabPick&&state.fabPick.target)||"resumen";
     state.fabPick=null;

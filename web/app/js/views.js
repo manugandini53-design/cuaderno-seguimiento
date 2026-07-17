@@ -116,6 +116,25 @@ function vFabPickOverlay(){
   </div>`;
 }
 
+// QR del portal (paso 84): se genera al toque con la librería vendorizada en js/qrcode.js (sin
+// CDN en runtime — ver la CSP en index.html), en grande para que lo escaneen en clase. Mismo
+// patrón de overlay/modal que vFabPickOverlay — click afuera cierra, click adentro no propaga.
+function vQrOverlay(){
+  const o = state.qrOverlay; if(!o) return "";
+  const qr = qrcode(0,"M");
+  qr.addData(o.url);
+  qr.make();
+  const svg = qr.createSvgTag({cellSize:8, margin:16});
+  return `<div class="overlay no-print" data-a="close-qr">
+    <div class="modal qr-modal" data-a="qr-modal-noop" style="max-width:340px;text-align:center">
+      <div class="ftitle" style="font-size:16px">${esc(o.title||"Código QR del portal")}</div>
+      <div style="margin:14px auto;max-width:280px">${svg}</div>
+      <div class="hint" style="word-break:break-all;margin-bottom:12px">${esc(o.url)}</div>
+      <button class="chip" data-a="close-qr">Cerrar</button>
+    </div>
+  </div>`;
+}
+
 /* ============ chip de estado de datos: guardado/sincronizando/sin conexión/error, siempre
    visible en el nav. El id="syncStatus" en el span interno es a propósito: setStatus() (sync.js)
    ya lo pisa directo con innerHTML en cada tick de sync, sin pasar por un render() completo. */
@@ -853,6 +872,7 @@ function vPortalAlumnoCard(s){
       <input readonly value="${esc(portalUrl(token))}" onclick="this.select()"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
       <button class="chip" data-a="portal-alumno-copy">Copiar link</button>
+      <button class="chip" data-a="qr-open" data-url="${esc(portalUrl(token))}" data-title="Portal de ${esc(s.name)}">Ver QR</button>
       <button class="chip" data-a="portal-alumno-regen" ${busy?"disabled":""}>Regenerar llave</button>
       <button class="danger" data-a="portal-alumno-revoke" ${busy?"disabled":""}>Revocar</button>
     </div>
@@ -1907,6 +1927,7 @@ function vPortalCard(){
       <input readonly value="${esc(portalUrl(p.token))}" onclick="this.select()"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
       <button class="chip" data-a="portal-copy">Copiar link</button>
+      <button class="chip" data-a="qr-open" data-url="${esc(portalUrl(p.token))}" data-title="Portal">Ver QR</button>
       <button class="chip" data-a="portal-regen">Regenerar llave</button>
     </div>
     <div class="hint" style="margin-top:10px">Regenerar la llave hace que el link de arriba deje de funcionar — cualquier alumno que ya lo tenga guardado pierde el acceso.</div>
@@ -3044,6 +3065,7 @@ function render(){
   if(state.showNew) m += vModal();
   if(state.searchOpen) m += vSearchOverlay();
   if(state.fabPick) m += vFabPickOverlay();
+  if(state.qrOverlay) m += vQrOverlay();
   m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
   document.getElementById("app").innerHTML = navShell(isAdmin) + fabHtml() + `<main class="appmain">${m}</main>` + toastWrap();
   const fi = document.getElementById("importFile");
