@@ -139,7 +139,11 @@ function showPortal(res){
 
 async function init(){
   const llave = new URLSearchParams(location.search).get("k");
-  if(!llave || llave.length < 20){
+  // 8, no 10: las llaves nuevas salen de 10 caracteres (ver genPortalToken en sync.js) pero las
+  // largas ya repartidas antes de este cambio (48) siguen siendo válidas — este mínimo es sólo
+  // para descartar links obviamente rotos (ej. el "k" cortado a mitad de copiar), no para exigir
+  // un formato exacto.
+  if(!llave || llave.length < 8){
     showMsg("Este link no es válido.", "Pedile a tu profesor que te pase el link completo.");
     return;
   }

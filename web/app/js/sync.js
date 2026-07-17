@@ -455,10 +455,23 @@ async function toggleReporte(id,current){
    token→studentId, una llave recortada por alumno), habilitado, y el JSON "publicado" que ve
    el portal público (portal.html, sin sesión, vía la RPC portal_publico) — nombre del docente,
    biblioteca (ver signMaterialUrl/publicarPortal más abajo) y alumnos (ver buildAlumnoBlock). */
+// Llaves cortas (paso 93): 10 caracteres de un alfabeto sin los que se confunden a mano o al
+// dictarlas (0/O, 1/l/I) — más fáciles de escribir/leer que el hex de 48 que se usaba antes. Las
+// llaves largas ya repartidas siguen funcionando igual (portal.js sólo valida un largo mínimo,
+// no un formato exacto; portal_publico() en el backend compara la llave tal cual, sin parsear su
+// forma) — esto sólo cambia lo que se genera de acá en adelante, nunca lo ya emitido.
+const PORTAL_TOKEN_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const PORTAL_TOKEN_LEN = 10;
 function genPortalToken(){
-  const bytes=new Uint8Array(24);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, b=>b.toString(16).padStart(2,"0")).join(""); // 48 caracteres
+  const n = PORTAL_TOKEN_ALPHABET.length;
+  const max = 256 - (256 % n); // rechaza bytes que sesgarían la distribución hacia el resto
+  const buf = new Uint8Array(1);
+  let out = "";
+  while(out.length < PORTAL_TOKEN_LEN){
+    crypto.getRandomValues(buf);
+    if(buf[0] < max) out += PORTAL_TOKEN_ALPHABET[buf[0] % n];
+  }
+  return out;
 }
 function portalUrl(token){ return new URL("portal.html?k="+encodeURIComponent(token), location.href).href; }
 // Lee la fila propia de portales (columnas a elección), con su token de sesión/uid ya resueltos —
