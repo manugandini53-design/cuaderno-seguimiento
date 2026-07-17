@@ -175,6 +175,8 @@
   .btn-primary:hover{box-shadow:0 10px 24px -6px rgba(20,184,166,.65)}
   .btn-ghost{color:var(--ink);font-weight:600}
   .btn-ghost:hover{color:var(--accent-dark)}
+  .btn-secondary{background:var(--card);color:var(--ink);border:1.5px solid var(--border)}
+  .btn-secondary:hover{border-color:var(--accent);color:var(--accent-dark)}
   .btn-block{width:100%}
 
   /* hero */
@@ -310,9 +312,12 @@
           Abrir la aplicación
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
         </a>
-        <a href="#caracteristicas" class="btn btn-ghost">Ver características ↓</a>
+        <a href="./app/?demo=1" class="btn btn-secondary">
+          Probá la demo
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>
+        </a>
       </div>
-      <p style="margin-top:14px"><a href="./app/?demo=1" style="font-size:14px;color:var(--text-soft);text-decoration:underline">Ver demo, sin crear cuenta</a></p>
+      <p style="margin-top:2px"><a href="#caracteristicas" style="font-size:14px;color:var(--text-soft);text-decoration:underline">Ver características ↓</a></p>
       <div class="trust-row">
         <div class="trust-item">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>

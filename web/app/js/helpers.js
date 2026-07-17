@@ -159,7 +159,12 @@ function packsContaining(subjectId){ return (state.catalog.packs||[]).filter(p=>
 const alive = () => state.students.filter(s => !s.deleted);
 
 function load(){
-  if(IS_DEMO){ const d=buildDemoData(); state.students=d.students; state.catalog=d.catalog; return; }
+  if(IS_DEMO){
+    const d=buildDemoData();
+    state.students=d.students; state.catalog=d.catalog;
+    state.portal=d.portal; state.portalLoaded=true; state.portalError="";
+    return;
+  }
   try{
     const raw = localStorage.getItem(KEY);
     if(raw){ const p = JSON.parse(raw);
@@ -956,26 +961,61 @@ function openSearchResult(item){
   }
 }
 
-/* ============ modo demo (paso 82): ?demo=1 carga este cuaderno ficticio en memoria — nunca
-   toca localStorage ni el backend (ver IS_DEMO en config.js, el guard de save() acá abajo y el
-   de ensureToken() en auth.js). Todas las fechas son relativas a hoy (addDays/today) para que la
-   demo se vea siempre vigente sin importar cuándo se abra. Los materiales son sólo la entrada
-   liviana que ya vive en catalog.subjects[].materiales — nunca se sube ni se lista nada de
-   Storage (ver materialesIndexFor() en sync.js: lee ese mismo array local). ============ */
+/* ============ modo demo (paso 95, sobre el paso 82): ?demo=1 carga este cuaderno ficticio en
+   memoria — nunca toca localStorage ni el backend (ver IS_DEMO en config.js, el guard de save()
+   acá abajo, el de ensureToken() en auth.js y los guards IS_DEMO de loadPortal()/loadMateriales()
+   y compañía en sync.js). Se reconstruye entera en CADA carga de la página (load() llama a esto
+   de nuevo siempre) y todas las fechas son relativas a hoy (addDays/today/Date.now) para que se
+   vea siempre vigente, nunca vieja, sin importar cuándo se abra. Pensada para que quien la
+   recorra vea al toque casi todo lo que la app sabe hacer: variedad de materias/alumnos/estados,
+   agenda de la semana con clases superpuestas, pagos/señas/mensualidades con deuda real, costos
+   cargados (rentabilidad con números), contratos y recibos, materiales y portal (llaves
+   individuales y grupal) ya activados, un ítem en la papelera, y varios meses de historial para
+   que Estadísticas y Retención no se vean vacías. Los materiales son sólo la entrada liviana que
+   ya vive en catalog.subjects[].materiales — nunca se sube ni se lista nada de Storage real (ver
+   materialesIndexFor() en sync.js: lee ese mismo array local). ============ */
 function buildDemoData(){
   const unitsOf = id => (SUBJECT_TEMPLATES.find(t=>t.id===id)||{units:[]}).units;
+  const atDaysAgo = n => new Date(Date.now()-n*86400000).toISOString();
   const catalog = defaultCatalog();
-  catalog.careers = ["Ingeniería","Licenciatura"];
+  catalog.careers = ["Ingeniería","Licenciatura","Arquitectura"];
   catalog.subjects = [
     { id:"demo-am1", name:"Análisis Matemático I", units:unitsOf("tpl-analisis-1"), color:"teal",
       materiales:[
-        {name:"Guía de ejercicios — Unidad 3.pdf", bytes:842000, compartido:true, uploadedAt:addDays(today(),-30)},
-        {name:"Resumen de derivadas.pdf", bytes:210000, compartido:true, uploadedAt:addDays(today(),-12)},
+        {name:"guia3-Guía de ejercicios — Unidad 3.pdf", bytes:842000, compartido:true, at:atDaysAgo(30)},
+        {name:"resder-Resumen de derivadas.pdf", bytes:210000, compartido:true, at:atDaysAgo(12)},
       ] },
-    { id:"demo-fis1", name:"Física I", units:unitsOf("tpl-fisica-1"), color:"blue", materiales:[] },
+    { id:"demo-alg", name:"Álgebra y Geometría Analítica", units:unitsOf("tpl-algebra"), color:"indigo",
+      materiales:[
+        {name:"guiamat-Guía de matrices y determinantes.pdf", bytes:530000, compartido:true, at:atDaysAgo(18)},
+      ] },
+    { id:"demo-ing", name:"Matemática básica / ingreso", units:unitsOf("tpl-matematica-ingreso"), color:"slate", materiales:[] },
+    { id:"demo-fis1", name:"Física I", units:unitsOf("tpl-fisica-1"), color:"blue",
+      materiales:[
+        {name:"formcin-Fórmulas de cinemática.pdf", bytes:96000, compartido:false, at:atDaysAgo(5)},
+      ] },
     { id:"demo-qui", name:"Química General", units:unitsOf("tpl-quimica-general"), color:"amber", materiales:[] },
   ];
-  catalog.docente = {nombre:"Prof. Demo", telefono:"", dni:""};
+  catalog.docente = {nombre:"Prof. Demo", telefono:"11-5555-0100", dni:"30111222"};
+  catalog.costos = {
+    fijos:[
+      {id:uid(), name:"Alquiler del aula", monto:25000},
+      {id:uid(), name:"Internet y plataformas", monto:9000},
+    ],
+    variables:[
+      {id:uid(), name:"Fotocopias y guías", monto:4000, subjectId:"demo-fis1"},
+      {id:uid(), name:"Materiales de laboratorio", monto:6000, subjectId:"demo-qui"},
+    ],
+  };
+  // papelera (paso 76): una materia vieja ya borrada, restaurable durante TRASH_DAYS igual que en
+  // una cuenta real — para que la demo muestre también esa pantalla con algo adentro.
+  catalog.trash = [{
+    type:"subject",
+    subject:{ id:"demo-trig", name:"Trigonometría (discontinuada)", color:"purple",
+      units:["Razones trigonométricas","Identidades","Ecuaciones trigonométricas"], materiales:[] },
+    packIds:[],
+    deletedAt: Date.now()-2*86400000,
+  }];
 
   const students = [];
   const mk = (over) => ({
@@ -984,7 +1024,7 @@ function buildDemoData(){
     horarios:[], clasesPuntuales:[], seniaActiva:false, seniaTipo:"monto", seniaValor:"",
     contratoResponsable:"", contratoDni:"", contratoFechaInicio:"", contratoClausulas:"",
     startDate: addDays(today(),-60), status:"activo", semaforo:"sd", examDate:"",
-    topics:{}, sessions:[], simulacros:[], updatedAt:Date.now(),
+    topics:{}, sessions:[], simulacros:[], portalShare:null, updatedAt:Date.now(),
     ...over,
   });
   const sess = (daysAgo, topic, tarea, cobrada, objetivo, objetivoResult) => ({
@@ -992,36 +1032,63 @@ function buildDemoData(){
     duration:60, cobrada:!!cobrada,
     objetivo: objetivo||"", objetivoResult: objetivoResult||null,
   });
+  // clases semanales espaciadas cada 7 días desde hace `startAt` días — para dar varios meses de
+  // historial real (Estadísticas, Rentabilidad histórica, Retención) sin escribir docenas de
+  // clases a mano; una de cada cinco queda sin cobrar, para que también haya algo pendiente.
+  const weekly = (count, topic, startAt) => Array.from({length:count}, (_,i) =>
+    sess(startAt+i*7, topic, i%4===3?"intentada":"hecha", i%5!==4));
+  const simu = (daysAgo, grade, note) => ({id:uid(), date:addDays(today(),-daysAgo), grade, note:note||""});
+  let reciboSeq=0;
+  const anio = today().slice(0,4);
+  const recibo = (tipo, concepto, monto, daysAgo, saldo) => {
+    reciboSeq++;
+    return {id:uid(), numero:`${anio}-${String(reciboSeq).padStart(3,"0")}`, date:addDays(today(),-daysAgo), tipo, concepto, monto:Number(monto)||0, saldo:Number(saldo)||0};
+  };
 
-  // 1) Lucía — al día, examen próximo, buen avance
-  students.push(mk({
+  // 1) Lucía — al día, examen próximo, buen avance, contrato firmado, recibo emitido
+  const lucia = mk({
     name:"Lucía Fernández", subject:"Análisis Matemático I", subjectId:"demo-am1",
     semaforo:"verde", examDate:addDays(today(),10), tarifa:8000, modalidad:"clase",
+    contratoResponsable:"Marisa Fernández", contratoDni:"28900111", contratoFechaInicio:addDays(today(),-60),
     topics:{[unitsOf("tpl-analisis-1")[0]]:"parcial",[unitsOf("tpl-analisis-1")[1]]:"parcial",
       [unitsOf("tpl-analisis-1")[2]]:"practica",[unitsOf("tpl-analisis-1")[3]]:"visto"},
+    clasesPuntuales:[
+      {id:uid(), date:addDays(today(),-2), time:"18:00", duration:60, cancelada:false},
+    ],
     sessions:[
       sess(21,"Límites y continuidad","hecha",true,"Resolver límites por sustitución",{estado:"si",pct:100}),
       sess(14,"Derivadas","hecha",true,"Reglas de derivación básicas",{estado:"si",pct:100}),
       sess(7,"Aplicaciones de la derivada","intentada",true,"Optimización con derivadas",{estado:"medias",pct:60}),
-      sess(1,"Aplicaciones de la derivada","sd",false),
+      sess(1,"Aplicaciones de la derivada","hecha",true,"Repasar la regla de la cadena"),
     ],
-  }));
+  });
+  lucia.recibos=[recibo("clase","Clase del "+fmtDate(addDays(today(),-14)),8000,14)];
+  lucia.portalShare={proximaClase:true, tareas:true, avance:true};
+  students.push(lucia);
 
-  // 2) Martín — debe la mensualidad, en riesgo
-  students.push(mk({
+  // 2) Martín — debe la mensualidad, en riesgo, con dos meses de historial de pagos
+  const martin = mk({
     name:"Martín Gómez", subject:"Física I", subjectId:"demo-fis1",
     semaforo:"amarillo", examDate:addDays(today(),20), tarifa:35000, modalidad:"mensual",
-    pagos:[{id:uid(), date:addDays(today(),-5), amount:15000}],
+    pagos:[
+      {id:uid(), date:addDays(today(),-65), amount:35000},
+      {id:uid(), date:addDays(today(),-35), amount:35000},
+      {id:uid(), date:addDays(today(),-5), amount:15000},
+    ],
     topics:{[unitsOf("tpl-fisica-1")[0]]:"visto",[unitsOf("tpl-fisica-1")[1]]:"pendiente"},
     sessions:[
+      ...weekly(6,"Cinemática",70),
       sess(18,"Cinemática","hecha",false),
       sess(11,"Leyes de Newton","intentada",false,"Resolver problemas de fuerzas",{estado:"medias",pct:50}),
       sess(4,"Leyes de Newton","no",false,"Repasar diagramas de cuerpo libre",{estado:"no",pct:0}),
     ],
-  }));
+  });
+  martin.recibos=[recibo("mensual","Mensualidad "+monthLabel(monthKeyOf(addDays(today(),-65))),35000,65),
+    recibo("mensual","Mensualidad "+monthLabel(monthKeyOf(addDays(today(),-35))),35000,35)];
+  students.push(martin);
 
-  // 3) Sofía — cobra seña, tiene una clase puntual con seña pendiente esta semana
-  students.push(mk({
+  // 3) Sofía — cobra seña, clase puntual con seña pendiente esta semana (misma hora que Ezequiel)
+  const sofia = mk({
     name:"Sofía Ibarra", subject:"Química General", subjectId:"demo-qui",
     semaforo:"rojo", tarifa:9000, modalidad:"clase", seniaActiva:true, seniaTipo:"monto", seniaValor:"3000",
     topics:{[unitsOf("tpl-quimica-general")[0]]:"pendiente"},
@@ -1029,7 +1096,9 @@ function buildDemoData(){
       {id:uid(), date:addDays(today(),3), time:"17:00", duration:60, cancelada:false, seniaEstado:"pendiente", seniaMonto:3000},
     ],
     sessions:[ sess(9,"Estructura atómica","no",true) ],
-  }));
+  });
+  sofia.recibos=[recibo("senia","Seña — clase puntual del "+fmtDate(addDays(today(),-11)),3000,11)];
+  students.push(sofia);
 
   // 4) Nicolás — pausado, sin actividad reciente
   students.push(mk({
@@ -1038,18 +1107,25 @@ function buildDemoData(){
     sessions:[ sess(75,"Números reales y funciones","hecha",true) ],
   }));
 
-  // 5) Valentina — mensual, al día
-  students.push(mk({
+  // 5) Valentina — mensual, al día, horario habitual hoy a las 18:30 (se superpone con Camila)
+  const valentina = mk({
     name:"Valentina Ruiz", subject:"Física I", subjectId:"demo-fis1",
     semaforo:"verde", tarifa:32000, modalidad:"mensual",
-    pagos:[{id:uid(), date:addDays(today(),-2), amount:32000}],
-    horarios:[{id:uid(), day:weekdayIdx(addDays(today(),2)), time:"16:00", duration:60}],
+    pagos:[
+      {id:uid(), date:addDays(today(),-62), amount:32000},
+      {id:uid(), date:addDays(today(),-32), amount:32000},
+      {id:uid(), date:addDays(today(),-2), amount:32000},
+    ],
+    horarios:[{id:uid(), day:weekdayIdx(today()), time:"18:30", duration:60}],
     topics:{[unitsOf("tpl-fisica-1")[0]]:"parcial",[unitsOf("tpl-fisica-1")[1]]:"practica"},
     sessions:[
+      ...weekly(5,"Trabajo y energía",60),
       sess(10,"Trabajo y energía","hecha",true,"Ejercicios de energía cinética",{estado:"si",pct:100}),
       sess(3,"Trabajo y energía","hecha",true),
     ],
-  }));
+  });
+  valentina.portalShare={proximaClase:true, tareas:false, avance:true};
+  students.push(valentina);
 
   // 6) Tomás — no aprobó el último examen, a recuperar
   students.push(mk({
@@ -1059,7 +1135,8 @@ function buildDemoData(){
     sessions:[ sess(20,"Enlace químico","intentada",true) ],
   }));
 
-  // 7) Camila — buena racha de objetivos, horario habitual esta semana (agenda)
+  // 7) Camila — buena racha de objetivos, horario habitual hoy 18:30 (agenda con superposición),
+  //    y un objetivo recién cargado todavía sin cerrar (tarjeta de cierre en su ficha)
   students.push(mk({
     name:"Camila Torres", subject:"Análisis Matemático I", subjectId:"demo-am1",
     semaforo:"amarillo", examDate:addDays(today(),30), tarifa:8000, modalidad:"clase",
@@ -1068,16 +1145,107 @@ function buildDemoData(){
     sessions:[
       sess(15,"Integrales indefinidas","hecha",true,"Resolver integrales por sustitución",{estado:"si",pct:100}),
       sess(8,"Integrales definidas y aplicaciones","hecha",true,"Calcular áreas entre curvas",{estado:"si",pct:100}),
-      sess(2,"Integrales definidas y aplicaciones","intentada",false,"Aplicar el teorema fundamental",{estado:"medias",pct:70}),
+      sess(0,"Aplicaciones de integrales","hecha",true,"Repasar áreas entre curvas para el parcial"),
     ],
   }));
 
-  // 8) Agustín — dejó, para las estadísticas de retención
-  students.push(mk({
+  // 8) Agustín — dejó hace más de un mes, para altas/bajas de Retención
+  students.push({...mk({
     name:"Agustín Molina", subject:"Física I", subjectId:"demo-fis1",
     status:"dejo", semaforo:"sd", startDate:addDays(today(),-150),
     sessions:[ sess(95,"Cinemática","hecha",true) ],
+  }), updatedAt: Date.now()-45*86400000});
+
+  // 9) Bruno — Álgebra, tres meses de clases semanales, dos simulacros, recibo al día
+  const bruno = mk({
+    name:"Bruno Sosa", subject:"Álgebra y Geometría Analítica", subjectId:"demo-alg",
+    semaforo:"verde", examDate:addDays(today(),45), tarifa:8500, modalidad:"clase",
+    horarios:[{id:uid(), day:weekdayIdx(addDays(today(),1)), time:"17:00", duration:60}],
+    topics:{[unitsOf("tpl-algebra")[0]]:"parcial",[unitsOf("tpl-algebra")[1]]:"parcial",[unitsOf("tpl-algebra")[2]]:"practica"},
+    sessions: weekly(13,"Matrices y determinantes",5),
+    simulacros:[ simu(40,"6/10","Le costaron los sistemas de ecuaciones"), simu(12,"8/10","Mucho mejor con matrices") ],
+  });
+  bruno.recibos=[recibo("clase","Clase del "+fmtDate(addDays(today(),-5)),8500,5)];
+  students.push(bruno);
+
+  // 10) Julieta — ingreso, mensual, avance parejo, sin examen todavía
+  students.push(mk({
+    name:"Julieta Díaz", subject:"Matemática básica / ingreso", subjectId:"demo-ing",
+    semaforo:"verde", tarifa:30000, modalidad:"mensual",
+    pagos:[
+      {id:uid(), date:addDays(today(),-58), amount:30000},
+      {id:uid(), date:addDays(today(),-28), amount:30000},
+    ],
+    horarios:[{id:uid(), day:weekdayIdx(addDays(today(),3)), time:"19:00", duration:90}],
+    topics:{[unitsOf("tpl-matematica-ingreso")[0]]:"parcial",[unitsOf("tpl-matematica-ingreso")[1]]:"visto"},
+    sessions: weekly(6,"Expresiones algebraicas",50),
   }));
 
-  return { students, catalog };
+  // 11) Ezequiel — Álgebra, en riesgo, clase puntual esta semana a la misma hora que Sofía
+  //     (para que la Agenda muestre el aviso de superposición)
+  students.push(mk({
+    name:"Ezequiel Paz", subject:"Álgebra y Geometría Analítica", subjectId:"demo-alg",
+    semaforo:"rojo", examDate:addDays(today(),6), tarifa:8500, modalidad:"clase",
+    clasesPuntuales:[
+      {id:uid(), date:addDays(today(),3), time:"17:00", duration:60, cancelada:false},
+    ],
+    topics:{[unitsOf("tpl-algebra")[0]]:"pendiente"},
+    sessions:[ sess(6,"Vectores en el plano y el espacio","intentada",true) ],
+  }));
+
+  // 12) Renata — ingreso, mensual con cuatro meses de historial, racha de objetivos, contrato
+  const renata = mk({
+    name:"Renata Acosta", subject:"Matemática básica / ingreso", subjectId:"demo-ing",
+    semaforo:"verde", tarifa:30000, modalidad:"mensual",
+    contratoResponsable:"Renata Acosta", contratoDni:"41222333", contratoFechaInicio:addDays(today(),-110),
+    horarios:[{id:uid(), day:weekdayIdx(addDays(today(),4)), time:"16:00", duration:60}],
+    startDate:addDays(today(),-110),
+    pagos:[
+      {id:uid(), date:addDays(today(),-95), amount:30000},
+      {id:uid(), date:addDays(today(),-65), amount:30000},
+      {id:uid(), date:addDays(today(),-35), amount:30000},
+      {id:uid(), date:addDays(today(),-3), amount:30000},
+    ],
+    topics:{[unitsOf("tpl-matematica-ingreso")[0]]:"parcial",[unitsOf("tpl-matematica-ingreso")[1]]:"parcial",[unitsOf("tpl-matematica-ingreso")[2]]:"practica"},
+    sessions:[
+      ...weekly(10,"Ecuaciones e inecuaciones",25),
+      sess(11,"Funciones","hecha",true,"Graficar funciones lineales",{estado:"si",pct:100}),
+      sess(4,"Funciones","hecha",true,"Dominio e imagen",{estado:"si",pct:100}),
+    ],
+  });
+  students.push(renata);
+
+  // 13) Mariano — rindió ayer y todavía no cargaste el resultado (dispara la pregunta del tablero)
+  const mariano = mk({
+    name:"Mariano Luna", subject:"Química General", subjectId:"demo-qui",
+    semaforo:"rojo", examDate:addDays(today(),-1), tarifa:9000, modalidad:"clase",
+    topics:{[unitsOf("tpl-quimica-general")[0]]:"visto",[unitsOf("tpl-quimica-general")[1]]:"pendiente"},
+    sessions:[
+      sess(16,"Tabla periódica y propiedades","hecha",true),
+      sess(9,"Enlace químico","intentada",false),
+      sess(2,"Enlace químico","hecha",false),
+    ],
+  });
+  mariano.recibos=[recibo("clase","Clase del "+fmtDate(addDays(today(),-16)),9000,16)];
+  students.push(mariano);
+
+  // 14) papelera: un alumno de ejemplo ya borrado, restaurable como en una cuenta real
+  students.push({...mk({
+    name:"Alumno de prueba", subject:"Análisis Matemático I", subjectId:"demo-am1",
+    sessions:[ sess(40,"Números reales y funciones","hecha",true) ],
+  }), deleted:true, deletedAt: Date.now()-3*86400000});
+
+  // Portal ya activado (paso 95): llave general habilitada, llave individual para Lucía y
+  // Valentina (ver portalShare de cada una más arriba) y una llave grupal para Análisis
+  // Matemático I con Lucía, Camila y Nicolás — todo simulado en memoria, sin fila real en
+  // Supabase (ver los guards IS_DEMO de fetchPortalRow()/loadPortal()/publicarPortal() en
+  // sync.js, que hacen que esto se lea y "edite" sin pegarle nunca a la red).
+  const portal = {
+    token:"DEMOPORTAL1", habilitado:true, draftNombre:"Prof. Demo",
+    publicado:{nombre:"Prof. Demo"},
+    tokensAlumnos:{ "DEMOALUM001":lucia.id, "DEMOALUM002":valentina.id },
+    tokensGrupos:{ "DEMOGRUPO01":{materiaId:"demo-am1", alumnos:students.filter(s=>s.subjectId==="demo-am1" && !s.deleted).map(s=>s.id)} },
+  };
+
+  return { students, catalog, portal };
 }

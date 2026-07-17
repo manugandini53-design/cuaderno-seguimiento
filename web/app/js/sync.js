@@ -476,7 +476,17 @@ function genPortalToken(){
 function portalUrl(token){ return new URL("portal.html?k="+encodeURIComponent(token), location.href).href; }
 // Lee la fila propia de portales (columnas a elección), con su token de sesión/uid ya resueltos —
 // evita repetir ensureToken()/jwtSub()/headers en cada acción de esta sección.
+// En modo demo (IS_DEMO), ambas funciones se saltean la red por completo: fetchPortalRow()
+// devuelve una fila sintética armada a partir del state.portal ya simulado (ver buildDemoData()
+// más abajo) y patchPortalRow() no hace nada — cada llamador ya actualiza state.portal por su
+// cuenta con el resultado, así que el "guardado" simplemente no persiste en ningún lado, igual
+// que el resto del modo demo (ver save() más arriba).
 async function fetchPortalRow(select){
+  if(IS_DEMO){
+    const p=state.portal||{};
+    return {s:null, uid_:"demo", h:null, row:{token:p.token||"", habilitado:!!p.habilitado,
+      publicado:p.publicado||{}, tokens_alumnos:p.tokensAlumnos||{}, tokens_grupos:p.tokensGrupos||{}}};
+  }
   const s=await ensureToken();
   const uid_=jwtSub(s.access);
   const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
@@ -486,6 +496,7 @@ async function fetchPortalRow(select){
   return {s, uid_, h, row: row||{}};
 }
 async function patchPortalRow(uid_, h, patch){
+  if(IS_DEMO) return;
   const r=await fetch(SUPA_URL+"/rest/v1/portales?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH",
     headers:{...h, Prefer:"return=minimal"}, body:JSON.stringify({...patch, updated_at:new Date().toISOString()})});
   if(!r.ok) throw new Error("error "+r.status);
@@ -495,6 +506,11 @@ function tokenForStudent(studentId){
   return Object.keys(map).find(k=>map[k]===studentId) || null;
 }
 async function loadPortal(){
+  // El portal de la demo ya viene armado en memoria desde buildDemoData() (ver load() en
+  // helpers.js) — nav-cuenta llama a loadPortal() sin condición cada vez que se abre esa pestaña,
+  // así que acá sólo se restaura lo que ese llamador pisó (portalLoaded/portalError) sin tocar
+  // state.portal ni pegarle a la red.
+  if(IS_DEMO){ state.portalLoaded=true; state.portalError=""; render(); return; }
   state.portalLoaded=false; state.portalError=""; render();
   try{
     const {s, uid_, h, row: existing}=await fetchPortalRow("token,habilitado,publicado,tokens_alumnos,tokens_grupos");
@@ -546,6 +562,7 @@ async function regenerarPortalToken(){
 // solamente la policy de SELECT ya existente para la carpeta del usuario (007_materiales_storage_
 // policies.sql) — firmar un objeto pasa por la misma RLS que descargarlo directo.
 async function signMaterialUrl(s, path, expiresInSec){
+  if(IS_DEMO) return "#demo-material";
   const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
   const r=await fetch(SUPA_URL+"/storage/v1/object/sign/"+MATERIALES_BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/"),
     {method:"POST", headers:h, body:JSON.stringify({expiresIn:expiresInSec})});
@@ -606,6 +623,12 @@ function buildGrupoBlock(materiaId, alumnoIds, bibliotecaMateria){
 async function publicarPortal(){
   if(!state.portal) return;
   state.portalSaving=true; state.portalSaveMsg=""; render();
+  if(IS_DEMO){
+    state.portal.publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim()};
+    state.portalSaveMsg="Publicado — ya se ve en el portal.";
+    state.portalSaving=false; render();
+    return;
+  }
   try{
     const s=await ensureToken();
     const uid_=jwtSub(s.access);
@@ -946,6 +969,12 @@ function reconcileMaterialesIndex(subjectId, storageList){
 async function loadMateriales(subjectId){
   state.materialesSubjectId=subjectId; state.materialesLoaded=false; state.materialesError="";
   state.materialesConfirmDelName=null;
+  // Demo: no hay Storage real — la lista sale directo de catalog.subjects[].materiales, que ya
+  // trae todo lo que necesita esta vista (name/bytes/at), sin pegarle a la red.
+  if(IS_DEMO){
+    state.materialesList=materialesIndexFor(subjectId).map(m=>({id:m.name, name:m.name, metadata:{size:m.bytes}, updated_at:m.at}));
+    state.materialesLoaded=true; render(); return;
+  }
   if(!navigator.onLine){ state.materialesError="offline"; state.materialesLoaded=true; render(); return; }
   render();
   try{
@@ -982,6 +1011,14 @@ async function uploadMaterial(subjectId, file){
     render(); return;
   }
   state.materialesUploading=true; state.materialesUploadError=""; render();
+  if(IS_DEMO){
+    const subj=subjById(subjectId);
+    if(subj) subj.materiales=[...(subj.materiales||[]), {name:uid().slice(-6)+"-"+file.name, bytes:file.size, at:new Date().toISOString(), compartido:false}];
+    touchCatalog();
+    state.materialesUploading=false;
+    await loadMateriales(subjectId);
+    return;
+  }
   try{
     const s=await ensureToken();
     const uid_=jwtSub(s.access);
@@ -1001,6 +1038,14 @@ async function uploadMaterial(subjectId, file){
 async function deleteMaterial(subjectId, fileName){
   if(!navigator.onLine){ state.materialesError="offline"; render(); return; }
   state.materialesDeleteStatus="deleting"; render();
+  if(IS_DEMO){
+    const subj=subjById(subjectId);
+    if(subj) subj.materiales=(subj.materiales||[]).filter(m=>m.name!==fileName);
+    touchCatalog();
+    state.materialesDeleteStatus="idle"; state.materialesConfirmDelName=null;
+    await loadMateriales(subjectId);
+    return;
+  }
   try{
     const s=await ensureToken();
     const uid_=jwtSub(s.access);
@@ -1017,6 +1062,7 @@ async function deleteMaterial(subjectId, fileName){
   }
 }
 async function downloadMaterial(subjectId, fileName){
+  if(IS_DEMO){ toast("Es un archivo de muestra — no hay nada real para descargar."); return; }
   if(!navigator.onLine){ state.materialesError="offline"; render(); return; }
   try{
     const s=await ensureToken();
