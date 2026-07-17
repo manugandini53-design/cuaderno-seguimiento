@@ -89,6 +89,21 @@ function personalHtml(alumno){
   }
   return h + `</div>`;
 }
+// Bloque de una llave GRUPAL (ver buildGrupoBlock en sync.js): próximas clases/exámenes del
+// grupo, siempre fechas sueltas sin nombre de alumno — jamás notas, pagos ni avance individual.
+function grupoHtml(grupo){
+  let h = `<div class="card grupo"><div class="ctitle">${esc(grupo.materia||"")}</div>`;
+  const clases = grupo.proximasClases||[];
+  h += `<div class="prow"><div class="plabel">Próximas clases del grupo</div>`;
+  h += clases.length===0 ? `<div class="pempty">Sin clases agendadas por ahora.</div>`
+    : clases.map(c=>`<div class="pvalue">${fmtDiaLocal(c.date)} a las ${esc(c.time)} (${Number(c.duration)||60} min)</div>`).join("");
+  h += `</div>`;
+  const examenes = grupo.proximosExamenes||[];
+  h += `<div class="prow"><div class="plabel">Próximos exámenes del grupo</div>`;
+  h += examenes.length===0 ? `<div class="pempty">Sin exámenes agendados por ahora.</div>`
+    : examenes.map(d=>`<div class="pvalue">${fmtDiaLocal(d)}</div>`).join("");
+  return h + `</div></div>`;
+}
 // Agrupa por materia y arma la sección de Biblioteca (primera y bien visible: es la sección
 // principal del portal). filtro filtra por materia+nombre de archivo, case-insensitive.
 function bibliotecaHtml(items, filtro){
@@ -116,12 +131,20 @@ function bibliotecaHtml(items, filtro){
 }
 function showPortal(res){
   const nombre = (res.data && res.data.nombre) ? res.data.nombre.trim() : "";
-  const titulo = nombre ? `Portal de ${nombre}` : "Portal de tu profesor";
-  const biblioteca = (res.data && Array.isArray(res.data.biblioteca)) ? res.data.biblioteca : [];
+  const esGrupo = res.tipo==="grupo" && res.grupo;
+  // Llave grupal: biblioteca acotada a la materia del grupo (res.grupo.biblioteca), nunca la
+  // biblioteca completa de todas las materias (esa sólo la ve la llave general/individual).
+  const titulo = esGrupo && res.grupo.materia ? `Portal de ${res.grupo.materia}`
+    : (nombre ? `Portal de ${nombre}` : "Portal de tu profesor");
+  const biblioteca = esGrupo ? (Array.isArray(res.grupo.biblioteca) ? res.grupo.biblioteca : [])
+    : ((res.data && Array.isArray(res.data.biblioteca)) ? res.data.biblioteca : []);
   let h = `<h1>${esc(titulo)}</h1>`;
   // Llave de alumno: su bloque personal va primero, arriba de lo general (biblioteca/links) —
   // es lo que más le importa a él en particular.
   if(res.tipo==="alumno" && res.alumno) h += personalHtml(res.alumno);
+  // Llave grupal: próximas clases/exámenes del grupo, antes de la biblioteca — mismo criterio
+  // que el bloque personal, es lo más "de esta llave puntual" frente a lo genérico de abajo.
+  if(esGrupo) h += grupoHtml(res.grupo);
   h += `<div class="card">
     <div class="ctitle">Biblioteca</div>
     ${biblioteca.length>1 ? `<input id="biblio-search" placeholder="Buscar por materia o archivo…" autocomplete="off">` : ""}

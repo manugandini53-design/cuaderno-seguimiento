@@ -81,6 +81,7 @@ document.addEventListener("click", (e)=>{
     state.view="cuenta"; state.selId=null; state.confirmRestoreId=null;
     state.backupsLoaded=false; state.backupsError=""; loadBackups();
     state.portalLoaded=false; state.portalError=""; state.portalCopyMsg=""; loadPortal();
+    state.portalGrupoEditing=null; state.portalGrupoDraftAlumnos=[]; state.portalGrupoError="";
   }
   else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; state.editPackId=null; state.catConfirmDelId=null; }
   else if(a==="nav-pagos"){ state.view="pagos"; state.selId=null; if(!state.pagosMonth) state.pagosMonth=currentMonthKey(); }
@@ -383,6 +384,31 @@ document.addEventListener("click", (e)=>{
     const key=el.dataset.key, cur=portalShareFor(s);
     update(s.id,{portalShare:{...cur, [key]: !cur[key]}});
     maybeAutoRepublishAlumno(s.id);
+    return;
+  }
+  else if(a==="portal-grupo-crear-abrir"){
+    state.portalGrupoEditing=el.dataset.materia; state.portalGrupoDraftAlumnos=[]; state.portalGrupoError="";
+  }
+  else if(a==="portal-grupo-editar-abrir"){
+    const mid=el.dataset.materia, tok=tokenForGrupo(mid);
+    state.portalGrupoEditing=mid;
+    state.portalGrupoDraftAlumnos = tok ? [...(state.portal.tokensGrupos[tok].alumnos||[])] : [];
+    state.portalGrupoError="";
+  }
+  else if(a==="portal-grupo-editar-cancelar"){ state.portalGrupoEditing=null; state.portalGrupoDraftAlumnos=[]; }
+  else if(a==="portal-grupo-toggle-alumno"){
+    const id=el.dataset.id, draft=state.portalGrupoDraftAlumnos||[];
+    state.portalGrupoDraftAlumnos = draft.includes(id) ? draft.filter(x=>x!==id) : [...draft, id];
+  }
+  else if(a==="portal-grupo-crear"){ generarLlaveGrupo(el.dataset.materia, state.portalGrupoDraftAlumnos||[]); return; }
+  else if(a==="portal-grupo-guardar"){ actualizarAlumnosGrupo(el.dataset.materia, state.portalGrupoDraftAlumnos||[]); return; }
+  else if(a==="portal-grupo-regen"){ regenerarLlaveGrupo(el.dataset.materia); return; }
+  else if(a==="portal-grupo-revoke"){ revocarLlaveGrupo(el.dataset.materia); return; }
+  else if(a==="portal-grupo-copy"){
+    const tok=tokenForGrupo(el.dataset.materia); if(!tok) return;
+    copyToClipboard(portalUrl(tok))
+      .then(()=>toast("Link copiado"))
+      .catch(()=>toast("No se pudo copiar — seleccioná el texto manualmente.","error"));
     return;
   }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }

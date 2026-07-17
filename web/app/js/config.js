@@ -99,6 +99,7 @@ const HELP_TEXTS = {
   senia: "Un adelanto que el alumno paga para reservar una clase puntual. Si cancela a tiempo (según tu política) se le devuelve; si no, se la queda el profesor.",
   cancelPolicy: "Define cuántas horas antes puede cancelar un alumno una clase puntual sin perder la seña. Se aplica sola al marcar una clase como cancelada.",
   portal: "Un link propio, sin login, para que tus alumnos vean materiales compartidos y (si tienen llave individual) su próxima clase y avance — nunca notas, pagos ni comentarios privados.",
+  portalGrupal: "Una llave por materia: el grupo que elijas ve la biblioteca de esa materia y las próximas clases/exámenes del grupo (fechas sueltas, sin nombres) — nunca notas, pagos ni avance de un alumno en particular.",
   rentabilidad: "Cuánto te queda de cada materia o alumno después de restar los costos que le asignaste (fijos y variables). Los costos sin materia ni alumno sólo entran en el total del mes.",
 };
 // Mini centro de ayuda (Cuenta, paso 74): preguntas frecuentes en español claro — qué hace
@@ -107,7 +108,7 @@ const FAQ_ITEMS = [
   {q:"¿Cómo cargo un alumno nuevo?", a:"Desde Estudiantes tocá «+ Nuevo estudiante», o elegí una materia primero en Materias si todavía no la creaste. Podés cargar la fecha de examen y notas iniciales, o dejarlo para después."},
   {q:"¿Qué es el semáforo (verde/amarillo/rojo)?", a:"Tu evaluación de cómo llega el alumno a su objetivo: verde (encaminado), amarillo (en riesgo, hay que priorizar temas) o rojo (difícilmente llegue así). Se cambia tocando el círculo de color en la ficha o la lista."},
   {q:"¿Qué es una seña y cómo funciona?", a:"Un adelanto que el alumno paga para reservar una clase puntual. Se activa por alumno desde su ficha (pestaña «Pagos»). Si cancela con el aviso mínimo que definas en la política de cancelación, se le devuelve; si no, la retenés."},
-  {q:"¿Para qué sirve el Portal?", a:"Le da a tus alumnos un link propio, sin necesidad de crear cuenta, donde ven los materiales que compartiste y (si generás su llave individual) su próxima clase y avance por unidades — nunca notas, pagos ni comentarios privados."},
+  {q:"¿Para qué sirve el Portal?", a:"Le da a tus alumnos un link propio, sin necesidad de crear cuenta, donde ven los materiales que compartiste y (si generás su llave individual) su próxima clase y avance por unidades — nunca notas, pagos ni comentarios privados. También podés generar una llave grupal por materia, para compartirle a todo un grupo la biblioteca y las próximas clases/exámenes sin datos de ningún alumno en particular."},
   {q:"¿Cómo veo si estoy ganando plata de verdad?", a:"En Pagos → Rentabilidad: descontando los costos que le asignaste a cada materia o alumno (fijos y variables), te muestra cuánto te queda neto por hora dictada, por mes."},
   {q:"¿Mis datos están a salvo si se me rompe la compu?", a:"Sí — con sesión iniciada se sincronizan solos a la nube y podés entrar desde cualquier dispositivo. Además se guarda un respaldo automático diario (ver «Respaldos automáticos» acá abajo) y podés descargar una copia .json manual cuando quieras."},
 ];

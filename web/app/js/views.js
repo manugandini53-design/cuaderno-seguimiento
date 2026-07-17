@@ -1889,6 +1889,7 @@ function vCuenta(){
     </div>
   </div>
   ${vPortalCard()}
+  ${vPortalGruposCard()}
   <div class="formcard"><div class="ftitle">Apariencia</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${themeBtn("system","Según el sistema")}${themeBtn("light","Claro")}${themeBtn("dark","Oscuro")}
@@ -1985,6 +1986,59 @@ function vPortalCard(){
     ${state.portalSaveMsg?`<div class="hint" style="margin-top:8px">${esc(state.portalSaveMsg)}</div>`:""}
   </div>`;
   if(state.portalError) h += `<div class="saveerr" style="margin-top:10px">${esc(state.portalError)}</div>`;
+  return h + `</div>`;
+}
+
+// Llaves grupales (Cuenta → Portal, paso 94): una llave por materia, para compartirle a un grupo
+// de alumnos elegido a mano la biblioteca de esa materia y las próximas clases/exámenes del
+// grupo — nunca datos de un alumno en particular (ver buildGrupoBlock en sync.js). Sólo tiene
+// sentido si el portal general ya está cargado (comparte fila/habilitado con la llave general y
+// la individual); si no cargó todavía, vPortalCard() ya muestra el estado de carga/error.
+function vPortalGruposCard(){
+  if(!state.portalLoaded || !state.portal) return "";
+  const subjects=state.catalog.subjects.filter(m=>alive().some(x=>x.subjectId===m.id));
+  let h = `<div class="formcard"><div class="ftitle" style="display:flex;align-items:center;gap:7px">Llaves grupales${helpTip("portalGrupal")}</div>
+  <div class="hint" style="margin-bottom:10px">Una llave por materia: el grupo que elijas ve la biblioteca de esa materia y las próximas clases/exámenes del grupo — nunca notas, pagos ni avance de un alumno en particular.</div>`;
+  if(subjects.length===0){
+    return h + `<div class="hint">Todavía no tenés materias con alumnos activos.</div></div>`;
+  }
+  h += subjects.map(vPortalGrupoRow).join("");
+  if(state.portalGrupoError) h += `<div class="saveerr" style="margin-top:10px">${esc(state.portalGrupoError)}</div>`;
+  return h + `</div>`;
+}
+function vPortalGrupoRow(m){
+  const token=tokenForGrupo(m.id);
+  const busy=state.portalGrupoBusy===m.id;
+  const editing=state.portalGrupoEditing===m.id;
+  const alumnosMateria=alive().filter(x=>x.subjectId===m.id);
+  let h = `<div style="padding:10px 0;border-top:1px solid var(--soft)">
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">${subjectDot(m.id)}<b>${esc(m.name)}</b></div>`;
+  if(!token && !editing){
+    h += `<button class="chip" data-a="portal-grupo-crear-abrir" data-materia="${esc(m.id)}">Generar llave grupal</button>`;
+  }
+  if(token && !editing){
+    const incluidos=((state.portal.tokensGrupos[token]||{}).alumnos||[]).length;
+    h += `<div class="field"><input readonly value="${esc(portalUrl(token))}" onclick="this.select()"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="chip" data-a="portal-grupo-copy" data-materia="${esc(m.id)}">Copiar link</button>
+      <button class="chip" data-a="qr-open" data-url="${esc(portalUrl(token))}" data-title="Portal de ${esc(m.name)}">Ver QR</button>
+      <button class="chip" data-a="portal-grupo-editar-abrir" data-materia="${esc(m.id)}" ${busy?"disabled":""}>Editar alumnos</button>
+      <button class="chip" data-a="portal-grupo-regen" data-materia="${esc(m.id)}" ${busy?"disabled":""}>Regenerar llave</button>
+      <button class="danger" data-a="portal-grupo-revoke" data-materia="${esc(m.id)}" ${busy?"disabled":""}>Borrar</button>
+    </div>
+    <div class="hint" style="margin-top:8px">Incluye a ${incluidos} alumno${incluidos===1?"":"s"} de ${esc(m.name)}.</div>`;
+  }
+  if(editing){
+    const draft=state.portalGrupoDraftAlumnos||[];
+    h += `<div class="hint" style="margin-bottom:6px">Marcá a quiénes incluye:</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${alumnosMateria.map(x=>`<button class="chip ${draft.includes(x.id)?"on":""}" data-a="portal-grupo-toggle-alumno" data-id="${esc(x.id)}">${esc(x.name)}</button>`).join("")}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="primary" data-a="${token?"portal-grupo-guardar":"portal-grupo-crear"}" data-materia="${esc(m.id)}" ${busy?"disabled":""}>${busy?"Guardando…":(token?"Guardar":"Generar llave")}</button>
+      <button class="chip" data-a="portal-grupo-editar-cancelar">Cancelar</button>
+    </div>`;
+  }
   return h + `</div>`;
 }
 

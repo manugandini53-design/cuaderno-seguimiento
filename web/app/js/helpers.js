@@ -102,6 +102,8 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               puntualCancelAskId:null, cobrosBannerOpen:false,
               portal:null, portalLoaded:false, portalError:"",
               portalSaving:false, portalSaveMsg:"", portalCopyMsg:"",
+              portalGrupoBusy:null, portalGrupoError:"", portalGrupoCopyMsg:"",
+              portalGrupoEditing:null, portalGrupoDraftAlumnos:[],
               toasts:[],
               fabOpen:false, fabPick:null,
               searchOpen:false, searchQuery:"", searchSel:0,

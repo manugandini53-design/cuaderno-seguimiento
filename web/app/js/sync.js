@@ -497,7 +497,7 @@ function tokenForStudent(studentId){
 async function loadPortal(){
   state.portalLoaded=false; state.portalError=""; render();
   try{
-    const {s, uid_, h, row: existing}=await fetchPortalRow("token,habilitado,publicado,tokens_alumnos");
+    const {s, uid_, h, row: existing}=await fetchPortalRow("token,habilitado,publicado,tokens_alumnos,tokens_grupos");
     let row=existing;
     if(!row || !row.token){
       const token=genPortalToken();
@@ -508,7 +508,7 @@ async function loadPortal(){
       row=(await up.json())[0];
     }
     state.portal={token:row.token, habilitado:row.habilitado, publicado:row.publicado||{},
-      tokensAlumnos:row.tokens_alumnos||{}, draftNombre:(row.publicado&&row.publicado.nombre)||""};
+      tokensAlumnos:row.tokens_alumnos||{}, tokensGrupos:row.tokens_grupos||{}, draftNombre:(row.publicado&&row.publicado.nombre)||""};
     state.portalLoaded=true;
   }catch(e){
     state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo cargar el portal.";
@@ -574,10 +574,35 @@ function buildAlumnoBlock(s){
   }
   return block;
 }
+// Arma lo que ve quien entra con la llave GRUPAL de una materia (paso 94): biblioteca de esa
+// materia (subconjunto de biblioteca, ya firmada) + próximas clases/exámenes del GRUPO — fechas
+// sueltas de nextClaseForStudent()/examDate de los alumnos incluidos, nunca atadas a un nombre.
+// A propósito no toca notas, pagos, señas ni avance por unidades: eso es lo que distingue a esta
+// llave de la individual (buildAlumnoBlock) — para eso siguen estando las llaves por alumno.
+// Devuelve null si la materia ya no existe (borrada del catálogo) para que no se publique nada.
+function buildGrupoBlock(materiaId, alumnoIds, bibliotecaMateria){
+  const m=subjById(materiaId);
+  if(!m) return null;
+  const ids=new Set(alumnoIds||[]);
+  const alumnos=state.students.filter(x=>!x.deleted && ids.has(x.id));
+  const proximasClases=[];
+  const vistos=new Set();
+  alumnos.forEach(st=>{
+    const n=nextClaseForStudent(st); if(!n) return;
+    const key=n.date+" "+n.time+" "+n.duration;
+    if(vistos.has(key)) return;
+    vistos.add(key); proximasClases.push({date:n.date, time:n.time, duration:n.duration});
+  });
+  proximasClases.sort((a,b)=>(a.date+" "+a.time).localeCompare(b.date+" "+b.time));
+  const proximosExamenes=[...new Set(alumnos.map(st=>st.examDate)
+    .filter(d=>d && daysTo(d)!==null && daysTo(d)>=0))].sort();
+  return {materia:m.name, color:subjectColorKey(materiaId), biblioteca:bibliotecaMateria||[], proximasClases, proximosExamenes};
+}
 // Publicar cambios: nombre a mostrar + biblioteca (firma un link por cada material con
-// compartido:true) + un bloque por cada alumno que tenga llave individual generada. Si falla la
-// firma de algún archivo, no se publica nada (todo o nada, para no dejar el portal a medio
-// actualizar) — se puede reintentar tocando de nuevo.
+// compartido:true) + un bloque por cada alumno que tenga llave individual generada + un bloque
+// por cada materia que tenga llave grupal generada. Si falla la firma de algún archivo, no se
+// publica nada (todo o nada, para no dejar el portal a medio actualizar) — se puede reintentar
+// tocando de nuevo.
 async function publicarPortal(){
   if(!state.portal) return;
   state.portalSaving=true; state.portalSaveMsg=""; render();
@@ -600,7 +625,16 @@ async function publicarPortal(){
       const st=state.students.find(x=>x.id===id);
       if(st) alumnos[id]=buildAlumnoBlock(st);
     });
-    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos};
+    const tokensGrupos=state.portal.tokensGrupos||{};
+    const materiaIds=[...new Set(Object.values(tokensGrupos).map(g=>g.materiaId))];
+    const grupos={};
+    materiaIds.forEach(mid=>{
+      const entry=Object.values(tokensGrupos).find(g=>g.materiaId===mid);
+      const bibMateria=biblioteca.filter(it=>it.subjectId===mid);
+      const bloque=buildGrupoBlock(mid, entry?entry.alumnos:[], bibMateria);
+      if(bloque) grupos[mid]=bloque;
+    });
+    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos};
     const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
     await patchPortalRow(uid_, h, {publicado});
     state.portal.publicado=publicado;
@@ -727,6 +761,104 @@ async function maybeAutoRepublishAlumno(studentId){
   if(!tokenForStudent(studentId)) return;
   await republishAlumnoBlock(studentId);
   render();
+}
+
+/* ============ llave grupal por materia (portales.tokens_grupos, paso 94) ============
+   Un grupo con llave propia ve, además de biblioteca/links igual que con la llave general, un
+   bloque de SU materia (buildGrupoBlock más arriba) — biblioteca de esa materia y próximas
+   clases/exámenes del grupo, nunca de otra materia ni datos de un alumno en particular. Una sola
+   llave activa por materia (mismo criterio que tokenForStudent/regenerarLlaveAlumno). */
+function tokenForGrupo(materiaId){
+  const map=(state.portal&&state.portal.tokensGrupos)||{};
+  return Object.keys(map).find(k=>map[k].materiaId===materiaId) || null;
+}
+async function generarLlaveGrupo(materiaId, alumnoIds){
+  state.portalGrupoBusy=materiaId; state.portalGrupoError=""; render();
+  try{
+    const {uid_, h, row}=await fetchPortalRow("tokens_grupos");
+    const tokensGrupos={...(row.tokens_grupos||{})};
+    Object.keys(tokensGrupos).forEach(k=>{ if(tokensGrupos[k].materiaId===materiaId) delete tokensGrupos[k]; });
+    tokensGrupos[genPortalToken()]={materiaId, alumnos:[...(alumnoIds||[])]};
+    await patchPortalRow(uid_, h, {tokens_grupos:tokensGrupos});
+    if(state.portal) state.portal.tokensGrupos=tokensGrupos;
+    state.portalGrupoEditing=null; state.portalGrupoDraftAlumnos=[];
+    await republishGrupoBlock(materiaId);
+  }catch(e){
+    state.portalGrupoError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo generar la llave. Probá de nuevo.";
+  }
+  state.portalGrupoBusy=null; render();
+}
+async function regenerarLlaveGrupo(materiaId){
+  if(!confirm("La llave anterior de este grupo deja de funcionar de inmediato. ¿Regenerar?")) return;
+  state.portalGrupoBusy=materiaId; state.portalGrupoError=""; render();
+  try{
+    const {uid_, h, row}=await fetchPortalRow("tokens_grupos");
+    const tokensGrupos={...(row.tokens_grupos||{})};
+    let alumnos=[];
+    Object.keys(tokensGrupos).forEach(k=>{
+      if(tokensGrupos[k].materiaId===materiaId){ alumnos=tokensGrupos[k].alumnos||[]; delete tokensGrupos[k]; }
+    });
+    tokensGrupos[genPortalToken()]={materiaId, alumnos};
+    await patchPortalRow(uid_, h, {tokens_grupos:tokensGrupos});
+    if(state.portal){ state.portal.tokensGrupos=tokensGrupos; state.portalGrupoCopyMsg=""; }
+  }catch(e){
+    state.portalGrupoError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo regenerar la llave. Probá de nuevo.";
+  }
+  state.portalGrupoBusy=null; render();
+}
+async function revocarLlaveGrupo(materiaId){
+  if(!confirm("Los alumnos incluidos dejan de poder entrar al portal grupal con este link. ¿Borrar la llave?")) return;
+  state.portalGrupoBusy=materiaId; state.portalGrupoError=""; render();
+  try{
+    const {uid_, h, row}=await fetchPortalRow("tokens_grupos,publicado");
+    const tokensGrupos={...(row.tokens_grupos||{})};
+    Object.keys(tokensGrupos).forEach(k=>{ if(tokensGrupos[k].materiaId===materiaId) delete tokensGrupos[k]; });
+    const grupos={...((row.publicado&&row.publicado.grupos)||{})};
+    delete grupos[materiaId];
+    const publicado={...(row.publicado||{}), grupos};
+    await patchPortalRow(uid_, h, {tokens_grupos:tokensGrupos, publicado});
+    if(state.portal){ state.portal.tokensGrupos=tokensGrupos; state.portal.publicado=publicado; }
+  }catch(e){
+    state.portalGrupoError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo borrar la llave. Probá de nuevo.";
+  }
+  state.portalGrupoBusy=null; render();
+}
+// Cambia a quiénes incluye una llave grupal ya generada (misma llave, otra lista de alumnos) —
+// separado de generarLlaveGrupo porque acá no hay que tocar el token, sólo tokens_grupos[tok].alumnos.
+async function actualizarAlumnosGrupo(materiaId, alumnoIds){
+  state.portalGrupoBusy=materiaId; state.portalGrupoError=""; render();
+  try{
+    const {uid_, h, row}=await fetchPortalRow("tokens_grupos");
+    const tokensGrupos={...(row.tokens_grupos||{})};
+    const tok=Object.keys(tokensGrupos).find(k=>tokensGrupos[k].materiaId===materiaId);
+    if(!tok){ state.portalGrupoBusy=null; render(); return; }
+    tokensGrupos[tok]={...tokensGrupos[tok], alumnos:[...(alumnoIds||[])]};
+    await patchPortalRow(uid_, h, {tokens_grupos:tokensGrupos});
+    if(state.portal) state.portal.tokensGrupos=tokensGrupos;
+    state.portalGrupoEditing=null; state.portalGrupoDraftAlumnos=[];
+    await republishGrupoBlock(materiaId);
+  }catch(e){
+    state.portalGrupoError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo guardar. Probá de nuevo.";
+  }
+  state.portalGrupoBusy=null; render();
+}
+// Re-arma y guarda sólo el bloque de una materia puntual, reusando los links ya firmados de
+// publicado.biblioteca (no vuelve a firmar nada, así que es liviano) — mismo criterio que
+// republishAlumnoBlock.
+async function republishGrupoBlock(materiaId){
+  try{
+    const {uid_, h, row}=await fetchPortalRow("publicado,tokens_grupos");
+    const tokensGrupos=row.tokens_grupos||{};
+    const entry=Object.values(tokensGrupos).find(g=>g.materiaId===materiaId);
+    const biblioteca=(row.publicado&&row.publicado.biblioteca)||[];
+    const bibMateria=biblioteca.filter(it=>it.subjectId===materiaId);
+    const bloque=buildGrupoBlock(materiaId, entry?entry.alumnos:[], bibMateria);
+    const grupos={...((row.publicado&&row.publicado.grupos)||{})};
+    if(bloque) grupos[materiaId]=bloque; else delete grupos[materiaId];
+    const publicado={...(row.publicado||{}), grupos};
+    await patchPortalRow(uid_, h, {publicado});
+    if(state.portal) state.portal.publicado=publicado;
+  }catch(e){ /* silencioso: se corrige con el próximo "Publicar cambios" */ }
 }
 
 /* ============ materiales por materia (Supabase Storage, bucket privado "materiales") ============
