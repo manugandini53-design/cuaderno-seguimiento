@@ -28,7 +28,7 @@
   }
   function updateThemeColorMeta(t){
     var meta=document.getElementById("theme-color-meta");
-    if(meta) meta.setAttribute("content", isDarkEffective(t) ? "#12141A" : "#1E2B4D");
+    if(meta) meta.setAttribute("content", isDarkEffective(t) ? "#0F1420" : "#1E2B4D");
   }
   function applyTheme(t){
     var root=document.documentElement;
@@ -59,115 +59,216 @@
   }
 </script>
 <style>
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:400; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:500; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:600; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:700; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Poppins'; font-style:normal; font-weight:600; font-display:swap;
+    src:url('fonts/poppins-600.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Poppins'; font-style:normal; font-weight:700; font-display:swap;
+    src:url('fonts/poppins-700.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Poppins'; font-style:normal; font-weight:800; font-display:swap;
+    src:url('fonts/poppins-800.woff2') format('woff2');
+  }
+
   :root{
-    --bg:#E7E8EB; --card:#FFFFFF; --ink:#1E2B4D; --muted:#5B6072; --faint:#8B90A0;
-    --line:#D8DAE3; --soft:#E4E4E0; --red:#C43C2B; --redbg:#FAE9E4;
-    --green:#2E9958; --greenbg:#E4F1E9; --amber:#E0A422; --amberbg:#FBF3DC;
-    --blue:#2C4A9A; --bluebg:#E8EDFB; --gray:#C9CCD6;
-    --accent:#1E2B4D; --accent-hover:#16213b; --header-bg:rgba(231,232,235,.92);
-    --cta-shadow:rgba(30,43,77,.22); --cta-shadow-hover:rgba(30,43,77,.28);
-    --sans:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --bg:#F6F8FC; --bg-alt:#EEF1F9; --card:#FFFFFF; --border:#E4E9F5;
+    --ink:#12192E; --text:#1A2238; --text-soft:#5C6480;
+    --navy:#1E2B4D; --navy-2:#2F4272;
+    --accent:#14B8A6; --accent-dark:#0E9488; --accent-soft:#CFF7F0;
+    --green:#22C55E; --amber:#F59E0B; --red:#EF4444; --blue:#3B82F6;
+    --header-bg:rgba(246,248,252,.85);
+    --shadow-1:rgba(26,34,66,.14); --shadow-2:rgba(26,34,66,.25); --shadow-3:rgba(26,34,66,.35);
+    --fc-green-bg:#DCFCE7; --fc-green-fg:#16A34A;
+    --fc-blue-bg:#DBEAFE; --fc-blue-fg:#2563EB;
+    --fc-amber-bg:#FEF3C7; --fc-amber-fg:#D97706;
+    --sans:'Inter',-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --display:'Poppins',var(--sans);
     --mono:ui-monospace,"Cascadia Mono",Consolas,"Roboto Mono",monospace;
   }
   /* modo automático: sigue prefers-color-scheme, salvo que haya una elección explícita
      (clase theme-light/theme-dark en <html>, puesta por cycleTheme() de arriba) */
   @media (prefers-color-scheme:dark){
     :root:not(.theme-light):not(.theme-dark){
-      --bg:#12141A; --card:#1B1E27; --ink:#E8E9EE; --muted:#A8ADBD; --faint:#7A8096;
-      --line:#2E3240; --soft:#242836; --red:#FF6B57; --redbg:#3A211D;
-      --green:#4ADE80; --greenbg:#173324; --amber:#FBBF24; --amberbg:#3A2E10;
-      --blue:#8CA6F5; --bluebg:#1B2340; --gray:#3A3F52;
-      --accent:#4C5FAB; --accent-hover:#5E70C2; --header-bg:rgba(18,20,26,.85);
-      --cta-shadow:rgba(0,0,0,.45); --cta-shadow-hover:rgba(0,0,0,.55);
+      --bg:#0F1420; --bg-alt:#171D2C; --card:#1B2333; --border:#2B3348;
+      --ink:#EDEFF7; --text:#C7CCDC; --text-soft:#8890AA;
+      --navy:#2B3A63; --navy-2:#3D5089;
+      --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38;
+      --green:#4ADE80; --amber:#FBBF24; --red:#FF6B6B; --blue:#60A5FA;
+      --header-bg:rgba(15,20,32,.85);
+      --shadow-1:rgba(0,0,0,.35); --shadow-2:rgba(0,0,0,.5); --shadow-3:rgba(0,0,0,.6);
+      --fc-green-bg:#123722; --fc-green-fg:#4ADE80;
+      --fc-blue-bg:#142A4D; --fc-blue-fg:#60A5FA;
+      --fc-amber-bg:#3A2B0C; --fc-amber-fg:#FBBF24;
     }
   }
   /* modo oscuro forzado (mismos valores que arriba), sin importar el sistema */
   :root.theme-dark{
-    --bg:#12141A; --card:#1B1E27; --ink:#E8E9EE; --muted:#A8ADBD; --faint:#7A8096;
-    --line:#2E3240; --soft:#242836; --red:#FF6B57; --redbg:#3A211D;
-    --green:#4ADE80; --greenbg:#173324; --amber:#FBBF24; --amberbg:#3A2E10;
-    --blue:#8CA6F5; --bluebg:#1B2340; --gray:#3A3F52;
-    --accent:#4C5FAB; --accent-hover:#5E70C2; --header-bg:rgba(18,20,26,.85);
-    --cta-shadow:rgba(0,0,0,.45); --cta-shadow-hover:rgba(0,0,0,.55);
+    --bg:#0F1420; --bg-alt:#171D2C; --card:#1B2333; --border:#2B3348;
+    --ink:#EDEFF7; --text:#C7CCDC; --text-soft:#8890AA;
+    --navy:#2B3A63; --navy-2:#3D5089;
+    --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38;
+    --green:#4ADE80; --amber:#FBBF24; --red:#FF6B6B; --blue:#60A5FA;
+    --header-bg:rgba(15,20,32,.85);
+    --shadow-1:rgba(0,0,0,.35); --shadow-2:rgba(0,0,0,.5); --shadow-3:rgba(0,0,0,.6);
+    --fc-green-bg:#123722; --fc-green-fg:#4ADE80;
+    --fc-blue-bg:#142A4D; --fc-blue-fg:#60A5FA;
+    --fc-amber-bg:#3A2B0C; --fc-amber-fg:#FBBF24;
   }
   /* modo claro forzado: :root ya nace con los valores claros arriba, no hace falta repetirlos —
      alcanza con que la regla dark de @media excluya :not(.theme-light) como hace arriba */
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-       font-size:15px;line-height:1.5}
-  a{color:inherit}
-  .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
-  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:var(--display)}
+  a{text-decoration:none;color:inherit}
+  ul{list-style:none}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
 
   /* header */
-  header.site{position:sticky;top:0;background:var(--header-bg);backdrop-filter:blur(6px);
-    border-bottom:1px solid var(--line);z-index:10}
-  header.site .bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
-  .brand{display:flex;flex-direction:column;line-height:1.2}
-  .brand b{font-size:15.5px;letter-spacing:-.01em}
-  .bar-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}
-  nav.mainnav{display:flex;gap:22px;font-size:13.5px;font-weight:500}
-  nav.mainnav a{text-decoration:none;color:var(--muted)}
-  nav.mainnav a:hover{color:var(--ink)}
+  header.site{position:sticky;top:0;z-index:50;background:var(--header-bg);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border)}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:14px 20px;max-width:1180px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;color:var(--ink)}
+  .brand .mark{width:32px;height:32px;border-radius:9px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--navy),var(--navy-2));
+    display:flex;align-items:center;justify-content:center}
+  .nav-links{display:flex;align-items:center;gap:28px}
+  .nav-links a{font-size:14px;font-weight:500;color:var(--text-soft)}
+  .nav-links a:hover{color:var(--ink)}
+  .nav-actions{display:flex;align-items:center;gap:12px;flex-shrink:0}
+
   .theme-toggle{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
-    width:34px;height:34px;border-radius:99px;border:1px solid var(--line);background:var(--card);
+    width:34px;height:34px;border-radius:99px;border:1px solid var(--border);background:var(--card);
     color:var(--ink);cursor:pointer;padding:0}
   .theme-toggle:hover{border-color:var(--ink)}
   .theme-toggle svg{display:block}
 
   /* botones */
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;
-       border-radius:9px;padding:12px 22px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid transparent}
-  .btn.primary{background:var(--accent);color:#fff}
-  .btn.primary:hover{background:var(--accent-hover)}
-  .btn.secondary{background:var(--card);color:var(--ink);border-color:var(--line)}
-  .btn.secondary:hover{border-color:var(--ink)}
-  .btn.block{width:100%}
-  .btn[disabled],.btn.disabled{opacity:.5;cursor:not-allowed;pointer-events:none}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    border-radius:11px;padding:11px 20px;font-weight:600;font-size:14.5px;cursor:pointer;
+    border:1px solid transparent;white-space:nowrap}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;
+    box-shadow:0 8px 20px -6px rgba(20,184,166,.55)}
+  .btn-primary:hover{box-shadow:0 10px 24px -6px rgba(20,184,166,.65)}
+  .btn-ghost{color:var(--ink);font-weight:600}
+  .btn-ghost:hover{color:var(--accent-dark)}
+  .btn-block{width:100%}
 
   /* hero */
-  .hero{padding:76px 0 64px;text-align:center}
-  .hero h1{font-size:38px;line-height:1.18;letter-spacing:-.015em;margin:14px 0 16px}
-  .hero p.sub{font-size:16.5px;color:var(--muted);max-width:600px;margin:0 auto 30px}
-  .hero .actions{display:flex;flex-direction:column;align-items:center;gap:14px}
-  .hero-cta{padding:20px 44px;font-size:18px;border-radius:12px;box-shadow:0 6px 20px var(--cta-shadow)}
-  .hero-cta:hover{box-shadow:0 8px 24px var(--cta-shadow-hover)}
-  .btn-link{font-size:13.5px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
-  .btn-link:hover{color:var(--ink)}
+  .hero{padding:64px 20px 40px}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center}
+  .eyebrow{display:inline-block;background:var(--accent-soft);color:var(--accent-dark);
+    font-weight:700;font-size:12px;letter-spacing:.06em;padding:6px 14px;border-radius:20px;margin-bottom:18px}
+  .hero h1{font-size:38px;line-height:1.16;font-weight:800;color:var(--ink);
+    margin-bottom:16px;letter-spacing:-.01em}
+  .hero h1 span{color:var(--accent-dark)}
+  .hero p.lead{font-size:16.5px;line-height:1.6;color:var(--text-soft);max-width:480px;margin-bottom:28px}
+  .hero-ctas{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-bottom:30px}
+  .trust-row{display:flex;gap:22px;flex-wrap:wrap}
+  .trust-item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-soft);font-weight:500}
+  .trust-item svg{width:16px;height:16px;color:var(--accent-dark);flex-shrink:0}
+
+  /* hero mockup */
+  .hero-visual{position:relative}
+  .app-frame{background:var(--card);border-radius:18px;border:1px solid var(--border);
+    box-shadow:0 30px 60px -20px var(--shadow-3);overflow:hidden}
+  .app-topbar{display:flex;align-items:center;gap:8px;padding:13px 16px;background:var(--navy)}
+  .wdot{width:10px;height:10px;border-radius:50%}
+  .wdot.r{background:#FF5F57} .wdot.y{background:#FEBC2E} .wdot.g{background:#28C840}
+  .app-tab{margin-left:12px;color:rgba(255,255,255,.85);font-size:12px;font-weight:600}
+  .app-body{padding:18px}
+  .app-section-title{font-size:11px;font-weight:700;color:var(--text-soft);letter-spacing:.05em;
+    margin-bottom:12px;text-transform:uppercase}
+  .student-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:11px;
+    background:var(--bg-alt);margin-bottom:8px}
+  .semaforo{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .student-name{font-size:13px;font-weight:600;color:var(--ink);width:88px;flex-shrink:0}
+  .progress-track{flex:1;height:7px;border-radius:6px;background:var(--border);overflow:hidden}
+  .progress-fill{height:100%;border-radius:6px}
+  .stat-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+  .stat-tile{background:var(--bg-alt);border-radius:11px;padding:12px 8px;text-align:center}
+  .stat-num{font-family:var(--display);font-weight:700;font-size:16.5px;color:var(--ink)}
+  .stat-label{font-size:10px;color:var(--text-soft);font-weight:600;margin-top:2px}
+  .floating-badge{position:absolute;left:-16px;bottom:22px;background:var(--card);
+    border:1px solid var(--border);border-radius:14px;padding:11px 15px;display:flex;
+    align-items:center;gap:10px;box-shadow:0 16px 34px -12px var(--shadow-3);transform:rotate(-3deg)}
+  .floating-badge .t1{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .floating-badge .t2{font-size:11px;color:var(--text-soft)}
+
+  .icon-circle{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;
+    justify-content:center;flex-shrink:0}
+  .icon-circle svg{width:19px;height:19px}
 
   /* secciones */
-  section{padding:56px 0}
-  .stitle{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-          color:var(--faint);text-align:center;margin-bottom:8px}
-  h2.sectitle{font-size:26px;text-align:center;margin:0 0 40px;letter-spacing:-.01em}
+  section{padding:64px 20px}
+  .section-head{text-align:center;max-width:640px;margin:0 auto 44px}
+  .section-head h2{font-size:28px;font-weight:800;color:var(--ink);margin:12px 0 12px;letter-spacing:-.01em}
+  .section-head p{font-size:15.5px;color:var(--text-soft);line-height:1.6}
 
-  .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px}
-  .card .dot{width:9px;height:9px;border-radius:99px;display:inline-block;margin-bottom:12px}
-  .card h3{font-size:15.5px;margin:0 0 6px}
-  .card p{font-size:13.5px;color:var(--muted);margin:0}
+  .features{background:var(--bg-alt)}
+  .feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  .feature-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px 20px}
+  .feature-card h3{font-size:15.5px;font-weight:700;color:var(--ink);margin:14px 0 7px}
+  .feature-card p{font-size:13.5px;line-height:1.55;color:var(--text-soft)}
+  .fc-green .icon-circle{background:var(--fc-green-bg);color:var(--fc-green-fg)}
+  .fc-blue .icon-circle{background:var(--fc-blue-bg);color:var(--fc-blue-fg)}
+  .fc-amber .icon-circle{background:var(--fc-amber-bg);color:var(--fc-amber-fg)}
+  .fc-teal .icon-circle{background:var(--accent-soft);color:var(--accent-dark)}
 
-  .dlgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;align-items:stretch}
-  .dlgrid.single{max-width:440px;margin:0 auto}
-  .dlcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;
-          display:flex;flex-direction:column;gap:10px}
-  .dlcard .platform{font-weight:700;font-size:16px}
-  .dlcard .desc{font-size:13px;color:var(--muted);margin-bottom:6px;min-height:34px}
-  .dlcard .meta{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:2px}
-  .dlcard .subnote{font-size:11px;color:var(--faint);line-height:1.4;margin-top:2px}
-  .section-note{margin-top:22px;font-size:12px;color:var(--faint);text-align:center}
+  /* usala / plataformas */
+  .platform-grid{display:grid;gap:22px}
+  .platform-grid.single{max-width:440px;margin:0 auto}
+  .platform-card{background:var(--card);border:1px solid var(--border);border-radius:18px;
+    padding:30px 26px;text-align:center;box-shadow:0 20px 40px -28px var(--shadow-3)}
+  .platform-card.highlight{border:2px solid var(--accent);box-shadow:0 20px 44px -20px rgba(20,184,166,.35)}
+  .platform-icon{width:52px;height:52px;border-radius:15px;margin:0 auto 18px;
+    display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--navy),var(--navy-2))}
+  .platform-icon svg{width:26px;height:26px;color:#fff}
+  .platform-card h3{font-size:18px;font-weight:700;color:var(--ink);margin-bottom:8px}
+  .platform-card p{font-size:13.5px;color:var(--text-soft);line-height:1.55;margin-bottom:16px}
+  .platform-card .subnote{font-size:11.5px;color:var(--text-soft);line-height:1.4;margin-top:14px}
+  .badge{display:inline-block;font-size:11.5px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:.03em}
+  .badge-live{background:var(--accent-soft);color:var(--accent-dark)}
+  .section-note{margin-top:26px;font-size:12px;color:var(--text-soft);text-align:center}
 
-  footer.site{border-top:1px solid var(--line);padding:30px 0;text-align:center;
-    color:var(--faint);font-size:12.5px}
-  footer.site a{color:var(--muted);text-decoration:none}
+  footer.site{padding:40px 20px;text-align:center;border-top:1px solid var(--border)}
+  footer.site .brand{justify-content:center;margin-bottom:10px}
+  footer.site p{color:var(--text-soft);font-size:13px}
   footer.site a:hover{color:var(--ink)}
+  footer.site .copyright{margin-top:16px;font-size:11.5px;color:var(--text-soft);opacity:.75}
 
-  @media (max-width:640px){
-    .hero{padding:52px 0 44px}
+  @media (max-width:900px){
+    .hero-grid{grid-template-columns:1fr}
+    .hero-visual{order:-1;max-width:460px;margin:0 auto 8px}
+    .feature-grid{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:680px){
+    .nav-links{display:none}
+    .hero{padding:44px 16px 32px}
     .hero h1{font-size:29px}
-    section{padding:40px 0}
-    nav.mainnav{gap:14px}
-    .bar-right{gap:10px}
+    section{padding:44px 16px}
+    .feature-grid{grid-template-columns:1fr}
+    .floating-badge{left:8px}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -175,90 +276,198 @@
 <body>
 
 <header class="site">
-  <div class="wrap bar">
+  <div class="nav">
     <div class="brand">
-      <b>Cuaderno de seguimiento</b>
+      <span class="mark">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </span>
+      Cuaderno de seguimiento
     </div>
-    <div class="bar-right">
-      <nav class="mainnav">
-        <a href="#caracteristicas">Características</a>
-        <a href="#usala">Usala donde quieras</a>
-      </nav>
+    <ul class="nav-links">
+      <li><a href="#caracteristicas">Características</a></li>
+      <li><a href="#usala">Usala donde quieras</a></li>
+    </ul>
+    <div class="nav-actions">
       <button type="button" id="theme-toggle" class="theme-toggle" onclick="cycleTheme()"></button>
+      <a href="./app/index.html" class="btn btn-primary">Abrir la aplicación</a>
     </div>
   </div>
 </header>
 <script>updateThemeButton(getTheme());</script>
 
 <section class="hero">
-  <div class="wrap">
-    <h1>Seguimiento real de estudiantes</h1>
-    <p class="sub">Una app que te simplifica la vida</p>
-    <div class="actions">
-      <a class="btn primary hero-cta" href="./app/index.html">Abrir la aplicación web</a>
-      <a class="btn-link" href="#usala">Usala donde quieras</a>
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">PARA PROFES PARTICULARES</span>
+      <h1>Tu seguimiento de alumnos,<br>ordenado y <span>siempre a mano</span></h1>
+      <p class="lead">Pagos, informes, horarios y materiales en un solo lugar — para que dediques tu tiempo a enseñar, no a armar planillas.</p>
+      <div class="hero-ctas">
+        <a href="./app/index.html" class="btn btn-primary">
+          Abrir la aplicación
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+        <a href="#caracteristicas" class="btn btn-ghost">Ver características ↓</a>
+      </div>
+      <div class="trust-row">
+        <div class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          Sin instalación
+        </div>
+        <div class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          Funciona sin internet
+        </div>
+        <div class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          Tus datos, siempre tuyos
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-visual">
+      <div class="app-frame">
+        <div class="app-topbar">
+          <span class="wdot r"></span><span class="wdot y"></span><span class="wdot g"></span>
+          <span class="app-tab">Mis alumnos</span>
+        </div>
+        <div class="app-body">
+          <div class="app-section-title">Estado del grupo</div>
+
+          <div class="student-row">
+            <span class="semaforo" style="background:var(--green)"></span>
+            <span class="student-name">Lucía R.</span>
+            <div class="progress-track"><div class="progress-fill" style="width:88%;background:var(--green)"></div></div>
+          </div>
+          <div class="student-row">
+            <span class="semaforo" style="background:var(--blue)"></span>
+            <span class="student-name">Tomás G.</span>
+            <div class="progress-track"><div class="progress-fill" style="width:70%;background:var(--blue)"></div></div>
+          </div>
+          <div class="student-row">
+            <span class="semaforo" style="background:var(--amber)"></span>
+            <span class="student-name">Martina P.</span>
+            <div class="progress-track"><div class="progress-fill" style="width:52%;background:var(--amber)"></div></div>
+          </div>
+          <div class="student-row">
+            <span class="semaforo" style="background:var(--red)"></span>
+            <span class="student-name">Bruno S.</span>
+            <div class="progress-track"><div class="progress-fill" style="width:30%;background:var(--red)"></div></div>
+          </div>
+
+          <div class="stat-tiles">
+            <div class="stat-tile"><div class="stat-num">12</div><div class="stat-label">ALUMNOS ACTIVOS</div></div>
+            <div class="stat-tile"><div class="stat-num">3</div><div class="stat-label">CLASES HOY</div></div>
+            <div class="stat-tile"><div class="stat-num">$45k</div><div class="stat-label">POR COBRAR</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="floating-badge">
+        <span class="icon-circle" style="width:30px;height:30px;background:var(--accent-soft);color:var(--accent-dark)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </span>
+        <div>
+          <div class="t1">Informe enviado</div>
+          <div class="t2">PDF listo para compartir</div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
-<section id="caracteristicas">
+<section class="features" id="caracteristicas">
   <div class="wrap">
-    <div class="stitle">Características</div>
-    <h2 class="sectitle">Pensada para el día a día de dar clases</h2>
-    <div class="cardgrid">
-      <div class="card">
-        <span class="dot" style="background:var(--green)"></span>
+    <div class="section-head">
+      <span class="eyebrow">CARACTERÍSTICAS</span>
+      <h2>Pensada para el día a día de dar clases</h2>
+      <p>Todo lo que ya hacés con planillas sueltas, en un solo lugar y automático.</p>
+    </div>
+    <div class="feature-grid">
+
+      <div class="feature-card fc-green">
+        <span class="icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="16" cy="15" r="1.5"/></svg>
+        </span>
         <h3>Pagos y cuentas claras</h3>
         <p>Cargá tarifa y modalidad por alumno, marcá clases o pagos al cobrarlos, y mirá quién te debe sin armar una planilla aparte.</p>
       </div>
-      <div class="card">
-        <span class="dot" style="background:var(--blue)"></span>
+
+      <div class="feature-card fc-blue">
+        <span class="icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>
+        </span>
         <h3>Informes compartibles</h3>
         <p>Generá un informe de progreso prolijo por alumno — temas, clases, simulacros y tu comentario — listo para descargar en PDF o compartir.</p>
       </div>
-      <div class="card">
-        <span class="dot" style="background:var(--amber)"></span>
+
+      <div class="feature-card fc-amber">
+        <span class="icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </span>
         <h3>Botones de WhatsApp</h3>
         <p>Mandá recordatorios de clase, de tarea o de examen con el mensaje ya armado, en un toque.</p>
       </div>
-      <div class="card">
-        <span class="dot" style="background:var(--red)"></span>
+
+      <div class="feature-card fc-teal">
+        <span class="icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        </span>
         <h3>Estadísticas con el aula visual</h3>
         <p>Semáforo del grupo, avance de temas y tasa de aprobación, más un aula visual con un banco por alumno para ver el estado de todos de un vistazo.</p>
       </div>
-      <div class="card">
-        <span class="dot" style="background:var(--green)"></span>
+
+      <div class="feature-card fc-green">
+        <span class="icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        </span>
         <h3>Agenda semanal</h3>
         <p>Horarios habituales y clases puntuales de todos tus alumnos en una sola semana, con aviso si dos se superponen, y exportación a Google Calendar.</p>
       </div>
-      <div class="card">
-        <span class="dot" style="background:var(--blue)"></span>
+
+      <div class="feature-card fc-blue">
+        <span class="icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </span>
         <h3>Materiales por materia</h3>
         <p>Subí guías, resúmenes y ejercicios por materia y accedelos desde cualquier dispositivo.</p>
       </div>
-      <div class="card">
-        <span class="dot" style="background:var(--amber)"></span>
+
+      <div class="feature-card fc-amber">
+        <span class="icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </span>
         <h3>Modo oscuro</h3>
         <p>Se adapta al tema del sistema, o lo elegís vos: clara, oscura o automática.</p>
       </div>
-      <div class="card">
-        <span class="dot" style="background:var(--red)"></span>
+
+      <div class="feature-card fc-teal">
+        <span class="icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+        </span>
         <h3>Respaldos automáticos</h3>
         <p>Además de la sincronización, se guarda una copia completa por día — y podés restaurar cualquiera de las últimas 15 si algo sale mal.</p>
       </div>
+
     </div>
   </div>
 </section>
 
 <section id="usala">
   <div class="wrap">
-    <div class="stitle">Usala donde quieras</div>
-    <h2 class="sectitle">En la compu, en el celular, con o sin internet</h2>
-    <div class="dlgrid single">
-      <div class="dlcard">
-        <div class="platform">Versión web</div>
-        <div class="desc">Se abre directo en el navegador, en la compu o el celular. No requiere instalación, funciona con o sin conexión, y sincroniza sola entre tus dispositivos.</div>
-        <a class="btn primary block" href="./app/index.html">Abrir la aplicación</a>
+    <div class="section-head">
+      <span class="eyebrow">USALA DONDE QUIERAS</span>
+      <h2>En la compu, en el celular, con o sin internet</h2>
+      <p>Empezá ahora desde el navegador — no requiere instalación ni cuenta técnica, y sincroniza sola entre tus dispositivos.</p>
+    </div>
+    <div class="platform-grid single">
+      <div class="platform-card highlight">
+        <div class="platform-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>
+        </div>
+        <h3>Versión web</h3>
+        <p>Se abre directo en el navegador, en la compu o el celular. No requiere instalación, funciona con o sin conexión, y sincroniza sola entre tus dispositivos.</p>
+        <a class="btn btn-primary btn-block" href="./app/index.html">Abrir la aplicación</a>
+        <span class="badge badge-live" style="margin-top:14px">● Disponible ahora</span>
         <div class="subnote">Desde el navegador del celular podés tocar "Agregar a la pantalla de inicio" para tenerla como una app más, con su propio ícono.</div>
       </div>
     </div>
@@ -268,7 +477,14 @@
 
 <footer class="site">
   <div class="wrap">
-    Cuaderno de seguimiento — Contacto: <a href="mailto:manugandini53@gmail.com">manugandini53@gmail.com</a>
+    <div class="brand">
+      <span class="mark">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </span>
+      Cuaderno de seguimiento
+    </div>
+    <p>Contacto: <a href="mailto:manugandini53@gmail.com">manugandini53@gmail.com</a></p>
+    <div class="copyright">© 2026 Cuaderno de seguimiento</div>
   </div>
 </footer>
 

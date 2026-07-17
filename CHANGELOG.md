@@ -24,6 +24,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/), adaptado
 a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc.).
 
 ## [Sin publicar]
+- Rediseño de la landing (`web/index.html`): paleta azul marino/verde-azulado, tipografías Poppins/Inter alojadas localmente en `web/fonts/` (sin CDN), header sticky, hero a dos columnas con mock del dashboard, grilla de características con íconos SVG inline y estilo nuevo para "Usala donde quieras"; conserva el selector de tema claro/oscuro/automático con variantes coherentes para ambos temas.
 
 ## [2.0.3] - 2026-07-16
 - Base del portal de invitados: tabla `portales` y RPC pública `portal_publico()` (migración 013), sección "Portal para tus alumnos" en Cuenta (activar/desactivar, copiar link, regenerar llave, publicar el nombre a mostrar) y página standalone `portal.html`/`js/portal.js` sin sesión y fuera del service worker.
