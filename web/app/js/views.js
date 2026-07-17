@@ -1900,6 +1900,11 @@ function vCuenta(){
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${themeBtn("system","Según el sistema")}${themeBtn("light","Claro")}${themeBtn("dark","Oscuro")}
     </div>
+    <div class="flabel" style="margin:14px 0 6px">Densidad</div>
+    <div class="hint" style="margin-bottom:8px">Compacta reduce el alto de filas y tarjetas en las listas largas (estudiantes, clases, pagos, agenda, materiales) para ver más de un vistazo.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${densityBtn("comoda","Cómoda")}${densityBtn("compacta","Compacta")}
+    </div>
   </div>
   <div class="formcard"><div class="ftitle">Respaldos automáticos</div>
     <div class="hint" style="margin-bottom:10px">Se guarda una copia completa una vez por día, en la primera sincronización. Se conservan las últimas ${MAX_BACKUPS}. Esto no reemplaza la copia manual (.json) del tablero — conviven.</div>
@@ -1943,6 +1948,9 @@ function vCentroAyuda(){
 }
 function themeBtn(v,label){
   return `<button class="chip ${getTheme()===v?"on":""}" data-a="set-theme" data-f="${v}">${label}</button>`;
+}
+function densityBtn(v,label){
+  return `<button class="chip ${getDensity()===v?"on":""}" data-a="set-density" data-f="${v}">${label}</button>`;
 }
 function reportStatusText(){
   if(state.reportStatus==="sending") return "Enviando…";

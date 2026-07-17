@@ -511,6 +511,7 @@ document.addEventListener("click", (e)=>{
     return;
   }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }
+  else if(a==="set-density"){ setDensity(el.dataset.f); }
   else if(a==="sync-now"){ syncNow(true); return; }
   else if(a==="dismiss-update-banner"){ state.updateBannerDismissed=true; }
   else if(a==="sw-update-apply"){ applySwUpdate(); return; }

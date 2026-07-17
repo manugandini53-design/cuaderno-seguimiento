@@ -35,6 +35,14 @@ function applyTheme(theme){
 }
 function setTheme(theme){ localStorage.setItem(THEME_KEY, theme); applyTheme(theme); }
 applyTheme(getTheme()); // se aplica de entrada, antes del primer render, para evitar parpadeo
+// Densidad (paso 102): "comoda" (default) | "compacta" — preferencia local, mismo criterio que
+// THEME_KEY (no viaja en el JSON del cuaderno, es por dispositivo). Sólo achica paddings/alto de
+// fila/margen vía variables CSS (ver body.density-compact en styles.css); el texto no se achica.
+const DENSITY_KEY = "tutoria-density";
+function getDensity(){ return localStorage.getItem(DENSITY_KEY) || "comoda"; }
+function applyDensity(d){ document.body.classList.toggle("density-compact", d==="compacta"); }
+function setDensity(d){ localStorage.setItem(DENSITY_KEY, d); applyDensity(d); }
+applyDensity(getDensity()); // igual que el tema, aplicada de entrada para evitar parpadeo
 const RELEASES_API = "https://api.github.com/repos/entreclases/entreclases.github.io/releases/latest";
 const DOWNLOADS_URL = "https://entreclases.github.io/#usala";
 // Backend de sincronización: un único proyecto Supabase para todos los usuarios de la app.

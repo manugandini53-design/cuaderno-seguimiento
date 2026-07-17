@@ -72,6 +72,21 @@
        de por sí), así que un texto bien oscuro anda mejor en los dos sin duplicar el token por
        tema. Ver .primary/.tabbtn.on/.chip.on/.count/.cal-count/.desk-* más abajo. ============ */
     --on-accent:#062824; --on-green:#0B2E17; --on-red:#3D0A08;
+    /* ============ densidad (paso 102): "Cómoda" (default) vs "Compacta" — ver Cuenta →
+       Apariencia → Densidad (getDensity()/setDensity() en config.js, body.density-compact
+       más abajo). Sólo paddings/alto de fila/margen: el texto nunca baja de 13-14px. ============ */
+    --row-pad:11px 14px; --row-mb:7px;
+    --log-pad:9px 12px; --log-mb:6px;
+    --agenda-event-pad:7px 9px; --agenda-event-mb:6px;
+    --agenda-day-pad:10px; --agenda-day-minh:64px;
+    --cal-cell-pad:6px 4px; --cal-cell-minh:52px;
+  }
+  body.density-compact{
+    --row-pad:6px 10px; --row-mb:4px;
+    --log-pad:5px 10px; --log-mb:4px;
+    --agenda-event-pad:4px 7px; --agenda-event-mb:3px;
+    --agenda-day-pad:6px; --agenda-day-minh:46px;
+    --cal-cell-pad:4px 3px; --cal-cell-minh:38px;
   }
   @media (prefers-color-scheme:dark){
     :root:not(.theme-light){
@@ -233,10 +248,10 @@
   .examresult{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--amber);
               border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:14px}
   .agenda-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-  .agenda-day{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:64px}
+  .agenda-day{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:var(--agenda-day-pad);min-height:var(--agenda-day-minh)}
   .agenda-day.today{border-color:var(--accent);border-width:2px}
   .agenda-daylabel{font-weight:700;font-size:12.5px;margin-bottom:8px;display:flex;justify-content:space-between;gap:6px}
-  .agenda-event{background:var(--soft);border-radius:8px;padding:7px 9px;margin-bottom:6px;font-size:12.5px}
+  .agenda-event{background:var(--soft);border-radius:8px;padding:var(--agenda-event-pad);margin-bottom:var(--agenda-event-mb);font-size:12.5px}
   .agenda-event.overlap{background:var(--redbg);border:1px solid var(--redline2)}
   .agenda-time{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
   .agenda-who{margin-top:2px}
@@ -257,7 +272,7 @@
   .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;
                 font-size:10.5px;font-family:var(--mono);text-transform:uppercase;color:var(--faint);text-align:center}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:16px}
-  .cal-cell{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 4px;min-height:52px;
+  .cal-cell{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:var(--cal-cell-pad);min-height:var(--cal-cell-minh);
             display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink)}
   .cal-cell.other{opacity:.4}
   .cal-cell.today{border-color:var(--accent);border-width:2px}
@@ -278,7 +293,7 @@
         padding:6px 13px;font-size:12.5px;color:var(--muted);display:inline-block}
   .chip.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
   .row{display:flex;align-items:center;gap:8px;width:100%;background:var(--card);
-       border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin-bottom:7px}
+       border:1px solid var(--line);border-radius:10px;padding:var(--row-pad);margin-bottom:var(--row-mb)}
   .row-click{display:flex;align-items:center;gap:10px;flex:1;min-width:0;background:none;border:none;
              padding:0;margin:0;color:var(--ink);text-align:left;font:inherit;cursor:pointer}
   .row .main{flex:1;min-width:0}
@@ -302,7 +317,7 @@
   .field{flex:1;min-width:150px}
   .flabel{font-size:11px;font-family:var(--mono);color:var(--faint);margin-bottom:4px}
   .log{display:flex;gap:10px;align-items:flex-start;background:var(--card);
-       border:1px solid var(--soft);border-radius:8px;padding:9px 12px;margin-bottom:6px}
+       border:1px solid var(--soft);border-radius:8px;padding:var(--log-pad);margin-bottom:var(--log-mb)}
   .log .d{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:70px}
   .log .body{flex:1;min-width:0}
   .log .note{font-size:14px;color:var(--muted);margin-top:2px}
