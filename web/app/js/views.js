@@ -163,22 +163,108 @@ function vBackupReminder(){
     </div>
   </div>`;
 }
+/* ============ panel "Hoy": lo importante del día de un vistazo, arriba del tablero ============
+   Tres bloques con la misma tarjeta (.ds-card.hoy-card): "Clases de hoy" (agenda del día,
+   con botón registrar/ver), "Para cobrar" (reusa cobrosAtrasadosSummary/vCobrosBanner, el
+   mismo recordatorio de cobro que antes vivía como banner suelto) y "Próximo" (exámenes
+   cercanos + objetivos de clase sin cerrar + clases de mañana, mezclados por orden de bloque).
+   Cada uno muestra su número grande arriba y un acceso directo abajo; sin datos, el estado
+   vacío amable de emptyState() en vez de dejar la tarjeta en blanco. */
+function hoyCard(title, num, body, action){
+  return `<div class="ds-card hoy-card">
+    <div class="hoy-card-head"><span class="ds-eyebrow">${esc(title)}</span><span class="hoy-num">${num}</span></div>
+    <div class="hoy-card-body">${body}</div>
+    ${action?`<button class="btn btn-ghost btn-block hoy-card-action" data-a="${action.a}">${esc(action.label)}</button>`:""}
+  </div>`;
+}
+function vHoyClasesHoy(){
+  const events = agendaRangeEvents(today(), today()).sort((a,b)=>a.time.localeCompare(b.time));
+  const body = events.length===0
+    ? emptyState(ICON_CALENDAR, "Sin clases hoy", "No tenés clases agendadas para hoy.")
+    : events.map(e=>{
+        const done = studentHasSessionOnDate(e.studentId, today());
+        return `<div class="hoy-row">
+          <div class="hoy-row-main">
+            <span class="hoy-row-time">${esc(e.time)}</span>
+            <span class="hoy-row-name">${esc(e.studentName)}</span>
+            ${e.subject?`<span class="hint">· ${esc(e.subject)}</span>`:""}
+          </div>
+          ${done ? `<span class="badge badge-green">Registrada</span>`
+            : `<button class="chip" data-a="agenda-log" data-id="${e.studentId}" data-date="${today()}">Registrar</button>`}
+        </div>`;
+      }).join("");
+  return hoyCard("Clases de hoy", events.length, body, {a:"nav-agenda", label:"Ver agenda completa"});
+}
+function vHoyCobrar(){
+  const rec = recordatoriosFor();
+  const sum = rec.activo ? cobrosAtrasadosSummary(rec.diasAtraso) : {count:0, total:0};
+  let body;
+  if(!rec.activo){
+    body = emptyState(ICON_WALLET, "Recordatorios de cobro desactivados",
+      "Activalos desde Materias → Recordatorios para ver acá lo pendiente.",
+      `<button class="btn btn-secondary" data-a="nav-catalog">Ir a Materias</button>`);
+  }else if(sum.count===0){
+    body = emptyState(ICON_WALLET, "Todo cobrado", "No hay clases, mensualidades ni señas pendientes por ahora.");
+  }else{
+    body = `<div class="hoy-total">${fmtMoney(sum.total)}</div>` + vCobrosBanner();
+  }
+  return hoyCard("Para cobrar", sum.count, body, {a:"nav-pagos", label:"Ver en Pagos"});
+}
+function vHoyProximo(){
+  const activos = alive().filter(s=>s.status==="activo");
+  const exams = activos.filter(s=>s.examDate && daysTo(s.examDate)>=0 && daysTo(s.examDate)<=14)
+    .sort((a,b)=>a.examDate.localeCompare(b.examDate)).slice(0,3);
+  const goals = activos.map(s=>({s,c:pendingGoalClosure(s)})).filter(x=>x.c).slice(0,3);
+  const tomorrow = addDays(today(),1);
+  const manana = agendaRangeEvents(tomorrow,tomorrow).sort((a,b)=>a.time.localeCompare(b.time));
+  const total = exams.length + goals.length + manana.length;
+  let body;
+  if(total===0){
+    body = emptyState(ICON_CALENDAR, "Nada urgente a la vista",
+      "Sin exámenes próximos, objetivos por cerrar ni clases agendadas para mañana.");
+  }else{
+    body = "";
+    if(exams.length){
+      body += `<div class="hoy-subhead">Exámenes próximos</div>` + exams.map(s=>{
+        const d=daysTo(s.examDate);
+        return `<button class="hoy-row hoy-row-click" data-a="open" data-id="${s.id}">
+          <span class="hoy-row-name">${esc(s.name)}</span>
+          <span class="badge ${d<=7?"badge-red":"badge-neutral"}">${d===0?"Hoy":d+"d"}</span>
+        </button>`;
+      }).join("");
+    }
+    if(goals.length){
+      body += `<div class="hoy-subhead">Objetivos por cerrar</div>` + goals.map(({s,c})=>
+        `<button class="hoy-row hoy-row-click" data-a="open" data-id="${s.id}">
+          <span class="hoy-row-name">${esc(s.name)}</span>
+          <span class="hint">${esc(c.objetivo)}</span>
+        </button>`).join("");
+    }
+    if(manana.length){
+      body += `<div class="hoy-subhead">Mañana</div>` + manana.map(e=>
+        `<div class="hoy-row"><span class="hoy-row-time">${esc(e.time)}</span><span class="hoy-row-name">${esc(e.studentName)}</span></div>`
+      ).join("");
+    }
+  }
+  return hoyCard("Próximo", total, body, {a:"nav-agenda", label:"Ver agenda"});
+}
 function vTablero(){
   const activos = alive().filter(s=>s.status==="activo");
   const alerts = activos.flatMap(s=>studentAlerts(s).map(a=>({s,...a})));
   const upcoming = activos.filter(s=>s.examDate && daysTo(s.examDate)>=0)
                           .sort((a,b)=>a.examDate.localeCompare(b.examDate));
   const enRiesgo = new Set(alerts.map(a=>a.s.id)).size;
-  let h = pageHead("Tablero","Panorama general",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`);
+  let h = pageHead("Tablero","Hoy",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`);
   h += vTips();
   h += vBackupReminder();
+
+  h += `<div class="hoy-grid">${vHoyClasesHoy()}${vHoyCobrar()}${vHoyProximo()}</div>`;
+
   h += `<div class="stats">
     <div class="stat"><b>${activos.length}</b><span>activos</span></div>
     <div class="stat"><b>${upcoming.length}</b><span>con examen a la vista</span></div>
     <div class="stat ${enRiesgo?"warn":""}"><b>${enRiesgo}</b><span>con alertas</span></div>
   </div>`;
-
-  h += vCobrosBanner();
 
   const examPrompts = pendingExamResults();
   if(examPrompts.length){

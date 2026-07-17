@@ -430,6 +430,32 @@
   .empty-state-text{font-size:12.5px;color:var(--muted);max-width:380px;margin:0 auto;line-height:1.5}
   .empty-state .btn{margin-top:14px}
 
+  /* ============ panel "Hoy": tres bloques arriba del tablero con lo importante del día
+     (clases de hoy, para cobrar, próximo) — una tarjeta .ds-card cada uno, con su número
+     grande y un acceso directo abajo; mobile-first (1 columna, 3 desde 860px) ============ */
+  .hoy-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:18px}
+  @media (min-width:860px){ .hoy-grid{grid-template-columns:repeat(3,1fr)} }
+  .hoy-card{display:flex;flex-direction:column;gap:10px}
+  .hoy-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .hoy-num{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--ink);line-height:1}
+  .hoy-card-body{display:flex;flex-direction:column;gap:6px;flex:1}
+  .hoy-card-body .empty-state{padding:20px 14px;text-align:left}
+  .hoy-card-body .empty-state-icon{margin:0 0 10px}
+  .hoy-subhead{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--faint);margin:6px 0 -1px}
+  .hoy-subhead:first-child{margin-top:0}
+  .hoy-row{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 0;border-bottom:1px solid var(--soft);width:100%;background:none;border-left:none;
+    border-right:none;border-top:none;text-align:left;font:inherit;color:inherit}
+  .hoy-row:last-child{border-bottom:none;padding-bottom:0}
+  .hoy-row-main{display:flex;align-items:baseline;gap:7px;min-width:0;flex-wrap:wrap}
+  .hoy-row-time{font-family:var(--mono);font-size:12px;color:var(--muted);flex-shrink:0}
+  .hoy-row-name{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hoy-row-click{cursor:pointer}
+  .hoy-row-click:hover{color:var(--accent-dark)}
+  .hoy-total{font-family:var(--mono);font-size:13.5px;font-weight:700;color:var(--ink)}
+  .hoy-card-action{margin-top:auto;padding-top:10px;border-top:1px solid var(--soft)}
+
   /* ============ toasts: feedback breve y no intrusivo tras una acción ============ */
   .toast-wrap{position:fixed;left:0;right:0;bottom:72px;z-index:70;display:flex;flex-direction:column;
     align-items:center;gap:8px;pointer-events:none;padding:0 12px}
@@ -477,3 +503,4 @@
   @media (prefers-reduced-motion:reduce){
     .row,.examcard,.topic,.cal-cell,.desk-body,.btn,.primary,.chip,.tabbtn,.danger,.goalbtn,.navitem,.sembtn{transition:none}
   }
+  .hoy-row-click{transition:color .12s ease}

@@ -24,6 +24,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/), adaptado
 a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc.).
 
 ## [Sin publicar]
+- Rediseño del tablero como panel "Hoy" (`web/app/js/views.js`, `web/app/styles.css`): tres tarjetas arriba de todo — "Clases de hoy" (agenda del día con botón registrar/ver clase ya registrada), "Para cobrar" (reusa `cobrosAtrasadosSummary`/`vCobrosBanner`, el mismo recordatorio de cobro existente, ahora dentro de la tarjeta) y "Próximo" (exámenes dentro de 14 días, objetivos de clase por cerrar y clases de mañana) — cada una con su número grande, acceso directo a la vista completa y el estado vacío amable ya existente cuando no hay nada que mostrar; nuevos componentes `.hoy-grid`/`.hoy-card` en tarjetas, mobile-first (1 columna, 3 desde 860px) y con los mismos design tokens claro/oscuro que el resto de la app. Precache del service worker en `cuaderno-v60`.
 
 ## [2.0.4] - 2026-07-17
 - Rediseño de la landing (`web/index.html`): paleta azul marino/verde-azulado, tipografías Poppins/Inter alojadas localmente en `web/fonts/` (sin CDN), header sticky, hero a dos columnas con mock del dashboard, grilla de características con íconos SVG inline y estilo nuevo para "Usala donde quieras"; conserva el selector de tema claro/oscuro/automático con variantes coherentes para ambos temas.
