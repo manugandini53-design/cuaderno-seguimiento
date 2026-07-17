@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Entreclases</title>
 <meta name="description" content="Entreclases — vos enseñás, del resto nos ocupamos. La app para llevar el progreso de tus alumnos de clases particulares: temas, clases, simulacros y alertas de examen, con o sin internet.">
 <link rel="icon" href="app/icon-192.png">
@@ -148,9 +148,9 @@
 
   /* header */
   header.site{position:sticky;top:0;z-index:50;background:var(--header-bg);backdrop-filter:blur(10px);
-    border-bottom:1px solid var(--border)}
-  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;
-    padding:14px 20px;max-width:1180px;margin:0 auto}
+    border-bottom:1px solid var(--border);padding-top:env(safe-area-inset-top)}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;row-gap:10px;
+    padding:14px calc(20px + env(safe-area-inset-right)) 14px calc(20px + env(safe-area-inset-left));max-width:1180px;margin:0 auto}
   .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;color:var(--ink)}
   .brand .mark{width:32px;height:32px;border-radius:9px;flex-shrink:0;
     background:linear-gradient(135deg,var(--navy),var(--navy-2));
@@ -191,7 +191,7 @@
   .hero p.lead{font-size:16.5px;line-height:1.6;color:var(--text-soft);max-width:480px;margin-bottom:28px}
   .hero-ctas{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-bottom:30px}
   .trust-row{display:flex;gap:22px;flex-wrap:wrap}
-  .trust-item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-soft);font-weight:500}
+  .trust-item{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-soft);font-weight:500}
   .trust-item svg{width:16px;height:16px;color:var(--accent-dark);flex-shrink:0}
 
   /* hero mockup */
@@ -235,7 +235,7 @@
   .feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
   .feature-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px 20px}
   .feature-card h3{font-size:15.5px;font-weight:700;color:var(--ink);margin:14px 0 7px}
-  .feature-card p{font-size:13.5px;line-height:1.55;color:var(--text-soft)}
+  .feature-card p{font-size:14px;line-height:1.55;color:var(--text-soft)}
   .fc-green .icon-circle{background:var(--fc-green-bg);color:var(--fc-green-fg)}
   .fc-blue .icon-circle{background:var(--fc-blue-bg);color:var(--fc-blue-fg)}
   .fc-amber .icon-circle{background:var(--fc-amber-bg);color:var(--fc-amber-fg)}
@@ -273,6 +273,8 @@
     .feature-grid{grid-template-columns:1fr}
     .platform-grid-3{grid-template-columns:1fr}
     .floating-badge{left:8px}
+    .btn{min-height:44px}
+    .theme-toggle{width:44px;height:44px}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
