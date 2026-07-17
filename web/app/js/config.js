@@ -118,6 +118,7 @@ function defaultCatalog(){
     recordatorios: defaultRecordatorios(),
     costos: defaultCostos(),
     docente: defaultDocente(),
+    reciboSeq: {},
     updatedAt:0 };
 }
 const TAREA_META = {hecha:{label:"hecha",fg:"var(--tarea-hecha-fg)"},intentada:{label:"intentada",fg:"var(--tarea-intentada-fg)"},no:{label:"no hecha",fg:"var(--tarea-no-fg)"}};

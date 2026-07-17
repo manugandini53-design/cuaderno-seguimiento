@@ -171,7 +171,8 @@ function toastWrap(){
   if(!state.toasts.length) return "";
   return `<div class="toast-wrap no-print">${state.toasts.map(t=>
     `<div class="toast ${t.tone==="error"?"toast-error":""}"><span class="dot"></span>${esc(t.text)}
-    ${t.undo?`<button class="toast-undo" data-a="toast-undo" data-id="${t.id}">Deshacer</button>`:""}</div>`
+    ${t.undo?`<button class="toast-undo" data-a="toast-undo" data-id="${t.id}">Deshacer</button>`:""}
+    ${t.action?`<button class="toast-undo" data-a="toast-action" data-id="${t.id}">${esc(t.action.label)}</button>`:""}</div>`
   ).join("")}</div>`;
 }
 
@@ -723,7 +724,21 @@ function vFichaPagos(s){
     ${!hasPagos(s)?`<div class="hint" style="margin-top:8px">Cargá una tarifa y elegí una modalidad para empezar a llevar el cobro de este alumno.</div>`:""}
   </div>`;
   h += vSeniaCard(s);
+  h += vRecibosCard(s);
   return h;
+}
+// Recibos ya emitidos a este alumno (paso 81) — sólo aparece si tiene alguno; "Ver" reabre el
+// mismo documento imprimible/copiable que se ofreció al cobrar (ver vRecibo más abajo).
+function vRecibosCard(s){
+  const recibos = [...(s.recibos||[])].sort((a,b)=>b.date.localeCompare(a.date)||b.numero.localeCompare(a.numero));
+  if(recibos.length===0) return "";
+  return `<div class="formcard"><div class="ftitle">Recibos emitidos</div>
+    ${recibos.map(r=>`<div class="log">
+      <div class="d">${fmtDate(r.date)}</div>
+      <div class="body">Nº ${esc(r.numero)} · ${esc(reciboTipoLabel(r.tipo))} · ${fmtMoney(r.monto)}</div>
+      <button class="chip" data-a="open-recibo" data-id="${r.id}">Ver</button>
+    </div>`).join("")}
+  </div>`;
 }
 
 /* ============ ficha → Objetivos: racha + historial de objetivos de clase con su resultado ============ */
@@ -1609,6 +1624,46 @@ function buildContratoText(s){
   lines.push("Modelo orientativo: revisalo y adaptalo a tu caso; no constituye asesoramiento legal.");
   lines.push(`Generado con Cuaderno de seguimiento — ${fmtDate(today())}`);
   return lines.join("\n");
+}
+
+/* ============ recibo de pago: mismo patrón visual que informe/contrato (reusa .informe-*),
+   documento chico armado con lo que ya se sabe del cobro que lo generó (ver crearRecibo() en
+   helpers.js) — no hay campos editables acá, es un comprobante fijo de lo ya cobrado. ============ */
+function vRecibo(){
+  const s = sel(); if(!s) return "";
+  const r = reciboFor(s, state.reciboId); if(!r) return "";
+  const doc = docenteFor();
+
+  let h = `<div class="informe-bar no-print">
+    <button class="back" style="margin:0" data-a="close-recibo">← Volver a la ficha</button>
+    <div class="informe-actions">
+      <button class="chip" data-a="recibo-copy">Copiar texto para WhatsApp</button>
+      ${hasPhone(s)?`<a class="chip" target="_blank" rel="noopener" href="${waLink(s,buildReciboText(s,r))}">Enviar por WhatsApp</a>`:""}
+      <button class="primary" style="margin-left:0" data-a="recibo-print">Descargar PDF</button>
+    </div>
+  </div>`;
+
+  h += `<div class="informe-doc">
+    <div class="informe-eyebrow">Recibo de pago</div>
+    <h1 class="informe-name">Nº ${esc(r.numero)}</h1>
+    <div class="informe-sub">${esc(reciboTipoLabel(r.tipo))} · ${esc(fmtDate(r.date))}</div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Partes</div>
+      <div class="informe-row"><div class="informe-rowbody"><b>Alumno/a:</b> ${esc(s.name)}</div></div>
+      ${doc.nombre?`<div class="informe-row"><div class="informe-rowbody"><b>Docente:</b> ${esc(doc.nombre)}</div></div>`:""}
+    </div>
+
+    <div class="informe-section">
+      <div class="informe-stitle">Detalle</div>
+      <div class="informe-row"><div class="informe-rowbody">${esc(r.concepto)}</div></div>
+      <div class="informe-row"><div class="informe-rowbody"><b>Monto:</b> ${fmtMoney(r.monto)}</div></div>
+      ${r.saldo>0?`<div class="informe-row"><div class="informe-rowbody"><b>Saldo restante:</b> ${fmtMoney(r.saldo)}</div></div>`:""}
+    </div>
+
+    <div class="informe-footer">Generado con Cuaderno de seguimiento — ${esc(fmtDate(today()))}</div>
+  </div>`;
+  return h;
 }
 
 function vAuth(){
@@ -2942,6 +2997,10 @@ function render(){
   if(state.view==="contrato"){
     if(!sel()){ state.view="tablero"; }
     else{ document.body.classList.remove("has-nav"); document.getElementById("app").innerHTML = vContrato()+toastWrap(); return; }
+  }
+  if(state.view==="recibo"){
+    if(!sel() || !reciboFor(sel(), state.reciboId)){ state.view="tablero"; }
+    else{ document.body.classList.remove("has-nav"); document.getElementById("app").innerHTML = vRecibo()+toastWrap(); return; }
   }
   document.body.classList.add("has-nav");
   const ses = getSes();

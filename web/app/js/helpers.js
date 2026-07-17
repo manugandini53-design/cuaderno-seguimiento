@@ -125,14 +125,16 @@ function touchCatalog(){ state.catalog.updatedAt=Date.now(); save(); render(); }
 // 76): toda acción que borra algo llama a toast() con un tercer argumento "undo" — una función
 // sin argumentos que revierte el borrado — y el toast muestra el botón; ver data-a="toast-undo".
 const TOAST_MS = 2600, TOAST_UNDO_MS = 6000;
-function toast(text, tone, undo){
+// action: {label, run} — botón alternativo al de "Deshacer", para ofrecer un paso siguiente
+// opcional (ver recibo de pago, paso 81) en vez de revertir algo; nunca se usan los dos juntos.
+function toast(text, tone, undo, action){
   const id = uid();
-  state.toasts = [...state.toasts, {id, text, tone: tone||"ok", undo: undo||null}];
+  state.toasts = [...state.toasts, {id, text, tone: tone||"ok", undo: undo||null, action: action||null}];
   render();
   setTimeout(()=>{
     state.toasts = state.toasts.filter(t=>t.id!==id);
     render();
-  }, undo ? TOAST_UNDO_MS : TOAST_MS);
+  }, (undo||action) ? TOAST_UNDO_MS : TOAST_MS);
 }
 // packs: agrupan materias existentes para dar de alta un alumno en todas de una (ver events.js
 // "create"). Catálogos guardados antes de este campo no tienen packs — se completa acá.
@@ -177,7 +179,7 @@ function emptyStudent(){
   return { id:uid(), name:"", career:(state.catalog.careers[0]||"Ingeniería"), subject:"", subjectId:"",
     chair:"", status:"activo", semaforo:"sd", examDate:"", startDate:today(), notes:"",
     updatedAt:Date.now(), topics:{}, sessions:[], simulacros:[],
-    tarifa:"", modalidad:"", pagos:[], informeComment:"", phone:"", examResults:[],
+    tarifa:"", modalidad:"", pagos:[], recibos:[], informeComment:"", phone:"", examResults:[],
     horarios:[], clasesPuntuales:[],
     seniaActiva:false, seniaTipo:"monto", seniaValor:"",
     contratoResponsable:"", contratoDni:"", contratoFechaInicio:"", contratoClausulas:"" };
@@ -342,6 +344,45 @@ function pagoResumen(s, mk){
   }
   const cobrado=Math.min(tarifa, (s.pagos||[]).filter(p=>monthKeyOf(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0));
   return { clases:clasesMes.length, total:tarifa, cobrado, pendiente:Math.max(0, tarifa-cobrado) };
+}
+
+/* ============ recibos de pago: numeración simple por año (2026-001, 2026-002…), guardada en
+   catalog.reciboSeq — un contador por año, sin migrar nada para catálogos viejos que no lo
+   tienen todavía. Cada recibo emitido queda además en s.recibos (paso 81), para poder volver a
+   verlo/reimprimirlo desde la ficha sin depender de que WhatsApp lo conserve. ============ */
+function nextReciboNumero(){
+  const year = today().slice(0,4);
+  const seq = {...(state.catalog.reciboSeq||{})};
+  seq[year] = (seq[year]||0)+1;
+  state.catalog.reciboSeq = seq;
+  state.catalog.updatedAt = Date.now();
+  return `${year}-${String(seq[year]).padStart(3,"0")}`;
+}
+// tipo: "clase" | "mensual" | "senia". saldo = lo que le queda pendiente a este alumno después
+// de este cobro (mensualidades) — en "clase"/"senia" no aplica arrastre de saldo, así que 0.
+function crearRecibo(s, {tipo, concepto, monto, date, saldo}){
+  return { id: uid(), numero: nextReciboNumero(), date: date||today(), tipo, concepto,
+    monto: Number(monto)||0, saldo: Number(saldo)||0 };
+}
+function reciboFor(s, id){ return (s.recibos||[]).find(r=>r.id===id); }
+function reciboTipoLabel(tipo){
+  if(tipo==="mensual") return "Mensualidad";
+  if(tipo==="senia") return "Seña";
+  return "Clase";
+}
+function buildReciboText(s, r){
+  const doc = docenteFor();
+  const lines = [];
+  lines.push(`*Recibo Nº ${r.numero}*`);
+  lines.push(`Fecha: ${fmtDate(r.date)}`);
+  lines.push(`Concepto: ${r.concepto}`);
+  lines.push(`Monto: ${fmtMoney(r.monto)}`);
+  if(r.saldo>0) lines.push(`Saldo restante: ${fmtMoney(r.saldo)}`);
+  lines.push(`Alumno/a: ${s.name}`);
+  if(doc.nombre) lines.push(`Docente: ${doc.nombre}`);
+  lines.push("");
+  lines.push("_Generado con Cuaderno de seguimiento_");
+  return lines.join("\n");
 }
 
 /* ============ recordatorios de cobro: clases sin cobrar + mensualidades vencidas + señas

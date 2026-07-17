@@ -513,6 +513,22 @@ document.addEventListener("click", (e)=>{
   else if(a==="open-contrato" && s){ state.view="contrato"; }
   else if(a==="close-contrato"){ state.view="detalle"; state.tab="resumen"; }
   else if(a==="contrato-print"){ window.print(); return; }
+  else if(a==="open-recibo" && s){ state.reciboId=el.dataset.id; state.view="recibo"; }
+  else if(a==="close-recibo"){ state.view="detalle"; state.tab="pagos"; }
+  else if(a==="recibo-print"){ window.print(); return; }
+  else if(a==="recibo-copy" && s){
+    const r=reciboFor(s,state.reciboId); if(!r) return;
+    copyToClipboard(buildReciboText(s,r))
+      .then(()=>toast("Copiado — pegalo en WhatsApp"))
+      .catch(()=>toast("No se pudo copiar — seleccioná el texto manualmente.","error"));
+    return;
+  }
+  else if(a==="toast-action"){
+    const t=state.toasts.find(x=>x.id===el.dataset.id);
+    state.toasts=state.toasts.filter(x=>x.id!==el.dataset.id);
+    if(t && t.action && t.action.run) t.action.run();
+    render(); return;
+  }
   else if(a==="contrato-copy" && s){
     copyToClipboard(buildContratoText(s))
       .then(()=>toast("Copiado al portapapeles"))
@@ -613,14 +629,26 @@ document.addEventListener("click", (e)=>{
     const p=(st.clasesPuntuales||[]).find(x=>x.id===el.dataset.id); if(!p || p.cancelada) return;
     if(p.seniaEstado!=="pendiente" && p.seniaEstado!=="cobrada") return;
     const next = p.seniaEstado==="pendiente" ? "cobrada" : "pendiente";
-    update(sid,{clasesPuntuales:st.clasesPuntuales.map(x=>x.id===p.id?{...x,seniaEstado:next}:x)});
-    toast(next==="cobrada"?"Seña marcada como cobrada":"Seña marcada como pendiente"); return;
+    const clasesPuntuales = st.clasesPuntuales.map(x=>x.id===p.id?{...x,seniaEstado:next}:x);
+    if(next==="cobrada"){
+      const r = crearRecibo(st,{tipo:"senia", concepto:`Seña — clase puntual del ${fmtDate(p.date)}`, monto:Number(p.seniaMonto)||0});
+      update(sid,{clasesPuntuales, recibos:[...(st.recibos||[]), r]});
+      toast("Seña marcada como cobrada", "ok", null, {label:"Ver recibo", run:()=>{ state.selId=sid; state.reciboId=r.id; state.view="recibo"; }});
+    }else{
+      update(sid,{clasesPuntuales});
+      toast("Seña marcada como pendiente");
+    }
+    return;
   }
   else if(a==="cobros-toggle"){ state.cobrosBannerOpen = !state.cobrosBannerOpen; }
   else if(a==="cobro-marcar-clase"){
     const sid=el.dataset.sid, st=state.students.find(x=>x.id===sid); if(!st) return;
-    update(sid,{sessions:st.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:true}:x)});
-    toast("Clase marcada como cobrada"); return;
+    const sessionEl = st.sessions.find(x=>x.id===el.dataset.id);
+    const sessions = st.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:true}:x);
+    const r = crearRecibo(st,{tipo:"clase", concepto:`Clase del ${fmtDate(sessionEl?sessionEl.date:today())}`, monto:Number(st.tarifa)||0});
+    update(sid,{sessions, recibos:[...(st.recibos||[]), r]});
+    toast("Clase marcada como cobrada", "ok", null, {label:"Ver recibo", run:()=>{ state.selId=sid; state.reciboId=r.id; state.view="recibo"; }});
+    return;
   }
   else if(a==="toggle-resumen-semanal"){ setResumenSemanal(el.dataset.f==="si"); return; }
   else if(a==="toggle-recordatorios"){
@@ -657,14 +685,27 @@ document.addEventListener("click", (e)=>{
   else if(a==="toggle-cobrada" && s){
     const sessionEl = s.sessions.find(x=>x.id===el.dataset.id);
     const wasCobrada = sessionEl && sessionEl.cobrada;
-    update(s.id,{sessions:s.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:!x.cobrada}:x)});
-    toast(wasCobrada?"Clase marcada como pendiente":"Clase marcada como cobrada"); return;
+    const sessions = s.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:!x.cobrada}:x);
+    if(!wasCobrada && sessionEl){
+      const r = crearRecibo(s,{tipo:"clase", concepto:`Clase del ${fmtDate(sessionEl.date)}`, monto:Number(s.tarifa)||0});
+      update(s.id,{sessions, recibos:[...(s.recibos||[]), r]});
+      toast("Clase marcada como cobrada", "ok", null, {label:"Ver recibo", run:()=>{ state.reciboId=r.id; state.view="recibo"; }});
+    }else{
+      update(s.id,{sessions});
+      toast("Clase marcada como pendiente");
+    }
+    return;
   }
   else if(a==="save-pago" && s){
     const date=document.getElementById("pago-date").value; if(!date) return;
     const amount=parseFloat(document.getElementById("pago-amount").value); if(!amount) return;
-    update(s.id,{pagos:[...(s.pagos||[]),{id:uid(),date,amount}]});
-    toast("Pago registrado"); return;
+    const pagos=[...(s.pagos||[]),{id:uid(),date,amount}];
+    const mk = monthKeyOf(date);
+    const pendiente = pagoResumen({...s,pagos}, mk).pendiente;
+    const r = crearRecibo(s,{tipo:"mensual", concepto:`Mensualidad ${monthLabel(mk)}`, monto:amount, date, saldo:pendiente});
+    update(s.id,{pagos, recibos:[...(s.recibos||[]), r]});
+    toast("Pago registrado", "ok", null, {label:"Ver recibo", run:()=>{ state.reciboId=r.id; state.view="recibo"; }});
+    return;
   }
   else if(a==="del-pago" && s){
     const removed=(s.pagos||[]).find(x=>x.id===el.dataset.id);
