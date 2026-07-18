@@ -218,10 +218,11 @@ document.addEventListener("click", (e)=>{
     state.sessionPrefillDate=el.dataset.date; state.confirmDel=false; state.fichaError="";
   }
   else if(a==="export-agenda-ics"){
-    const blob=new Blob([buildAgendaIcs()],{type:"text/calendar;charset=utf-8"});
+    const {events,label}=agendaIcsRangeForView();
+    const blob=new Blob([buildAgendaIcs(events)],{type:"text/calendar;charset=utf-8"});
     const url=URL.createObjectURL(blob);
     const link=document.createElement("a");
-    link.href=url; link.download=`agenda-${today()}.ics`;
+    link.href=url; link.download=`agenda-${label}.ics`;
     link.click(); URL.revokeObjectURL(url);
   }
   else if(a==="nav-stats"){

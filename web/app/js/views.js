@@ -1046,7 +1046,7 @@ function vAgendaSemana(){
       <button class="chip" data-a="agenda-next">Semana siguiente →</button>
       ${offset!==0?`<button class="chip" data-a="agenda-today">Esta semana</button>`:""}
     </div>
-    <button class="chip" data-a="export-agenda-ics">Exportar agenda (.ics)</button>
+    ${vExportIcsButton()}
   </div>`;
 
   const events = markOverlaps(agendaWeekEvents(weekStart));
@@ -1056,6 +1056,7 @@ function vAgendaSemana(){
       `<button class="btn btn-primary" data-a="nav-lista">Ir a Estudiantes</button>`);
     return h;
   }
+  h += vExportIcsHint();
 
   const byDay = Array.from({length:7},()=>[]);
   events.forEach(e=>{
@@ -1089,7 +1090,9 @@ function vAgendaMes(){
       <button class="chip" data-a="agenda-month-next">Mes siguiente →</button>
       ${(state.agendaMonthOffset||0)!==0?`<button class="chip" data-a="agenda-month-today">Este mes</button>`:""}
     </div>
+    ${vExportIcsButton()}
   </div>`;
+  h += vExportIcsHint();
 
   h += `<div class="cal-weekdays">` + DIAS_SEMANA.map(d=>`<div>${esc(d.slice(0,3))}</div>`).join("") + `</div>`;
   h += `<div class="cal-grid">` + days.map(d=>{
@@ -1161,26 +1164,14 @@ function vAgendaEvent(e, date){
   </div>`;
 }
 
-/* ============ exportar agenda (.ics), próximas 4 semanas ============ */
+/* ============ exportar agenda (.ics), el período que se esté viendo (paso 110) ============
+   Semana → esa semana; Mes → esa grilla mensual (mismo rango que ya se dibuja en pantalla,
+   agendaIcsRangeForView() en helpers.js). Formato iCalendar estándar, sin nada propietario —
+   Google Calendar, Outlook y el calendario del teléfono lo importan sin drama. */
 function icsEscape(s){ return String(s??"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n"); }
 function icsDateTime(date, time){ return date.replace(/-/g,"")+"T"+time.replace(":","")+"00"; }
-function buildAgendaIcs(){
-  const start = today(), end = addDays(start,27);
-  const events = [];
-  alive().filter(s=>s.status==="activo").forEach(s=>{
-    (s.clasesPuntuales||[]).forEach(p=>{
-      if(p.date>=start && p.date<=end) events.push({studentName:s.name, subject:s.subject, date:p.date, time:p.time, duration:Number(p.duration)||60});
-    });
-    if((s.horarios||[]).length){
-      for(let d=start; d<=end; d=addDays(d,1)){
-        const dow=weekdayIdx(d);
-        (s.horarios||[]).filter(h=>h.day===dow).forEach(h=>{
-          events.push({studentName:s.name, subject:s.subject, date:d, time:h.time, duration:Number(h.duration)||60});
-        });
-      }
-    }
-  });
-  const stamp = start.replace(/-/g,"")+"T000000Z";
+function buildAgendaIcs(events){
+  const stamp = today().replace(/-/g,"")+"T000000Z";
   const lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Entreclases//ES","CALSCALE:GREGORIAN"];
   events.forEach((e,i)=>{
     lines.push("BEGIN:VEVENT");
@@ -1188,11 +1179,18 @@ function buildAgendaIcs(){
     lines.push("DTSTAMP:"+stamp);
     lines.push("DTSTART:"+icsDateTime(e.date,e.time));
     lines.push("DTEND:"+icsDateTime(e.date,addMinutesToTime(e.time,e.duration)));
-    lines.push("SUMMARY:"+icsEscape(`Clase con ${e.studentName}${e.subject?" — "+e.subject:""}`));
+    lines.push("SUMMARY:"+icsEscape(`Clase: ${e.studentName}${e.subject?" — "+e.subject:""}`));
     lines.push("END:VEVENT");
   });
   lines.push("END:VCALENDAR");
   return lines.join("\r\n");
+}
+// Botón + hint reutilizado por semana y mes — mismo texto en las dos vistas.
+function vExportIcsButton(){
+  return `<button class="chip" data-a="export-agenda-ics">Exportar a mi calendario</button>`;
+}
+function vExportIcsHint(){
+  return `<div class="hint" style="margin-top:8px">Descarga un archivo .ics — abrilo con Google Calendar, Outlook o el calendario del teléfono para importar estas clases (en Google Calendar: engranaje → Configuración → Importar y exportar → Importar).</div>`;
 }
 
 /* ============ WhatsApp: mensajes pre-armados, solo links wa.me (sin API) ============ */

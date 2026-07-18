@@ -720,6 +720,19 @@ function agendaRangeEvents(fromDate, toDate){
   return events;
 }
 function agendaWeekEvents(weekStart){ return agendaRangeEvents(weekStart, addDays(weekStart,6)); }
+// Qué exportar a .ics (paso 110): el mismo período que se está viendo en Agenda — la semana
+// actual (con su offset) o la grilla completa del mes elegido — para que el botón "Exportar a
+// mi calendario" siempre coincida con lo que hay en pantalla. label sirve para el nombre del
+// archivo descargado.
+function agendaIcsRangeForView(){
+  if((state.agendaViewMode||"semana")==="mes"){
+    const mk = monthKeyOffset(state.agendaMonthOffset||0);
+    const days = monthGridDays(mk);
+    return {events: agendaRangeEvents(days[0], days[days.length-1]), label: mk};
+  }
+  const weekStart = addDays(mondayOfWeek(today()), (state.agendaWeekOffset||0)*7);
+  return {events: agendaWeekEvents(weekStart), label: weekStart};
+}
 // grilla de un mes (YYYY-MM) en semanas completas de lunes a domingo, con los días de los
 // meses vecinos que completan la primera y última semana (se muestran atenuados en la UI).
 function monthKeyOffset(n){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+n); return d.toISOString().slice(0,7); }
