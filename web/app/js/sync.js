@@ -79,6 +79,7 @@ async function syncNow(force){
       catalog=rd.catalog;
     if(!Array.isArray(catalog.packs)) catalog.packs=[];
     if(!Array.isArray(catalog.trash)) catalog.trash=[];
+    normalizeCatalogUnits(catalog); // el catálogo remoto puede venir de un dispositivo con un cuaderno viejo (units como strings)
 
     let remoteUpdatedAt=row?row.updated_at:null;
     const needsWrite = dirty || !row || !sameStudents(merged,remote) ||
@@ -294,7 +295,7 @@ async function restoreBackup(id){
     // gana la próxima sincronización en vez de que el estado remoto (más reciente) lo pise.
     const now=Date.now();
     state.students=(b.data.students||[]).map(x=>({...x, updatedAt:now}));
-    state.catalog={packs:[], trash:[], ...(b.data.catalog||defaultCatalog()), updatedAt:now};
+    state.catalog=normalizeCatalogUnits({packs:[], trash:[], ...(b.data.catalog||defaultCatalog()), updatedAt:now});
     state.confirmRestoreId=null; state.restoreStatus="idle";
     save(); syncNow(); render();
     loadBackups();
@@ -677,7 +678,7 @@ function buildAlumnoBlock(s){
     block.tarea = last ? {date:last.date, nota:last.note||""} : null;
   }
   if(share.avance){
-    block.avance = unitsFor(s).map(u=>({unidad:u, estado:(s.topics||{})[u]||"pendiente"}));
+    block.avance = unitsFor(s).map(u=>({unidad:u.nombre, estado:(s.topics||{})[u.nombre]||"pendiente"}));
   }
   return block;
 }
@@ -1250,7 +1251,7 @@ function purgeSubjectFromTrash(subjectId){
 // nueva queda usable de inmediato aunque la copia de archivos todavía esté en curso.
 async function duplicateSubject(subjectId){
   const src=subjById(subjectId); if(!src) return;
-  const nm={id:uid(), name:src.name+" (copia)", units:[...src.units], color:nextSubjectColor(), materiales:[]};
+  const nm={id:uid(), name:src.name+" (copia)", units:normalizeUnits(src.units), color:nextSubjectColor(), materiales:[]};
   state.catalog.subjects.push(nm);
   state.editSubjectId=nm.id; state.editPackId=null; state.catConfirmDelId=null;
   loadMateriales(nm.id);

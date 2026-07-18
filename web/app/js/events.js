@@ -182,7 +182,7 @@ document.addEventListener("click", (e)=>{
     state.portalLoaded=false; state.portalError=""; state.portalCopyMsg=""; loadPortal();
     state.portalGrupoEditing=null; state.portalGrupoDraftAlumnos=[]; state.portalGrupoError="";
   }
-  else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; state.editPackId=null; state.catConfirmDelId=null; }
+  else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; state.editPackId=null; state.catConfirmDelId=null; state.editUnitId=null; state.editSubunitId=null; }
   else if(a==="nav-pagos"){ state.view="pagos"; state.selId=null; if(!state.pagosMonth) state.pagosMonth=currentMonthKey(); }
   else if(a==="nav-agenda"){ state.view="agenda"; state.selId=null; }
   else if(a==="nav-logout"){
@@ -306,7 +306,7 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="cat-add-from-template"){
     const t=SUBJECT_TEMPLATES.find(x=>x.id===el.dataset.id); if(!t) return;
-    const m={id:uid(), name:t.name, units:[...t.units], color:nextSubjectColor()};
+    const m={id:uid(), name:t.name, units:normalizeUnits(t.units), color:nextSubjectColor()};
     state.catalog.subjects.push(m); state.editSubjectId=m.id;
     loadMateriales(m.id);
     touchCatalog(); return;
@@ -316,7 +316,7 @@ document.addEventListener("click", (e)=>{
     m.color=el.dataset.color; touchCatalog(); return;
   }
   else if(a==="cat-edit-subject"){
-    state.editSubjectId=el.dataset.id; state.editPackId=null;
+    state.editSubjectId=el.dataset.id; state.editPackId=null; state.editUnitId=null; state.editSubunitId=null;
     loadMateriales(el.dataset.id); return;
   }
   else if(a==="cat-duplicate-subject"){ duplicateSubject(el.dataset.id); return; }
@@ -326,16 +326,80 @@ document.addEventListener("click", (e)=>{
     state.catConfirmDelId=null;
     deleteSubjectAndMaybeMaterials(el.dataset.id); return;
   }
-  else if(a==="cat-close-edit"){ state.editSubjectId=null; }
+  else if(a==="cat-close-edit"){ state.editSubjectId=null; state.editUnitId=null; state.editSubunitId=null; }
   else if(a==="cat-add-unit"){
-    const v=(document.getElementById("new-unit").value||"").trim(); if(!v) return;
+    const input=document.getElementById("new-unit");
+    const v=(input.value||"").trim(); if(!v) return;
     const m=subjById(state.editSubjectId); if(!m) return;
-    if(!m.units.includes(v)) m.units.push(v);
+    if(m.units.some(u=>u.nombre===v)) return;
+    m.units.push(makeUnit(v));
+    reindexUnits(m.units);
     touchCatalog(); return;
   }
-  else if(a==="cat-del-unit"){
-    const m=subjById(state.editSubjectId); if(!m) return;
-    m.units.splice(+el.dataset.i,1); touchCatalog(); return;
+  else if(a==="cat-unit-up"){ moveUnit(state.editSubjectId, el.dataset.id, -1); return; }
+  else if(a==="cat-unit-down"){ moveUnit(state.editSubjectId, el.dataset.id, 1); return; }
+  else if(a==="cat-unit-rename-start"){
+    state.editSubunitId=null; state.editUnitId=el.dataset.id;
+  }
+  else if(a==="cat-unit-rename-done"){
+    const m=subjById(state.editSubjectId); const u=m&&m.units.find(x=>x.id===state.editUnitId);
+    const input=document.getElementById("unit-rename-input");
+    const v=(input&&input.value||"").trim();
+    state.editUnitId=null;
+    if(u && v) u.nombre=v;
+    touchCatalog(); return;
+  }
+  else if(a==="cat-unit-rename-cancel"){ state.editUnitId=null; }
+  else if(a==="cat-ask-del-unit"){
+    const m=subjById(state.editSubjectId); const u=m&&m.units.find(x=>x.id===el.dataset.id);
+    if(!u) return;
+    if(unitHasAvance(m.id, u.nombre)){ state.catConfirmDelId={type:"unit", id:u.id}; return; }
+    deleteUnitWithUndo(m.id, u.id); return;
+  }
+  else if(a==="cat-confirm-del-unit"){
+    state.catConfirmDelId=null;
+    deleteUnitWithUndo(state.editSubjectId, el.dataset.id); return;
+  }
+  else if(a && a.startsWith("cat-add-subunit:")){
+    const unitId=a.slice("cat-add-subunit:".length);
+    const m=subjById(state.editSubjectId); const u=m&&m.units.find(x=>x.id===unitId); if(!u) return;
+    const input=document.getElementById("new-subunit-"+unitId);
+    const v=(input.value||"").trim(); if(!v) return;
+    if(!Array.isArray(u.subunidades)) u.subunidades=[];
+    if(u.subunidades.some(x=>x.nombre===v)) return;
+    u.subunidades.push(makeSubunit(v));
+    touchCatalog(); return;
+  }
+  else if(a==="cat-subunit-up"){ moveSubunit(state.editSubjectId, el.dataset.unitId, el.dataset.id, -1); return; }
+  else if(a==="cat-subunit-down"){ moveSubunit(state.editSubjectId, el.dataset.unitId, el.dataset.id, 1); return; }
+  else if(a==="cat-subunit-rename-start"){
+    state.editUnitId=null; state.editSubunitId={unitId:el.dataset.unitId, subId:el.dataset.id};
+  }
+  else if(a==="cat-subunit-rename-done"){
+    const m=subjById(state.editSubjectId);
+    const u=m&&state.editSubunitId&&m.units.find(x=>x.id===state.editSubunitId.unitId);
+    const sub=u&&(u.subunidades||[]).find(x=>x.id===state.editSubunitId.subId);
+    const input=document.getElementById("subunit-rename-input");
+    const v=(input&&input.value||"").trim();
+    state.editSubunitId=null;
+    if(sub && v) sub.nombre=v;
+    touchCatalog(); return;
+  }
+  else if(a==="cat-subunit-rename-cancel"){ state.editSubunitId=null; }
+  else if(a==="cat-del-subunit"){
+    const m=subjById(state.editSubjectId); const u=m&&m.units.find(x=>x.id===el.dataset.unitId); if(!u) return;
+    const removedIdx=(u.subunidades||[]).findIndex(x=>x.id===el.dataset.id); if(removedIdx<0) return;
+    const removed=u.subunidades[removedIdx];
+    u.subunidades=u.subunidades.filter(x=>x.id!==el.dataset.id);
+    touchCatalog();
+    toast("Subunidad eliminada", "ok", ()=>{
+      const m2=subjById(state.editSubjectId); const u2=m2&&m2.units.find(x=>x.id===el.dataset.unitId);
+      if(!u2) return;
+      if(!Array.isArray(u2.subunidades)) u2.subunidades=[];
+      u2.subunidades.splice(Math.min(removedIdx,u2.subunidades.length),0,removed);
+      touchCatalog();
+      toast("Subunidad restaurada");
+    }); return;
   }
   else if(a==="cat-edit-pack"){ state.editPackId=el.dataset.id; state.editSubjectId=null; }
   else if(a==="cat-ask-del-pack"){ state.catConfirmDelId={type:"pack", id:el.dataset.id}; }
@@ -597,7 +661,7 @@ document.addEventListener("click", (e)=>{
       const st=emptyStudent();
       st.name=name; st.career=career;
       st.subjectId=m?m.id:""; st.subject=m?m.name:"";
-      st.topics=m?Object.fromEntries(m.units.map(u=>[u,"pendiente"])):{};
+      st.topics=m?Object.fromEntries(m.units.map(u=>[u.nombre,"pendiente"])):{};
       st.examDate=examDate; st.notes=notes;
       return st;
     };
@@ -1161,9 +1225,48 @@ document.addEventListener("click", (e)=>{
 document.addEventListener("keydown",(e)=>{
   if(e.key!=="Enter") return;
   const el=e.target.closest("[data-enter]"); if(!el) return;
+  // #new-unit y #new-subunit-* (paso 127) restauran el foco después de agregar — se manejan
+  // aparte, más abajo, para no tocar el comportamiento de ningún otro data-enter existente.
+  if(el.id==="new-unit" || (el.id||"").startsWith("new-subunit-")) return;
   e.preventDefault();
   const btn=document.querySelector(`[data-a="${el.dataset.enter}"]`);
   if(btn) btn.click();
+});
+
+// Enter en "nueva unidad"/"nueva subunidad" (paso 127): agrega, limpia el campo (el input
+// recreado por render() ya no tiene el valor viejo) y deja el foco puesto ahí para seguir
+// cargando en cadena — mismo truco de "diferir el render y restaurar después" que ya usa el
+// listener de "change" para no perder el foco (ver el comentario largo más abajo).
+document.addEventListener("keydown",(e)=>{
+  if(e.key!=="Enter") return;
+  const id=e.target.id||"";
+  if(id!=="new-unit" && !id.startsWith("new-subunit-")) return;
+  const el=e.target.closest("[data-enter]"); if(!el) return;
+  e.preventDefault();
+  const btn=document.querySelector(`[data-a="${el.dataset.enter}"]`);
+  if(!btn) return;
+  const realRender=render;
+  let pending=false;
+  render=()=>{ pending=true; };
+  try{ btn.click(); }
+  finally{ render=realRender; }
+  if(pending){
+    realRender();
+    const ne=document.getElementById(id);
+    if(ne) ne.focus();
+  }
+});
+
+// Doble click para renombrar una unidad/subunidad (paso 127) — atajo del mismo destino que el
+// lápiz (data-a="cat-unit-rename-start"/"cat-subunit-rename-start"), delegado igual que el click
+// normal (ver arriba) en vez de un ondblclick inline, para no salirse del patrón del resto de la
+// app. Un doble click también dispara dos "click" normales sobre el mismo elemento, pero el
+// label no tiene data-a propio, así que no hacen nada ahí.
+document.addEventListener("dblclick",(e)=>{
+  const el=e.target.closest("[data-a-dbl]"); if(!el) return;
+  const a=el.dataset.aDbl;
+  if(a==="cat-unit-rename-start"){ state.editSubunitId=null; state.editUnitId=el.dataset.id; render(); }
+  else if(a==="cat-subunit-rename-start"){ state.editUnitId=null; state.editSubunitId={unitId:el.dataset.unitId, subId:el.dataset.id}; render(); }
 });
 
 // Trampa de foco (paso 75): mientras haya un diálogo abierto (overlay .modal/.search-modal),

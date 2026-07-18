@@ -92,6 +92,7 @@ async function copyToClipboard(text){
 
 /* ============ estado ============ */
 let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPackId:null,
+              editUnitId:null, editSubunitId:null,
               newPackName:"", newPackSubjects:[], newPackError:"",
               view:"tablero", selId:null, filter:"activo", tab:"temas",
               listSearch:"", listSubject:"todas", listCareer:"todas", listSem:"todos",
@@ -190,7 +191,98 @@ function tagChip(tag, removableFor){
     : "";
   return `<span class="subj-chip" style="background:var(--subj-${tag.color}-bg);color:var(--subj-${tag.color}-fg)">${esc(tag.label)}${remove}</span>`;
 }
-function unitsFor(s){ const m=subjById(s.subjectId); return m ? m.units : Object.keys(s.topics||{}); }
+/* ============ unidades de una materia (paso 127): unidad = {id, nombre, orden, subunidades:
+   [{id,nombre}]} — un nivel de subunidades, sin nietos. Los cuadernos viejos guardaban cada
+   unidad como un string suelto; normalizeUnits() es la ÚNICA función que lee ese campo crudo y
+   acepta ambos formatos, siempre devuelve objetos. Se llama en los bordes donde catalog.subjects
+   puede traer datos sin normalizar — load() (localStorage), el merge de catálogo remoto y la
+   restauración de un respaldo (syncNow()/restoreBackup() en sync.js) y buildDemoData() — nunca en
+   cada lectura: de ahí en más el catálogo en memoria ya son objetos, y cualquier código que
+   agregue/duplique/restaure una unidad construye el objeto completo con makeUnit()/makeSubunit(),
+   así que no hace falta volver a normalizar. El avance (s.topics) sigue clave por el NOMBRE de la
+   unidad, no por su id — igual que antes de este paso — así que renombrar una unidad no rompe
+   nada (topics vive del lado del alumno) pero tampoco "seguía" el avance viejo bajo el nombre
+   nuevo, mismo criterio que ya tenía borrar una unidad (ver el hint en vCatalog). */
+function normalizeUnits(raw){
+  return (raw||[]).map((u,i)=> typeof u==="string"
+    ? {id:uid(), nombre:u, orden:i, subunidades:[]}
+    : {id:u.id||uid(), nombre:u.nombre||"", orden:i,
+       subunidades:(u.subunidades||[]).map(sub=> typeof sub==="string"
+         ? {id:uid(), nombre:sub} : {id:sub.id||uid(), nombre:sub.nombre||""})});
+}
+function normalizeCatalogUnits(catalog){
+  (catalog.subjects||[]).forEach(m=>{ m.units=normalizeUnits(m.units); });
+  (catalog.trash||[]).forEach(t=>{ if(t.type==="subject" && t.subject) t.subject.units=normalizeUnits(t.subject.units); });
+  return catalog;
+}
+function makeUnit(nombre, orden){ return {id:uid(), nombre, orden:orden||0, subunidades:[]}; }
+function makeSubunit(nombre){ return {id:uid(), nombre}; }
+function reindexUnits(units){ units.forEach((u,i)=>{ u.orden=i; }); return units; }
+// Todas las unidades "planas" de una materia, en orden, con la subunidad indicando de qué unidad
+// es (para selectores como el tema de clase, ver vFichaClases) — ver flattenUnits() en views.js
+// para la versión con etiqueta de texto lista para mostrar.
+function unitsFor(s){
+  const m=subjById(s.subjectId);
+  if(m) return m.units||[];
+  // materia borrada del catálogo pero el alumno conserva avance viejo (ver el fallback previo a
+  // este paso): se arman unidades "fantasma" de sólo lectura a partir de las claves de topics,
+  // para que informe/resumen sigan mostrando algo en vez de nada.
+  return Object.keys(s.topics||{}).map((nombre,i)=>({id:"legacy-"+i, nombre, orden:i, subunidades:[]}));
+}
+// Unidades + subunidades en un solo listado de texto, en orden (paso 127, ej. selector de
+// "tema principal" al registrar una clase, ver vFichaClases en views.js) — la subunidad no tiene
+// avance propio, así que acá es sólo una etiqueta más para elegir, con el nombre de su unidad
+// adelante para que no se confunda con otra materia.
+function flattenUnitLabels(units){
+  const out=[];
+  (units||[]).forEach(u=>{
+    out.push(u.nombre);
+    (u.subunidades||[]).forEach(sub=>out.push(`${u.nombre} — ${sub.nombre}`));
+  });
+  return out;
+}
+function moveUnit(subjectId, unitId, dir){
+  const m=subjById(subjectId); if(!m) return;
+  const i=m.units.findIndex(u=>u.id===unitId), j=i+dir;
+  if(i<0||j<0||j>=m.units.length) return;
+  [m.units[i],m.units[j]]=[m.units[j],m.units[i]];
+  reindexUnits(m.units);
+  touchCatalog();
+}
+function moveSubunit(subjectId, unitId, subId, dir){
+  const m=subjById(subjectId); const u=m&&m.units.find(x=>x.id===unitId); if(!u) return;
+  const subs=u.subunidades||(u.subunidades=[]);
+  const i=subs.findIndex(x=>x.id===subId), j=i+dir;
+  if(i<0||j<0||j>=subs.length) return;
+  [subs[i],subs[j]]=[subs[j],subs[i]];
+  touchCatalog();
+}
+// ¿Algún alumno vivo de esta materia tiene avance real registrado en esta unidad (por nombre, ver
+// el comentario de normalizeUnits())? Usado para pedir confirmación al borrar una unidad — si
+// nadie la tocó todavía, se borra directo con el mismo undo-toast que cualquier otro borrado
+// de bajo riesgo (ver cat-ask-del-unit en events.js).
+function unitHasAvance(subjectId, nombre){
+  return alive().some(s=>s.subjectId===subjectId && s.topics && s.topics[nombre] && s.topics[nombre]!=="pendiente");
+}
+// Borra una unidad (por id) de una materia, con undo — el avance de los alumnos (s.topics, clave
+// por nombre) nunca se toca acá, así que si se deshace o se vuelve a cargar una unidad con el
+// mismo nombre más tarde, ese avance viejo reaparece solo.
+function deleteUnitWithUndo(subjectId, unitId){
+  const m=subjById(subjectId); if(!m) return;
+  const idx=m.units.findIndex(u=>u.id===unitId); if(idx<0) return;
+  const removed=m.units[idx];
+  m.units=m.units.filter(u=>u.id!==unitId);
+  reindexUnits(m.units);
+  touchCatalog();
+  toast(`Unidad «${removed.nombre}» eliminada`, "ok", ()=>{
+    const m2=subjById(subjectId); if(!m2) return;
+    m2.units=[...m2.units];
+    m2.units.splice(Math.min(idx,m2.units.length),0,removed);
+    reindexUnits(m2.units);
+    touchCatalog();
+    toast("Unidad restaurada");
+  });
+}
 function careerOptions(cur){ const l=[...state.catalog.careers]; if(cur && !l.includes(cur)) l.push(cur); return l; }
 function touchCatalog(){ state.catalog.updatedAt=Date.now(); save(); render(); }
 // Feedback breve y no intrusivo tras una acción (ver .toast-wrap en styles.css) — se apila en
@@ -233,6 +325,7 @@ function load(){
   if(!Array.isArray(state.catalog.packs)) state.catalog.packs=[];
   if(!Array.isArray(state.catalog.trash)) state.catalog.trash=[];
   if(!Array.isArray(state.catalog.tags)) state.catalog.tags=[];
+  normalizeCatalogUnits(state.catalog);
   // papelera (paso 76): alumnos y materias borrados quedan restaurables 7 días y se purgan solos
   // pasado ese plazo — students usa el mismo flag "deleted" que antes (ahora con ventana de 7
   // días en vez de 90), catalog.trash guarda materias enteras sacadas de catalog.subjects.
@@ -309,7 +402,7 @@ function sampleStudent(){
   const units = m ? m.units : [];
   const topics = {};
   const cycle = ["parcial","visto","practica","pendiente","noentra"];
-  units.forEach((t,i)=>{ topics[t] = cycle[i % cycle.length]; });
+  units.forEach((u,i)=>{ topics[u.nombre] = cycle[i % cycle.length]; });
   return {
     id: uid(), name:"Alumno de ejemplo", sample:true,
     career: state.catalog.careers[0]||"Ingeniería", subject: m?m.name:"", subjectId: m?m.id:"",
@@ -318,8 +411,8 @@ function sampleStudent(){
     notes:"Este alumno es un ejemplo para que veas cómo se usa la app — podés borrarlo cuando quieras desde su ficha.",
     updatedAt: Date.now(), topics,
     sessions:[
-      {id:uid(), date:daysFromToday(-6), topic:units[1]||"", tarea:"hecha", note:"Bien encaminada, resolvió todo sin ayuda."},
-      {id:uid(), date:daysFromToday(-2), topic:units[2]||"", tarea:"intentada", note:"Le costó determinantes 3x3 — repasar la regla de Sarrus."}
+      {id:uid(), date:daysFromToday(-6), topic:(units[1]&&units[1].nombre)||"", tarea:"hecha", note:"Bien encaminada, resolvió todo sin ayuda."},
+      {id:uid(), date:daysFromToday(-2), topic:(units[2]&&units[2].nombre)||"", tarea:"intentada", note:"Le costó determinantes 3x3 — repasar la regla de Sarrus."}
     ],
     simulacros:[
       {id:uid(), date:daysFromToday(-3), grade:"6/10", note:"2 errores conceptuales en límites, 1 de cuenta en derivadas, bien en integrales."}
@@ -1187,6 +1280,7 @@ function openSearchResult(item){
     state.simTimer=null; state.simPrefillNote=""; state.fichaError=""; state.sessionPrefillDate="";
   }else{
     state.view="catalog"; state.selId=null; state.editSubjectId=item.id; state.editPackId=null;
+    state.editUnitId=null; state.editSubunitId=null;
     loadMateriales(item.id);
   }
 }
@@ -1205,26 +1299,30 @@ function openSearchResult(item){
    ya vive en catalog.subjects[].materiales — nunca se sube ni se lista nada de Storage real (ver
    materialesIndexFor() en sync.js: lee ese mismo array local). ============ */
 function buildDemoData(){
+  // Strings sin normalizar todavía (mismo formato que un cuaderno viejo) — normalizeUnits() más
+  // abajo, en cada materia, es la única que las convierte a objetos {id,nombre,orden,subunidades}.
+  // Los topics siguen clave por el texto del nombre, así que usar el string crudo acá (en vez del
+  // objeto ya normalizado) es intencional, no un descuido.
   const unitsOf = id => (SUBJECT_TEMPLATES.find(t=>t.id===id)||{units:[]}).units;
   const atDaysAgo = n => new Date(Date.now()-n*86400000).toISOString();
   const catalog = defaultCatalog();
   catalog.careers = ["Ingeniería","Licenciatura","Arquitectura"];
   catalog.subjects = [
-    { id:"demo-am1", name:"Análisis Matemático I", units:unitsOf("tpl-analisis-1"), color:"teal",
+    { id:"demo-am1", name:"Análisis Matemático I", units:normalizeUnits(unitsOf("tpl-analisis-1")), color:"teal",
       materiales:[
         {name:"guia3-Guía de ejercicios — Unidad 3.pdf", bytes:842000, compartido:true, at:atDaysAgo(30)},
         {name:"resder-Resumen de derivadas.pdf", bytes:210000, compartido:true, at:atDaysAgo(12)},
       ] },
-    { id:"demo-alg", name:"Álgebra y Geometría Analítica", units:unitsOf("tpl-algebra"), color:"indigo",
+    { id:"demo-alg", name:"Álgebra y Geometría Analítica", units:normalizeUnits(unitsOf("tpl-algebra")), color:"indigo",
       materiales:[
         {name:"guiamat-Guía de matrices y determinantes.pdf", bytes:530000, compartido:true, at:atDaysAgo(18)},
       ] },
-    { id:"demo-ing", name:"Matemática básica / ingreso", units:unitsOf("tpl-matematica-ingreso"), color:"slate", materiales:[] },
-    { id:"demo-fis1", name:"Física I", units:unitsOf("tpl-fisica-1"), color:"blue",
+    { id:"demo-ing", name:"Matemática básica / ingreso", units:normalizeUnits(unitsOf("tpl-matematica-ingreso")), color:"slate", materiales:[] },
+    { id:"demo-fis1", name:"Física I", units:normalizeUnits(unitsOf("tpl-fisica-1")), color:"blue",
       materiales:[
         {name:"formcin-Fórmulas de cinemática.pdf", bytes:96000, compartido:false, at:atDaysAgo(5)},
       ] },
-    { id:"demo-qui", name:"Química General", units:unitsOf("tpl-quimica-general"), color:"amber", materiales:[] },
+    { id:"demo-qui", name:"Química General", units:normalizeUnits(unitsOf("tpl-quimica-general")), color:"amber", materiales:[] },
   ];
   catalog.docente = {nombre:"Prof. Demo", telefono:"11-5555-0100", dni:"30111222"};
   catalog.costos = {
@@ -1477,5 +1575,6 @@ function buildDemoData(){
     tokensGrupos:{ "DEMOGRUPO01":{materiaId:"demo-am1", alumnos:students.filter(s=>s.subjectId==="demo-am1" && !s.deleted).map(s=>s.id)} },
   };
 
+  normalizeCatalogUnits(catalog); // por si algo (ej. la materia de la papelera, arriba) quedó con units sin normalizar
   return { students, catalog, portal };
 }

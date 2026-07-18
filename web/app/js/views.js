@@ -182,6 +182,12 @@ function helpTip(id){
 const ICON_INBOX=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5.5 5h13l2.5 7v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7z"/></svg>`;
 const ICON_LINK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>`;
 const ICON_TRASH=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>`;
+// Lápiz (paso 127, renombrar unidad/subunidad) — mismo set de línea (stroke=currentColor,
+// stroke-width 2) que el resto de ICON_*.
+const ICON_EDIT=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+// "Arriba" para reordenar (paso 127): el mismo ICON_CHEVRON (ya usado en desplegables) rotado
+// 180° en vez de dibujar un ícono nuevo — "abajo" usa ICON_CHEVRON tal cual.
+const ICON_CHEVRON_UP=`<span style="display:inline-flex;transform:rotate(180deg)">${ICON_CHEVRON}</span>`;
 
 /* ============ skeletons: placeholders con animación mientras carga/sincroniza una sección
    (reemplaza los "Cargando…" sueltos) ============ */
@@ -595,8 +601,8 @@ function vAlumnoRow(s){
   const d=daysTo(s.examDate);
   const na=studentAlerts(s).length;
   const units=unitsFor(s);
-  const seen=units.filter(t=>["visto","practica","parcial"].includes((s.topics||{})[t])).length;
-  const rel=units.filter(t=>(s.topics||{})[t]!=="noentra").length||1;
+  const seen=units.filter(u=>["visto","practica","parcial"].includes((s.topics||{})[u.nombre])).length;
+  const rel=units.filter(u=>(s.topics||{})[u.nombre]!=="noentra").length||1;
   const deuda=pendienteTotalFor(s);
   const lastAct=lastSessionDate(s);
   const right = (d!==null&&d>=0&&s.status==="activo")
@@ -741,8 +747,8 @@ function vFichaResumenGlance(s){
   const deuda = pendienteTotalFor(s);
   const streak = goalStreak(s);
   const units = unitsFor(s);
-  const seen = units.filter(t=>["visto","practica","parcial"].includes((s.topics||{})[t])).length;
-  const rel = units.filter(t=>(s.topics||{})[t]!=="noentra").length||1;
+  const seen = units.filter(u=>["visto","practica","parcial"].includes((s.topics||{})[u.nombre])).length;
+  const rel = units.filter(u=>(s.topics||{})[u.nombre]!=="noentra").length||1;
   const avancePct = units.length ? Math.round(seen/rel*100) : null;
   return `<div class="hoy-grid" style="margin-bottom:16px">
     ${hoyCard("Próxima clase", next?fmtDate(next.date):"—",
@@ -774,12 +780,12 @@ function vFichaResumen(s){
   } else {
     h += `<div class="formcard"><div class="ftitle">Avance por unidades</div>
     <div class="hint" style="margin-bottom:10px">Tocá cada unidad para avanzar el estado: Pendiente → Visto → Práctica → Nivel parcial → No entra. «Nivel parcial» significa que resuelve solo ejercicios de nivel examen.</div>
-    <div class="topicgrid">` + units.map(t=>{
-      const st=(s.topics||{})[t]||"pendiente";
+    <div class="topicgrid">` + units.map(u=>{
+      const st=(s.topics||{})[u.nombre]||"pendiente";
       const m=TOPIC_META[st];
-      return `<button class="topic" data-a="cycle-topic" data-t="${esc(t)}"
+      return `<button class="topic" data-a="cycle-topic" data-t="${esc(u.nombre)}"
         style="background:${m.bg};border-color:${m.bd}">
-        <b style="color:${st==="noentra"?"var(--gray2)":"var(--ink)"}">${esc(t)}</b>
+        <b style="color:${st==="noentra"?"var(--gray2)":"var(--ink)"}">${esc(u.nombre)}</b>
         <small style="color:${m.fg}">${m.label}</small></button>`;
     }).join("") + `</div></div>`;
   }
@@ -841,7 +847,7 @@ function vFichaClases(s){
       <div class="field"><div class="flabel">Fecha</div><input type="date" id="c-date" value="${esc(state.sessionPrefillDate||today())}" data-enter="save-session"></div>
       ${estado==="dada" ? `
       <div class="field"><div class="flabel">Tema principal</div><select id="c-topic" data-enter="save-session"><option value="">—</option>
-        ${unitsFor(s).map(t=>`<option>${esc(t)}</option>`).join("")}
+        ${flattenUnitLabels(unitsFor(s)).map(t=>`<option>${esc(t)}</option>`).join("")}
         <option>Nivelación</option><option>Repaso / parciales viejos</option></select></div>
       <div class="field"><div class="flabel">¿Trajo la tarea?</div><select id="c-tarea" data-enter="save-session">
         <option value="sd">—</option><option value="hecha">Hecha</option>
@@ -1819,8 +1825,8 @@ function vInforme(){
     <div class="informe-section">
       <div class="informe-stitle">Progreso por unidad</div>
       ${units.length===0 ? `<div class="informe-empty">Sin materia asignada.</div>` : `<div class="informe-units">` +
-        units.map(t=>{ const st=topics[t]||"pendiente", m=TOPIC_META[st];
-          return `<div class="informe-unit" style="border-left-color:${m.fg}"><span>${esc(t)}</span><b style="color:${m.fg}">${m.label}</b></div>`;
+        units.map(u=>{ const st=topics[u.nombre]||"pendiente", m=TOPIC_META[st];
+          return `<div class="informe-unit" style="border-left-color:${m.fg}"><span>${esc(u.nombre)}</span><b style="color:${m.fg}">${m.label}</b></div>`;
         }).join("") + `</div>`}
     </div>
 
@@ -1871,7 +1877,7 @@ function buildInformeText(s){
   lines.push("");
   if(units.length){
     lines.push("*Progreso por unidad:*");
-    units.forEach(t=>lines.push(`- ${t}: ${TOPIC_META[topics[t]||"pendiente"].label}`));
+    units.forEach(u=>lines.push(`- ${u.nombre}: ${TOPIC_META[topics[u.nombre]||"pendiente"].label}`));
     lines.push("");
   }
   lines.push(`*Clases del período (${sessions.length}):*`);
@@ -1954,8 +1960,8 @@ function canvasToPngBlob(canvas){
 async function buildInformeImageBlob(s){
   const { periodKey, fromDate, sessions } = informeFilteredData(s);
   const units = unitsFor(s), topics = s.topics||{};
-  const rel = units.filter(t=>topics[t]!=="noentra").length || 1;
-  const seenCount = units.filter(t=>["visto","practica","parcial"].includes(topics[t])).length;
+  const rel = units.filter(u=>topics[u.nombre]!=="noentra").length || 1;
+  const seenCount = units.filter(u=>["visto","practica","parcial"].includes(topics[u.nombre])).length;
   const avancePct = units.length ? Math.round(seenCount/rel*100) : null;
   const goalTotals = goalCounts([{sessions}]);
   const objetivosPct = goalTotals.total>0 ? Math.round(goalTotals.si/goalTotals.total*100) : null;
@@ -2703,6 +2709,69 @@ function vBackupsList(){
   return h;
 }
 
+/* ============ unidades 2.0 (paso 127): editor de unidades/subunidades de una materia — cada
+   unidad se renombra (lápiz o doble click), se borra (con confirmación sólo si algún alumno ya
+   tiene avance registrado ahí, ver unitHasAvance() en helpers.js), se reordena con flechas
+   siempre visibles (obligatorias: en mobile el drag es un infierno) y puede tener subunidades
+   (un nivel, mismo patrón de editar/borrar/reordenar). Enter en "nueva unidad"/"nueva subunidad"
+   agrega y deja el foco listo para seguir cargando en cadena (ver el listener de keydown en
+   events.js). ============ */
+function vSubunitList(u){
+  const subs = u.subunidades||[];
+  let h = subs.length ? `<div class="subunit-list">` + subs.map((sub,i)=>{
+    const renaming = state.editSubunitId && state.editSubunitId.unitId===u.id && state.editSubunitId.subId===sub.id;
+    if(renaming){
+      return `<div class="subunit-row">
+        <input id="subunit-rename-input" value="${esc(sub.nombre)}" data-enter="cat-subunit-rename-done" autofocus>
+        <button class="chip" data-a="cat-subunit-rename-done">Guardar</button>
+        <button class="chip" data-a="cat-subunit-rename-cancel">Cancelar</button>
+      </div>`;
+    }
+    return `<div class="subunit-row">
+      <div class="unit-arrows">
+        <button class="iconbtn" data-a="cat-subunit-up" data-unit-id="${u.id}" data-id="${sub.id}" ${i===0?"disabled":""} title="Subir subunidad" aria-label="Subir subunidad">${ICON_CHEVRON_UP}</button>
+        <button class="iconbtn" data-a="cat-subunit-down" data-unit-id="${u.id}" data-id="${sub.id}" ${i===subs.length-1?"disabled":""} title="Bajar subunidad" aria-label="Bajar subunidad">${ICON_CHEVRON}</button>
+      </div>
+      <span class="subunit-label" data-a-dbl="cat-subunit-rename-start" data-unit-id="${u.id}" data-id="${sub.id}">${esc(sub.nombre)}</span>
+      <button class="iconbtn" data-a="cat-subunit-rename-start" data-unit-id="${u.id}" data-id="${sub.id}" title="Renombrar subunidad" aria-label="Renombrar subunidad">${ICON_EDIT}</button>
+      <button class="del" data-a="cat-del-subunit" data-unit-id="${u.id}" data-id="${sub.id}" title="Quitar subunidad" aria-label="Quitar subunidad">×</button>
+    </div>`;
+  }).join("") + `</div>` : "";
+  h += `<div class="subunit-row subunit-add">
+    <input id="new-subunit-${u.id}" placeholder="Agregar subunidad" data-enter="cat-add-subunit:${u.id}">
+    <button class="primary" data-a="cat-add-subunit:${u.id}">+ Subunidad</button>
+  </div>`;
+  return h;
+}
+function vUnitRow(u, i, total){
+  if(state.catConfirmDelId && state.catConfirmDelId.type==="unit" && state.catConfirmDelId.id===u.id){
+    return `<div class="log unit-row"><div class="body">
+      <span style="font-size:13px;color:var(--status-desaprobo-fg)">¿Eliminar «${esc(u.nombre)}»? Hay alumnos con avance registrado ahí — no se borra su historial, sólo deja de verse en la grilla.</span>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <button class="danger" data-a="cat-confirm-del-unit" data-id="${u.id}">Sí, eliminar</button>
+        <button class="chip" data-a="cat-cancel-del">Cancelar</button>
+      </div></div></div>`;
+  }
+  const renaming = state.editUnitId===u.id;
+  return `<div class="log unit-row">
+    <div class="unit-arrows">
+      <button class="iconbtn" data-a="cat-unit-up" data-id="${u.id}" ${i===0?"disabled":""} title="Subir unidad" aria-label="Subir unidad">${ICON_CHEVRON_UP}</button>
+      <button class="iconbtn" data-a="cat-unit-down" data-id="${u.id}" ${i===total-1?"disabled":""} title="Bajar unidad" aria-label="Bajar unidad">${ICON_CHEVRON}</button>
+    </div>
+    <div class="body">
+      ${renaming
+        ? `<div style="display:flex;gap:6px;flex-wrap:wrap"><input id="unit-rename-input" value="${esc(u.nombre)}" data-enter="cat-unit-rename-done" autofocus>
+           <button class="chip" data-a="cat-unit-rename-done">Guardar</button>
+           <button class="chip" data-a="cat-unit-rename-cancel">Cancelar</button></div>`
+        : `<b class="unit-label" data-a-dbl="cat-unit-rename-start" data-id="${u.id}">${esc(u.nombre)}</b>`}
+      ${vSubunitList(u)}
+    </div>
+    ${!renaming ? `<div style="display:flex;gap:2px;align-items:flex-start">
+      <button class="iconbtn" data-a="cat-unit-rename-start" data-id="${u.id}" title="Renombrar unidad" aria-label="Renombrar unidad">${ICON_EDIT}</button>
+      <button class="del" data-a="cat-ask-del-unit" data-id="${u.id}" title="Quitar unidad" aria-label="Quitar unidad">×</button>
+    </div>` : ""}
+  </div>`;
+}
 function vCatalog(){
   const c=state.catalog;
   let h = pageHead("Materias","Materias, carreras y materiales");
@@ -2718,12 +2787,11 @@ function vCatalog(){
       return `<button class="subj-swatch ${sel?"sel":""}" data-a="cat-set-subject-color" data-color="${k}"
         style="background:var(--subj-${k}-fg)" title="${esc(SUBJECT_COLOR_LABELS[k])}">${sel?ICON_CHECK:""}</button>`;
     }).join("")}</div>
-    <div class="flabel" style="margin-top:12px">Unidades / temas (se muestran en este orden)</div>
-    ${em.units.map((u,i)=>`<div class="log" style="padding:7px 12px"><div class="body">${esc(u)}</div>
-      <button class="del" data-a="cat-del-unit" data-i="${i}" title="Quitar unidad" aria-label="Quitar unidad">×</button></div>`).join("") || `<div class="empty">Sin unidades todavía. Agregá la primera acá abajo.</div>`}
+    <div class="flabel" style="margin-top:12px">Unidades y subunidades (se muestran en este orden)</div>
+    ${em.units.map((u,i)=>vUnitRow(u,i,em.units.length)).join("") || `<div class="empty">Sin unidades todavía. Agregá la primera acá abajo.</div>`}
     <div class="frow" style="margin-top:8px;align-items:flex-end">
       <div class="field"><input id="new-unit" placeholder="Ej: Límites y continuidad" data-enter="cat-add-unit"></div>
-      <button class="chip" data-a="cat-add-unit" style="margin-bottom:2px">+ Agregar unidad</button></div>
+      <button class="primary" style="margin-bottom:2px" data-a="cat-add-unit">+ Agregar unidad</button></div>
     <button class="primary" style="margin:12px 0 0;margin-left:0" data-a="cat-close-edit">Listo</button>
     <div class="hint" style="margin-top:8px">Los cambios se guardan solos. Si quitás una unidad, los alumnos que ya la tenían registrada no pierden nada; las unidades nuevas les aparecen como «Pendiente».</div>
     </div>`;
@@ -2877,9 +2945,9 @@ function defaultStatsSubjectId(){
 function topicProgressPct(s){
   const units=unitsFor(s); if(units.length===0) return null;
   const topics=s.topics||{};
-  const entran=units.filter(t=>topics[t]!=="noentra");
+  const entran=units.filter(u=>topics[u.nombre]!=="noentra");
   if(entran.length===0) return null;
-  const parcial=entran.filter(t=>topics[t]==="parcial").length;
+  const parcial=entran.filter(u=>topics[u.nombre]==="parcial").length;
   return parcial/entran.length*100;
 }
 // Una columna por categoría: barra (alto proporcional al total del grupo), número y label.
