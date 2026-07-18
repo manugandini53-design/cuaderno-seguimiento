@@ -737,18 +737,28 @@ document.addEventListener("click", (e)=>{
   else if(a==="save-session" && s){
     const date=document.getElementById("c-date").value; if(!date) return;
     state.sessionPrefillDate="";
+    const note=document.getElementById("c-note").value;
+    if((state.sessionEstado||"dada")==="ausente"){
+      const motivo=state.sessionAusenteMotivo||"aviso_tiempo";
+      const cobra=state.sessionAusenteCobra!=null ? state.sessionAusenteCobra : ausenciaCobraSugerida(motivo);
+      update(s.id,{sessions:[...s.sessions,{id:uid(),date,note,ausente:{motivo,cobra}}]});
+      state.sessionEstado="dada"; state.sessionAusenteMotivo=null; state.sessionAusenteCobra=null;
+      toast("Ausencia registrada"); return;
+    }
     const goal=document.getElementById("c-goal").value.trim();
     const durationRaw=document.getElementById("c-duration").value;
     const duration=durationRaw==="" ? null : (parseInt(durationRaw,10)||60);
     update(s.id,{sessions:[...s.sessions,{id:uid(),date,
       topic:document.getElementById("c-topic").value,
       tarea:document.getElementById("c-tarea").value,
-      note:document.getElementById("c-note").value,
+      note,
       duration,
       objetivo:goal, objetivoResult:null,
       cobrada:false}]});
     toast("Clase registrada"); return;
   }
+  else if(a==="set-session-estado"){ state.sessionEstado=el.dataset.f; render(); return; }
+  else if(a==="set-session-ausente-cobra"){ state.sessionAusenteCobra = el.dataset.f==="si"; render(); return; }
   else if(a==="goal-resultado"){
     const sid=el.dataset.sid, st=state.students.find(x=>x.id===sid); if(!st) return;
     const cid=el.dataset.id, r=el.dataset.r;
@@ -1221,6 +1231,7 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf==="compare-b"){ state.compareB=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-month"){ state.pagosMonth=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-export-period"){ state.pagosExportPeriod=cf.value; render(); return; }
+  if(cf && cf.dataset.cf==="session-ausente-motivo"){ state.sessionAusenteMotivo=cf.value; state.sessionAusenteCobra=null; render(); return; }
   if(cf && cf.dataset.cf==="tarifa-ajuste-modo"){ tarifaAjusteState().modo=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="tarifa-ajuste-valor"){ tarifaAjusteState().valor=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="tarifa-ajuste-redondeo"){ tarifaAjusteState().redondeo=cf.value; render(); return; }

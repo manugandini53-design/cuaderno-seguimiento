@@ -645,6 +645,10 @@ function vFichaResumenGlance(s){
       {a:"tab-objetivos", label:"Ver objetivos"})}
     ${hoyCard("Avance", avancePct!==null?avancePct+"%":"—",
       avancePct!==null?`<div class="hint">${seen}/${rel} unidades</div>`:`<div class="hint">sin materia elegida</div>`)}
+    ${(()=>{ const a=asistenciaStats(s, currentMonthKey()+"-01", today());
+      return hoyCard("Asistencia (mes)", a.pct!==null?a.pct+"%":"—",
+        a.total===0?`<div class="hint">sin clases este mes</div>`:`<div class="hint">${a.ausencias} ausencia${a.ausencias===1?"":"s"} de ${a.total}</div>`,
+        {a:"tab-clases", label:"Ver clases"}); })()}
   </div>`;
 }
 
@@ -713,9 +717,17 @@ function vFichaResumen(s){
 /* ============ ficha → Clases: registrar/revisar clases dictadas, horarios habituales, clases
    puntuales y simulacros — todo lo que es "actividad" con el alumno ============ */
 function vFichaClases(s){
+  const estado = state.sessionEstado||"dada";
+  const motivo = state.sessionAusenteMotivo||"aviso_tiempo";
+  const cobraSugerida = state.sessionAusenteCobra!=null ? state.sessionAusenteCobra : ausenciaCobraSugerida(motivo);
   let h = `<div class="formcard"><div class="ftitle">Registrar clase (30 segundos, apenas termina)</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="chip ${estado==="dada"?"on":""}" data-a="set-session-estado" data-f="dada">Dada</button>
+      <button class="chip ${estado==="ausente"?"on":""}" data-a="set-session-estado" data-f="ausente">Ausente</button>
+    </div>
     <div class="frow">
       <div class="field"><div class="flabel">Fecha</div><input type="date" id="c-date" value="${esc(state.sessionPrefillDate||today())}" data-enter="save-session"></div>
+      ${estado==="dada" ? `
       <div class="field"><div class="flabel">Tema principal</div><select id="c-topic" data-enter="save-session"><option value="">—</option>
         ${unitsFor(s).map(t=>`<option>${esc(t)}</option>`).join("")}
         <option>Nivelación</option><option>Repaso / parciales viejos</option></select></div>
@@ -723,17 +735,36 @@ function vFichaClases(s){
         <option value="sd">—</option><option value="hecha">Hecha</option>
         <option value="intentada">Intentada</option><option value="no">No hecha</option></select></div>
       <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div>
-        <input type="number" min="1" id="c-duration" value="60" data-enter="save-session"></div>
+        <input type="number" min="1" id="c-duration" value="60" data-enter="save-session"></div>` : `
+      <div class="field"><div class="flabel">Motivo</div><select data-cf="session-ausente-motivo">
+        ${Object.entries(AUSENCIA_MOTIVO_META).map(([k,m])=>`<option value="${k}" ${motivo===k?"selected":""}>${esc(m.label)}</option>`).join("")}
+      </select></div>
+      <div class="field"><div class="flabel">¿Se cobra?</div>
+        <div style="display:flex;gap:8px">
+          <button class="chip ${!cobraSugerida?"on":""}" data-a="set-session-ausente-cobra" data-f="no">No</button>
+          <button class="chip ${cobraSugerida?"on":""}" data-a="set-session-ausente-cobra" data-f="si">Sí</button>
+        </div>
+      </div>`}
     </div>
-    <div class="field"><div class="flabel">Nota rápida (qué costó, tarea que dejaste)</div>
-      <input id="c-note" placeholder="Ej: se traba en cadena+cociente. Tarea: guía 5, ej. 8-12" data-enter="save-session"></div>
-    <div class="field"><div class="flabel">Objetivo de hoy (opcional)</div>
-      <input id="c-goal" placeholder="Ej: que resuelva sola sistemas 2x2" data-enter="save-session"></div>
-    <button class="primary" style="margin-top:10px;margin-left:0" data-a="save-session">Guardar clase</button></div>`;
+    <div class="field"><div class="flabel">${estado==="dada"?"Nota rápida (qué costó, tarea que dejaste)":"Nota (opcional)"}</div>
+      <input id="c-note" placeholder="${estado==="dada"?"Ej: se traba en cadena+cociente. Tarea: guía 5, ej. 8-12":"Ej: avisó por WhatsApp a la mañana"}" data-enter="save-session"></div>
+    ${estado==="dada" ? `<div class="field"><div class="flabel">Objetivo de hoy (opcional)</div>
+      <input id="c-goal" placeholder="Ej: que resuelva sola sistemas 2x2" data-enter="save-session"></div>` : ""}
+    <button class="primary" style="margin-top:10px;margin-left:0" data-a="save-session">Guardar</button></div>`;
   const cobraPorClase = hasPagos(s) && s.modalidad==="clase";
   const sorted=[...s.sessions].sort((a,b)=>b.date.localeCompare(a.date));
   h += sorted.length===0 ? `<div class="empty">Todavía no hay clases registradas.</div>`
-    : sorted.map(c=>`<div class="log"><div class="d">${fmtDate(c.date)}</div>
+    : sorted.map(c=>{
+        if(isAusente(c)){
+          const m = AUSENCIA_MOTIVO_META[c.ausente.motivo] || AUSENCIA_MOTIVO_META.aviso_tiempo;
+          return `<div class="log"><div class="d">${fmtDate(c.date)}</div>
+            <div class="body"><span class="badge badge-red">Ausente</span>
+            <span class="tareatag">${esc(m.label)}</span>
+            <span class="tareatag">${c.ausente.cobra?"se cobra":"no se cobra"}</span>
+            ${c.note?`<div class="note">${esc(c.note)}</div>`:""}</div>
+            <button class="del" data-a="del-session" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button></div>`;
+        }
+        return `<div class="log"><div class="d">${fmtDate(c.date)}</div>
       <div class="body"><span style="font-weight:600">${esc(c.topic||"Clase")}</span>
       <span class="tareatag">${c.duration!=null&&c.duration!==""?Math.round(c.duration)+" min":"60 min (asumido)"}</span>
       ${c.tarea&&c.tarea!=="sd"?`<span class="tareatag" style="color:${TAREA_META[c.tarea].fg}">tarea: ${TAREA_META[c.tarea].label}</span>`:""}
@@ -742,7 +773,8 @@ function vFichaClases(s){
         ? ` <span style="color:${OBJETIVO_META[c.objetivoResult.estado].fg}">· <span class="icon-inline">${OBJETIVO_ICONS[c.objetivoResult.estado]}</span> ${OBJETIVO_META[c.objetivoResult.estado].label}${c.objetivoResult.pct!=null?` (${c.objetivoResult.pct}%)`:""}</span>`
         : ` <span class="hint">· sin evaluar todavía</span>`}</div>` : ""}</div>
       ${cobraPorClase?`<button class="chip ${c.cobrada?"on":""}" data-a="toggle-cobrada" data-id="${c.id}">${c.cobrada?"Cobrada":"Pendiente"}</button>`:""}
-      <button class="del" data-a="del-session" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button></div>`).join("");
+      <button class="del" data-a="del-session" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button></div>`;
+      }).join("");
   h += vHorariosCard(s);
   h += vPuntualesCard(s);
   h += vSimTimer();
@@ -2799,6 +2831,13 @@ function vEstadisticas(){
   h += materiaGoals.total===0
     ? `<div class="empty">Sin objetivos de clase evaluados todavía en esta materia.</div>`
     : `<div class="stats"><div class="stat"><b>${countSpan(materiaGoals.si/materiaGoals.total*100,{suffix:"%"})}</b><span>cumplidos sobre ${materiaGoals.total} objetivo${materiaGoals.total===1?"":"s"} evaluado${materiaGoals.total===1?"":"s"}</span></div></div>`;
+
+  h += `<div class="stitle">Asistencia de esta materia (este mes)</div>`;
+  const asistMes = grupo.reduce((acc,s)=>{ const a=asistenciaStats(s, currentMonthKey()+"-01", today()); acc.dadas+=a.dadas; acc.ausencias+=a.ausencias; return acc; }, {dadas:0,ausencias:0});
+  const asistTotal = asistMes.dadas+asistMes.ausencias;
+  h += asistTotal===0
+    ? `<div class="empty">Sin clases registradas este mes en esta materia.</div>`
+    : `<div class="stats"><div class="stat"><b>${countSpan(asistMes.dadas/asistTotal*100,{suffix:"%"})}</b><span>asistencia (${asistMes.ausencias} ausencia${asistMes.ausencias===1?"":"s"} sobre ${asistTotal} clase${asistTotal===1?"":"s"})</span></div></div>`;
 
   h += vAula(grupo);
   h += vTuActividad();

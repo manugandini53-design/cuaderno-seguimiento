@@ -361,6 +361,8 @@ function studentAlerts(s){
   const lastDate = s.sessions.length ? [...s.sessions].sort((a,b)=>b.date.localeCompare(a.date))[0].date : s.startDate;
   const gap = lastDate ? -daysTo(lastDate) : null;
   if(gap!==null && gap>=10) out.push({text:`Sin clases hace ${gap} días — ¿sigue o pasarlo a pausado?`, wa:"clase"});
+  const ausenciasMes = asistenciaStats(s, currentMonthKey()+"-01", today()).ausencias;
+  if(ausenciasMes>=3) out.push({text:`${ausenciasMes} ausencias este mes`, wa:"clase"});
   return out;
 }
 
@@ -445,6 +447,19 @@ function goalCountsInMonth(mk){
    modalidad "clase" cobra por clase dada ese mes; "mensual" cobra una tarifa fija
    por mes, contra los pagos registrados en ese mes (sin arrastre entre meses). */
 function hasPagos(s){ return !!(Number(s.tarifa)>0 && (s.modalidad==="clase"||s.modalidad==="mensual")); }
+/* ============ ausencias (paso 113): sessions[].ausente = {motivo, cobra} ============
+   Una ausencia queda en el mismo s.sessions que una clase dada (misma fecha, mismo flujo de
+   "Registrar clase") pero no cuenta como clase dictada — se excluye de pagoResumen() y
+   classesInMonth() más abajo para no inflar cobros ni horas dictadas con clases que no pasaron. */
+function isAusente(c){ return !!(c && c.ausente); }
+function ausenciaCobraSugerida(motivo){ return motivo!=="aviso_tiempo"; }
+// Asistencia de un alumno en un rango de fechas inclusive — para la ficha y Estadísticas.
+function asistenciaStats(s, from, to){
+  const sesiones=(s.sessions||[]).filter(c=>c.date>=from && c.date<=to);
+  const ausencias=sesiones.filter(isAusente).length;
+  const dadas=sesiones.length-ausencias;
+  return { dadas, ausencias, total:sesiones.length, pct: sesiones.length? Math.round(dadas/sesiones.length*100) : null };
+}
 function monthKeyOf(ds){ return (ds||"").slice(0,7); }
 function currentMonthKey(){ return monthKeyOf(today()); }
 function monthLabel(mk){
@@ -466,7 +481,7 @@ function recentMonthKeys(n){
 function pagoResumen(s, mk){
   if(!hasPagos(s)) return null;
   const tarifa=Number(s.tarifa)||0;
-  const clasesMes=(s.sessions||[]).filter(c=>monthKeyOf(c.date)===mk);
+  const clasesMes=(s.sessions||[]).filter(c=>monthKeyOf(c.date)===mk && !isAusente(c));
   if(s.modalidad==="clase"){
     const cobradas=clasesMes.filter(c=>c.cobrada).length;
     const pendientes=clasesMes.length-cobradas;
@@ -530,7 +545,7 @@ function pagosCsvRows(monthKeys){
   alive().forEach(s=>{
     if(hasPagos(s) && s.modalidad==="clase"){
       (s.sessions||[]).forEach(c=>{
-        if(!mkSet.has(monthKeyOf(c.date))) return;
+        if(isAusente(c) || !mkSet.has(monthKeyOf(c.date))) return;
         rows.push({date:c.date, alumno:s.name, materia:s.subject||"", concepto:"Clase",
           monto:Number(s.tarifa)||0, estado:c.cobrada?"Cobrada":"Pendiente"});
       });
@@ -863,7 +878,7 @@ function pagosSeniaResumen(mk){
    del mes pero no se reparte en los desgloses por materia/alumno (ver rentabilidadPorMateria/Alumno). */
 function classesInMonth(mk){
   const out=[];
-  alive().forEach(s=>(s.sessions||[]).forEach(c=>{ if(monthKeyOf(c.date)===mk) out.push({s,c}); }));
+  alive().forEach(s=>(s.sessions||[]).forEach(c=>{ if(monthKeyOf(c.date)===mk && !isAusente(c)) out.push({s,c}); }));
   return out;
 }
 function classDurationHours(c){ return (Number(c.duration)||60)/60; }

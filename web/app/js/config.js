@@ -192,6 +192,15 @@ function defaultCatalog(){
     updatedAt:0 };
 }
 const TAREA_META = {hecha:{label:"hecha",fg:"var(--tarea-hecha-fg)"},intentada:{label:"intentada",fg:"var(--tarea-intentada-fg)"},no:{label:"no hecha",fg:"var(--tarea-no-fg)"}};
+// Motivo de una ausencia (paso 113, s.sessions[].ausente = {motivo, cobra}) — "aviso_tiempo"
+// sugiere no cobrar, "aviso_tarde"/"no_aviso" sugieren cobrar (mismo criterio de fondo que la
+// política de cancelación de señas: avisar con tiempo no tiene costo, avisar tarde o no avisar
+// sí), aunque siempre modificable a mano al registrar. Ver ausenciaCobraSugerida() en helpers.js.
+const AUSENCIA_MOTIVO_META = {
+  aviso_tiempo:{label:"Avisó con tiempo"},
+  aviso_tarde:{label:"Avisó tarde"},
+  no_aviso:{label:"No avisó"},
+};
 // Resultado del cierre de objetivo de clase (ver s.sessions[].objetivoResult en helpers.js).
 // pctDefault es el valor que toma el slider si el profesor no lo tocó antes de tocar el botón.
 // El ícono de cada uno (ICON_CHECK/ICON_HALF/ICON_X) vive en views.js — OBJETIVO_ICONS ahí — porque
