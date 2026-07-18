@@ -778,7 +778,21 @@ function vFichaPagos(s){
   </div>`;
   h += vSeniaCard(s);
   h += vRecibosCard(s);
+  h += vTarifaHistorialCard(s);
   return h;
+}
+// Historial de cambios de tarifa (paso 112) — sólo lo llena el ajuste en lote de Pagos →
+// "Ajustar tarifas" (ver applyTarifaAjuste en helpers.js); un cambio manual del campo Tarifa de
+// arriba no queda registrado acá, a propósito (evita ruido por correcciones sueltas).
+function vTarifaHistorialCard(s){
+  const hist = [...(s.tarifaHistorial||[])].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  if(hist.length===0) return "";
+  return `<div class="formcard"><div class="ftitle">Historial de tarifas</div>
+    ${hist.map(h=>`<div class="log">
+      <div class="d">${fmtDate(h.fecha)}</div>
+      <div class="body">${fmtMoney(h.de)} → ${fmtMoney(h.a)}</div>
+    </div>`).join("")}
+  </div>`;
 }
 // Recibos ya emitidos a este alumno (paso 81) — sólo aparece si tiene alguno; "Ver" reabre el
 // mismo documento imprimible/copiable que se ofreció al cobrar (ver vRecibo más abajo).
@@ -1290,8 +1304,9 @@ function vPagos(){
   h += `<div class="tabs" style="margin-bottom:14px">
     <button class="tabbtn ${tab==="resumen"?"on":""}" data-a="pagos-tab" data-t="resumen">Resumen</button>
     <button class="tabbtn ${tab==="rentabilidad"?"on":""}" data-a="pagos-tab" data-t="rentabilidad">Rentabilidad</button>
+    <button class="tabbtn ${tab==="ajustar"?"on":""}" data-a="pagos-tab" data-t="ajustar">Ajustar tarifas</button>
   </div>`;
-  return h + (tab==="rentabilidad" ? vRentabilidad() : vPagosResumen());
+  return h + (tab==="rentabilidad" ? vRentabilidad() : tab==="ajustar" ? vAjustarTarifas() : vPagosResumen());
 }
 // Opciones de período para el export contable (paso 83) — termina en el mes elegido en el
 // selector de arriba, así "exportar" siempre coincide con lo que se está mirando en pantalla.
@@ -1356,6 +1371,77 @@ function vPagosResumen(){
       <span class="chip" style="color:${SENIA_ESTADO_META[p.seniaEstado].fg};border-color:${SENIA_ESTADO_META[p.seniaEstado].fg};flex-shrink:0">${fmtMoney(p.seniaMonto)} · ${SENIA_ESTADO_META[p.seniaEstado].label}</span>
     </div>`).join("");
   }
+  return h;
+}
+
+/* ============ ajuste de tarifas en lote (paso 112) ============
+   Aumento % o monto fijo a la tarifa de varios alumnos de una, con vista previa antes de
+   aplicar — cada alumno arranca incluido, se puede destildar uno a la vez o toda una materia
+   junto (toggle-tarifa-ajuste-materia). Sólo alumnos activos con tarifa cargada; el cambio real
+   lo hace applyTarifaAjuste() (helpers.js), que además deja una línea en s.tarifaHistorial. */
+function tarifaAjusteState(){ return state.tarifaAjuste || (state.tarifaAjuste = {modo:"porcentaje", valor:"", redondeo:"", excluidos:[]}); }
+function vAjustarTarifas(){
+  const cfg = tarifaAjusteState();
+  const candidatos = alive().filter(s=>s.status==="activo" && Number(s.tarifa)>0)
+    .sort((a,b)=>(a.subject||"").localeCompare(b.subject||"") || a.name.localeCompare(b.name));
+
+  let h = `<div class="formcard"><div class="ftitle">Ajustar tarifas</div>
+    <div class="hint" style="margin-bottom:10px">Aplicá un aumento a la tarifa de varios alumnos de una — las clases ya registradas y los recibos ya emitidos no cambian de precio.</div>
+    <div class="frow">
+      <div class="field" style="max-width:180px"><div class="flabel">Tipo de aumento</div>
+        <select data-cf="tarifa-ajuste-modo">
+          <option value="porcentaje" ${cfg.modo!=="monto"?"selected":""}>Porcentaje</option>
+          <option value="monto" ${cfg.modo==="monto"?"selected":""}>Monto fijo</option>
+        </select></div>
+      <div class="field" style="max-width:160px"><div class="flabel">${cfg.modo==="monto"?"Monto (pesos)":"Porcentaje (%)"}</div>
+        <input type="number" data-cf="tarifa-ajuste-valor" value="${esc(cfg.valor)}" placeholder="${cfg.modo==="monto"?"Ej: 5000":"Ej: 15"}"></div>
+      <div class="field" style="max-width:180px"><div class="flabel">Redondeo</div>
+        <select data-cf="tarifa-ajuste-redondeo">
+          <option value="" ${!cfg.redondeo?"selected":""}>Sin redondeo</option>
+          <option value="100" ${cfg.redondeo==="100"?"selected":""}>Al $100 más cercano</option>
+          <option value="500" ${cfg.redondeo==="500"?"selected":""}>Al $500 más cercano</option>
+          <option value="1000" ${cfg.redondeo==="1000"?"selected":""}>Al $1000 más cercano</option>
+        </select></div>
+    </div>
+  </div>`;
+
+  if(candidatos.length===0){
+    return h + emptyState(ICON_WALLET, "No hay tarifas para ajustar",
+      "Cargá una tarifa en la ficha de algún alumno activo (pestaña «Pagos») para poder aplicarle un aumento acá.");
+  }
+
+  const valorNum = Number(cfg.valor)||0;
+  if(valorNum===0){
+    return h + `<div class="hint">Ingresá un porcentaje o un monto para ver la vista previa.</div>`;
+  }
+
+  const step = Number(cfg.redondeo)||0;
+  const cambios = candidatos.map(s=>({
+    s, actual:Number(s.tarifa)||0,
+    nueva:tarifaAjusteNueva(Number(s.tarifa)||0, cfg.modo, cfg.valor, step),
+    incluido: !cfg.excluidos.includes(s.id),
+  }));
+  const incluidos = cambios.filter(c=>c.incluido);
+
+  const bySubject = {};
+  cambios.forEach(c=>{ const k=c.s.subject||"Sin materia"; (bySubject[k]=bySubject[k]||[]).push(c); });
+
+  h += `<div class="formcard"><div class="ftitle">Vista previa</div>`;
+  Object.entries(bySubject).forEach(([materia,list])=>{
+    const todosIncluidos = list.every(c=>c.incluido);
+    h += `<div class="stitle" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span>${esc(materia)}</span>
+      <button class="chip" data-a="toggle-tarifa-ajuste-materia" data-subject="${esc(materia)}">${todosIncluidos?"Destildar todos":"Tildar todos"}</button>
+    </div>`;
+    h += list.map(c=>`<button class="row" data-a="toggle-tarifa-ajuste-alumno" data-id="${c.s.id}" style="opacity:${c.incluido?1:.5}">
+      <div class="main"><span class="badge ${c.incluido?"badge-green":"badge-neutral"}" style="margin-right:6px">${c.incluido?"Incluido":"Excluido"}</span><div class="name" style="display:inline">${esc(c.s.name)}</div></div>
+      <div class="right" style="text-align:right">
+        <span class="hint">${fmtMoney(c.actual)}</span> → <b style="color:var(--accent-dark)">${fmtMoney(c.nueva)}</b>
+      </div>
+    </button>`).join("");
+  });
+  h += `<button class="primary" style="margin-top:14px;margin-left:0" data-a="apply-tarifa-ajuste" ${incluidos.length===0?"disabled":""}>Aplicar aumento a ${incluidos.length} alumno${incluidos.length===1?"":"s"}</button>
+  </div>`;
   return h;
 }
 

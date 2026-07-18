@@ -917,6 +917,29 @@ document.addEventListener("click", (e)=>{
     }); return;
   }
   else if(a==="pagos-tab"){ state.pagosTab=el.dataset.t; }
+  else if(a==="toggle-tarifa-ajuste-alumno"){
+    const cfg=tarifaAjusteState(), id=el.dataset.id;
+    cfg.excluidos = cfg.excluidos.includes(id) ? cfg.excluidos.filter(x=>x!==id) : [...cfg.excluidos, id];
+    render(); return;
+  }
+  else if(a==="toggle-tarifa-ajuste-materia"){
+    const cfg=tarifaAjusteState(), materia=el.dataset.subject;
+    const ids = alive().filter(s=>s.status==="activo" && Number(s.tarifa)>0 && (s.subject||"Sin materia")===materia).map(s=>s.id);
+    const todosIncluidos = ids.every(id=>!cfg.excluidos.includes(id));
+    cfg.excluidos = todosIncluidos ? [...new Set([...cfg.excluidos, ...ids])] : cfg.excluidos.filter(id=>!ids.includes(id));
+    render(); return;
+  }
+  else if(a==="apply-tarifa-ajuste"){
+    const cfg=tarifaAjusteState();
+    const step = Number(cfg.redondeo)||0;
+    const cambios = alive().filter(s=>s.status==="activo" && Number(s.tarifa)>0 && !cfg.excluidos.includes(s.id))
+      .map(s=>({id:s.id, actual:Number(s.tarifa)||0, nueva:tarifaAjusteNueva(Number(s.tarifa)||0, cfg.modo, cfg.valor, step)}));
+    if(cambios.length===0) return;
+    applyTarifaAjuste(cambios);
+    state.tarifaAjuste = {modo:cfg.modo, valor:"", redondeo:cfg.redondeo, excluidos:[]};
+    toast(`Tarifa ajustada para ${cambios.length} alumno${cambios.length===1?"":"s"}.`, "ok");
+    return;
+  }
   else if(a==="stats-mode"){ state.statsMode=el.dataset.m; }
   else if(a==="compare-prev-month"){ state.compareA=monthKeyOffset(0); state.compareB=monthKeyOffset(-1); }
   else if(a==="compare-last-year"){ state.compareA=monthKeyOffset(0); state.compareB=monthKeyOffset(-12); }
@@ -1198,6 +1221,9 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf==="compare-b"){ state.compareB=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-month"){ state.pagosMonth=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-export-period"){ state.pagosExportPeriod=cf.value; render(); return; }
+  if(cf && cf.dataset.cf==="tarifa-ajuste-modo"){ tarifaAjusteState().modo=cf.value; render(); return; }
+  if(cf && cf.dataset.cf==="tarifa-ajuste-valor"){ tarifaAjusteState().valor=cf.value; render(); return; }
+  if(cf && cf.dataset.cf==="tarifa-ajuste-redondeo"){ tarifaAjusteState().redondeo=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="renta-month"){ state.rentaMonth=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="informe-period"){ state.informePeriod=cf.value; render(); return; }
   const lf=e.target.closest("[data-lf]");

@@ -257,6 +257,27 @@ function update(id, patch){
   state.students = state.students.map(s => s.id===id ? {...s,...patch} : s);
   save(); render();
 }
+/* ============ ajuste de tarifas en lote (paso 112) ============
+   Aumento % o monto fijo a varias tarifas de una — ver vAjustarTarifas() en views.js para la
+   vista previa y quién queda incluido/excluido. Sólo toca s.tarifa hacia adelante: recibos ya
+   emitidos guardan su monto propio (crearRecibo) y no se recalculan, así que una clase ya
+   registrada y cobrada no cambia de precio con este ajuste. */
+function tarifaAjusteRedondeada(n, step){ return step ? Math.round(n/step)*step : Math.round(n); }
+function tarifaAjusteNueva(actual, modo, valor, step){
+  const v = Number(valor)||0;
+  const nueva = modo==="monto" ? actual+v : actual*(1+v/100);
+  return Math.max(0, tarifaAjusteRedondeada(nueva, step));
+}
+// Un solo save()/render() para todos los cambios (a diferencia de update(), pensado para un
+// alumno a la vez) — evita N renders innecesarios al aplicar el aumento a varios de golpe.
+function applyTarifaAjuste(cambios){
+  const byId = new Map(cambios.map(c=>[c.id,c]));
+  state.students = state.students.map(s=>{
+    const c = byId.get(s.id); if(!c) return s;
+    return {...s, tarifa:c.nueva, tarifaHistorial:[...(s.tarifaHistorial||[]), {fecha:today(), de:c.actual, a:c.nueva}], updatedAt:Date.now()};
+  });
+  save(); render();
+}
 function emptyStudent(){
   return { id:uid(), name:"", career:(state.catalog.careers[0]||"Ingeniería"), subject:"", subjectId:"",
     chair:"", status:"activo", semaforo:"sd", examDate:"", startDate:today(), notes:"",
