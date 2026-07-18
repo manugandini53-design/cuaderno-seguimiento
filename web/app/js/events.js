@@ -1187,6 +1187,7 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf==="docente-nombre"){ state.catalog.docente={...docenteFor(), nombre:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-telefono"){ state.catalog.docente={...docenteFor(), telefono:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-dni"){ state.catalog.docente={...docenteFor(), dni:cf.value}; touchCatalog(); return; }
+  if(cf && cf.dataset.cf==="wa-recordatorio-clase"){ state.catalog.waRecordatorioClase=cf.value; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="portal-nombre"){ if(state.portal) state.portal.draftNombre=cf.value; return; }
   if(cf && cf.dataset.cf==="rec-dias"){
     state.catalog.recordatorios = {...recordatoriosFor(), diasAtraso:Math.max(0, parseInt(cf.value,10)||0)};

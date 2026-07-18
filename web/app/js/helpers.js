@@ -563,6 +563,7 @@ function buildPagosCsv(monthKeys){
 function recordatoriosFor(){ return state.catalog.recordatorios || defaultRecordatorios(); }
 function costosFor(){ return state.catalog.costos || defaultCostos(); }
 function docenteFor(){ return state.catalog.docente || defaultDocente(); }
+function waRecordatorioClaseFor(){ return state.catalog.waRecordatorioClase || defaultWaRecordatorioClase(); }
 // Qué de este alumno se comparte en su portal individual (ver s.portalShare, ficha → "Portal
 // para este alumno"). Por diseño sólo puede llevar estos tres booleanos — nunca notas, pagos,
 // señas ni comentarios privados (ver buildAlumnoBlock() en sync.js, que es lo único que lee esto

@@ -300,8 +300,11 @@ function vHoyClasesHoy(){
             <span class="hoy-row-name">${esc(e.studentName)}</span>
             ${e.subject?`<span class="hint">· ${esc(e.subject)}</span>`:""}
           </div>
-          ${done ? `<span class="badge badge-green">Registrada</span>`
-            : `<button class="chip" data-a="agenda-log" data-id="${e.studentId}" data-date="${today()}">Registrar</button>`}
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${done ? `<span class="badge badge-green">Registrada</span>`
+              : `<button class="chip" data-a="agenda-log" data-id="${e.studentId}" data-date="${today()}">Registrar</button>`}
+            ${vWaRecordarClaseBtn(e,"hoy")}
+          </div>
         </div>`;
       }).join("");
   return hoyCard("Clases de hoy", events.length, body, {a:"nav-agenda", label:"Ver agenda completa"});
@@ -353,7 +356,7 @@ function vHoyProximo(){
     }
     if(manana.length){
       body += `<div class="hoy-subhead">Mañana</div>` + manana.map(e=>
-        `<div class="hoy-row"><span class="hoy-row-time">${esc(e.time)}</span>${e.subjectId?subjectDot(e.subjectId):""}<span class="hoy-row-name">${esc(e.studentName)}</span></div>`
+        `<div class="hoy-row"><div class="hoy-row-main"><span class="hoy-row-time">${esc(e.time)}</span>${e.subjectId?subjectDot(e.subjectId):""}<span class="hoy-row-name">${esc(e.studentName)}</span></div>${vWaRecordarClaseBtn(e,"mañana")}</div>`
       ).join("");
     }
   }
@@ -1154,6 +1157,7 @@ function vAgendaEvent(e, date){
   const past = date<today();
   const already = past && studentHasSessionOnDate(e.studentId, e.date);
   const borderColor = e.subjectId ? `var(--subj-${subjectColorKey(e.subjectId)}-fg)` : "transparent";
+  const waBtn = date===today() ? vWaRecordarClaseBtn(e,"hoy") : date===addDays(today(),1) ? vWaRecordarClaseBtn(e,"mañana") : "";
   return `<div class="agenda-event ${e.overlap?"overlap":""}" style="border-left:3px solid ${borderColor}">
     <div class="agenda-time">${esc(e.time)} <span class="hint">${e.duration}min</span></div>
     <div class="agenda-who">${e.subjectId?subjectDot(e.subjectId):""} <b>${esc(e.studentName)}</b>${e.subject?` <span class="hint">· ${esc(e.subject)}</span>`:""}</div>
@@ -1161,6 +1165,7 @@ function vAgendaEvent(e, date){
     ${e.overlap?`<div class="hint" style="color:var(--status-desaprobo-fg);display:flex;align-items:center;gap:4px"><span class="icon-inline" style="width:12px;height:12px">${ICON_WARNING}</span> se superpone con otra clase</div>`:""}
     ${past && already ? `<div class="hint" style="color:var(--status-activo-fg)">Ya registrada</div>` : ""}
     ${past && !already ? `<button class="chip" style="margin-top:6px" data-a="agenda-log" data-id="${e.studentId}" data-date="${e.date}">Registrar esta clase</button>` : ""}
+    ${waBtn ? `<div style="margin-top:6px">${waBtn}</div>` : ""}
   </div>`;
 }
 
@@ -1224,6 +1229,26 @@ function waMsgCobro(s){
   const total = pendienteTotalFor(s);
   if(total<=0) return `Hola ${studentFirstName(s)}! Te escribo para coordinar el pago de las clases.`;
   return `Hola ${studentFirstName(s)}! Te escribo por el pago pendiente de ${fmtMoney(total)}. ¡Avisame cuando lo puedas hacer, gracias!`;
+}
+// Recordatorio de una clase de hoy/mañana (paso 111): texto base editable en Cuenta
+// (waRecordatorioClaseFor(), ver config.js/helpers.js) con variables {alumno}/{materia}/{dia}/
+// {hora} — la firma con el nombre del docente se agrega aparte, sólo si está cargado.
+function waMsgRecordatorioClase(s, dia, hora){
+  const doc = docenteFor();
+  const texto = waRecordatorioClaseFor()
+    .replace(/\{alumno\}/g, studentFirstName(s))
+    .replace(/\{materia\}/g, s.subject||"la materia")
+    .replace(/\{dia\}/g, dia)
+    .replace(/\{hora\}/g, hora);
+  return doc.nombre ? `${texto} Nos vemos — ${doc.nombre}` : texto;
+}
+// Botón "Recordar por WhatsApp" para una clase puntual de hoy/mañana (tablero Hoy y Agenda) —
+// e trae studentId/time (agendaRangeEvents en helpers.js); nada si el alumno no tiene teléfono
+// cargado (mismo criterio que el resto de los botones de WhatsApp, ver hasPhone en helpers.js).
+function vWaRecordarClaseBtn(e, dia){
+  const s = state.students.find(x=>x.id===e.studentId);
+  if(!s || !hasPhone(s)) return "";
+  return `<a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgRecordatorioClase(s,dia,e.time))}">Recordar por WhatsApp</a>`;
 }
 function vWhatsApp(s){
   const pendiente = pendienteTotalFor(s);
@@ -2008,6 +2033,17 @@ function vEscalaObjetivoCard(){
     </div>
   </div>`;
 }
+// Texto base del recordatorio de clase por WhatsApp (paso 111) — botón "Recordar por WhatsApp"
+// en el tablero Hoy y en Agenda, sólo para clases de hoy/mañana (ver vWaRecordarClaseBtn en
+// esta misma vista). La firma con el nombre del docente (tarjeta "Datos del docente" arriba) se
+// agrega sola si está cargada, no hace falta repetirla acá.
+function vWaRecordatorioClaseCard(){
+  const texto = waRecordatorioClaseFor();
+  return `<div class="formcard"><div class="ftitle">Recordatorio de clase por WhatsApp</div>
+    <div class="hint" style="margin-bottom:10px">Texto del botón "Recordar por WhatsApp" (tablero Hoy y Agenda). Variables: {alumno}, {materia}, {dia}, {hora}.</div>
+    <textarea data-cf="wa-recordatorio-clase" placeholder="${esc(defaultWaRecordatorioClase())}">${esc(texto)}</textarea>
+  </div>`;
+}
 function vCuenta(){
   const ses=getSes();
   const pol=cancelPolicyFor();
@@ -2039,6 +2075,7 @@ function vCuenta(){
       <textarea data-cf="policy-texto" placeholder="Ej: Las clases se cancelan con 24hs de aviso. Con menos aviso, la seña no se devuelve.">${esc(pol.texto||"")}</textarea></div>
     <div class="hint" style="margin-top:6px">Si la seña de esa clase todavía no se cobró, cancelar no tiene ninguna consecuencia sobre ella.</div>
   </div>
+  ${vWaRecordatorioClaseCard()}
   <div class="formcard"><div class="ftitle">Cuenta</div>
     <div style="font-size:13.5px;margin-bottom:6px">Conectado como <b>${esc(ses?ses.email:"")}</b></div>
     <div class="hint" style="margin-bottom:6px">${sesIsAdmin(ses)?"Cuenta de administrador":"Cuenta de profesor"}</div>

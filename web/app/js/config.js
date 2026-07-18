@@ -233,6 +233,14 @@ function defaultCostos(){ return {fijos:[], variables:[]}; }
 // se cargan una sola vez en Cuenta y se reutilizan donde haga falta (por ahora, el generador de
 // contratos — ver docenteFor() en helpers.js y vContrato() en views.js).
 function defaultDocente(){ return {nombre:"", telefono:"", dni:""}; }
+// Texto base del recordatorio de clase por WhatsApp (paso 111, state.catalog.waRecordatorioClase)
+// — mismo patrón que cancelPolicy/recordatorios/costos/docente: sincroniza vía catalog, con este
+// default para catálogos viejos que todavía no lo tienen (ver waRecordatorioClaseFor() en
+// helpers.js). Variables reemplazadas al armar el mensaje (ver waMsgRecordatorioClase() en
+// views.js): {alumno}, {materia}, {dia}, {hora}. La firma ("Nos vemos — nombre") se agrega aparte,
+// automática con docenteFor().nombre si está cargado — no es parte de este texto para no duplicar
+// el dato del nombre del docente en dos lugares editables.
+function defaultWaRecordatorioClase(){ return "¡Hola {alumno}! Te recuerdo la clase de {materia} de {dia} {hora}."; }
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 // Plantillas de materias: temarios típicos de primer año universitario para no arrancar
