@@ -24,6 +24,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/), adaptado
 a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc.).
 
 ## [Sin publicar]
+- Paso 123: `CLAUDE.md` con las reglas permanentes del proyecto (estructura de `web/`, `portal.html`, backend en `cuaderno-supabase` sin aplicar SQL solo, reglas inquebrantables de caché/sync-auth/CHANGELOG/commits/CDN/idioma, y la regla de cerrar cada respuesta con un checklist "CÓMO VERIFICAR").
 
 ## [2.2.0] - 2026-07-18
 - Landing al día (`web/index.html`): sección de características actualizada con lo real de esta serie — llaves cortas/grupales y avisos del portal, demo completo, agenda con vista por horas e "Imprimir semana", y las mejoras de las etapas U y V que ya estaban shippeadas: recordatorio push con la app cerrada, ajuste de tarifas en lote, ausencias con motivo, modo vacaciones (pausar alumno), link de videollamada por clase, mensajes de WhatsApp con plantillas editables (cumpleaños incluido) e "Interesados" para no perder consultas. Mismo diseño y selector de tema de siempre, sin tocarlos.

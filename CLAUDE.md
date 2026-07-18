@@ -6,11 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 "Cuaderno de seguimiento" — a product (in Spanish) for a math tutor to track students: exam dates, topic progress, class logs, and mock-exam ("simulacro") results, with accounts and cross-device sync backed by a single shared Supabase project (multi-tenant via RLS — see `web/app/js/config.js`'s `SUPA_URL`/`SUPA_ANON_KEY`). It ships as a PWA, a desktop app via Tauri (packaging lives in a separate repo, `cuaderno-desktop`, currently paused — see below), and an Android app via Capacitor (packaging lives in a separate repo, `cuaderno-android`, also currently paused — see below).
 
-`web/` is the site published to GitHub Pages, and has two independent, self-contained parts:
+`web/` is the site published to GitHub Pages, and has three independent, self-contained parts:
 - `web/index.html` — the marketing/landing page (product site root). Static HTML/CSS/JS, no shared state with the app, links to `./app/` and to GitHub Releases for downloads.
 - `web/app/` — the actual application: `index.html` (HTML skeleton only — no inline CSS/JS, see "Architecture" below), `styles.css`, `js/*.js` (vanilla JS split into six classic scripts), `sw.js` (service worker), `manifest.webmanifest` (PWA manifest), `icon-*.png`. This is what the separate `cuaderno-desktop` (Tauri) and `cuaderno-android` (Capacitor) repos both wrap, each as a sibling-repo directory.
+- `web/app/portal.html` (+ `js/portal.js`) — a standalone public page for guest students, no session/localStorage, own inline CSS/CSP, outside the service worker's scope. Reads `?k=LLAVE` and calls the public RPC `portal_publico()` (migration `013_portal.sql` in `cuaderno-supabase`), which never exposes the token or user_id.
 
 There is no build system, no package manager, and no dependencies for either the landing page or the app — both are hand-authored, self-contained files. This repo has no `package.json`/`node_modules` at all any more — both native wrappers that used to need them (`src-tauri/`, `android/`) moved out. `web/` lives outside the repo root (rather than files sitting at the repo root) so that a directory containing only deployable web assets can be pointed at directly — originally so this repo's own `src-tauri/frontendDist` wouldn't sweep in `node_modules/`/`.git/`/`src-tauri/target/`, and now so `cuaderno-desktop`'s `tauri.conf.json` and `cuaderno-android`'s `capacitor.config.json` can each reference this directory as a clean sibling path with nothing extra in it.
+
+The backend (Supabase project: schema, RLS policies, RPCs) lives entirely in the separate [`cuaderno-supabase`](https://github.com/manugandini53-design/cuaderno-supabase) repo, versioned as numbered migrations (`001_cuaderno.sql`, `013_portal.sql`, etc.). This repo has no way to run SQL directly against that project — any migration is always handed to the user as a SQL snippet to paste into the Supabase SQL Editor themselves, and it must never be assumed to already be applied just because the file exists in `cuaderno-supabase`.
+
+## REGLAS INQUEBRANTABLES
+
+- Cualquier cambio a `web/app/styles.css`, a los assets (`icon-*.png`, fuentes, etc.) o a la lista de precache sube el número de `CACHE` en `web/app/sw.js` (y actualiza `FILES` si corresponde) — si no, el service worker sigue sirviendo la versión vieja.
+- No tocar `js/sync.js`, `js/auth.js` ni el formato del JSON del cuaderno salvo pedido explícito del usuario. Todo cambio de formato debe ser retrocompatible con cuadernos viejos (el código que lee datos existentes tiene que seguir funcionando con el formato anterior).
+- Una línea al `CHANGELOG.md` por paso.
+- Un commit por paso, con push.
+- Probar que lo viejo siga andando antes de commitear (no solo la funcionalidad nueva).
+- Nada de librerías externas ni CDNs — la CSP del proyecto (`web/app/index.html`, `web/app/portal.html`) no las permite.
+- Todos los textos de cara al usuario van SIEMPRE en castellano rioplatense (vos, tenés, agendá — nunca "tú"/"tienes"/"agenda" en tono neutro).
 
 ## Running / testing
 
@@ -81,3 +94,16 @@ Load order matters for top-level `const`/`let` only (e.g. `state = {catalog: def
 - All user-facing strings are in Spanish (Argentina locale, e.g. `toLocaleDateString("es-AR", ...)`); keep new UI text consistent with that.
 - HTML is built via template strings; always run user-supplied text through `esc()` before interpolating into HTML to avoid XSS.
 - Dates are stored as `YYYY-MM-DD` strings and compared/parsed via `daysTo()`/`fmtDate()`, which pin to noon local time to avoid timezone-boundary bugs — reuse these helpers rather than calling `new Date()` directly on stored date strings.
+
+## Cómo prueba el usuario
+
+La app publicada vive en https://entreclases.github.io (GitHub Pages, desplegada por `deploy-pages.yml` en cada push a `main` que toque `web/**`). Hay un modo demo en `/app/?demo=1`. El service worker cachea agresivo: si un cambio no se ve, hay que esperar el toast de "nueva versión disponible" o forzar con Ctrl+Shift+R.
+
+## REGLA MÁS IMPORTANTE: CÓMO VERIFICAR
+
+Toda respuesta, sin excepción a partir de este punto, termina con una sección `## CÓMO VERIFICAR`: un checklist paso a paso, click por click, para que el usuario confirme en la app publicada (o en local) que cada cambio de la respuesta funciona. Para cada cambio, incluir:
+- Qué abrir (URL/pantalla) y qué tocar (botón, campo, acción).
+- Qué tiene que ver si salió bien, y qué señal indica que algo está mal.
+- Si el cambio es visual o toca algo usado en mobile, qué chequear específicamente en mobile.
+- Si el cambio toca estilos/tema, qué chequear en modo oscuro.
+- Si el paso incluyó una migración SQL, recordar explícitamente subirla al SQL Editor de Supabase (este repo no la aplica solo).
