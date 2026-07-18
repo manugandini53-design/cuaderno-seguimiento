@@ -3792,19 +3792,21 @@ function render(){
   }
   if(state.view==="informe"){
     if(!sel()){ state.view="tablero"; }
-    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vInforme()}</div>`+toastWrap(); return; }
+    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vInforme()}</div>`+toastWrap(); if(typeof syncHistory==="function") syncHistory(); return; }
   }
   if(state.view==="contrato"){
     if(!sel()){ state.view="tablero"; }
-    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vContrato()}</div>`+toastWrap(); return; }
+    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vContrato()}</div>`+toastWrap(); if(typeof syncHistory==="function") syncHistory(); return; }
   }
   if(state.view==="recibo"){
     if(!sel() || !reciboFor(sel(), state.reciboId)){ state.view="tablero"; }
-    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vRecibo()}</div>`+toastWrap(); return; }
+    else{ document.body.classList.remove("has-nav"); _prevViewKey=null; document.getElementById("app").innerHTML = `<div class="view-fade">${vRecibo()}</div>`+toastWrap(); if(typeof syncHistory==="function") syncHistory(); return; }
   }
   if(state.view==="agenda-imprimir"){
     document.body.classList.remove("has-nav"); _prevViewKey=null;
-    document.getElementById("app").innerHTML = `<div class="view-fade">${vAgendaImprimir()}</div>`+toastWrap(); return;
+    document.getElementById("app").innerHTML = `<div class="view-fade">${vAgendaImprimir()}</div>`+toastWrap();
+    if(typeof syncHistory==="function") syncHistory();
+    return;
   }
   document.body.classList.add("has-nav");
   const ses = getSes();
@@ -3852,6 +3854,7 @@ function render(){
   document.getElementById("app").innerHTML = navShell(isAdmin) + fabHtml() + `<main class="appmain${viewChanged?" view-enter":""}">${m}</main>` + toastWrap();
   if(typeof observeGrowBars==="function") observeGrowBars();
   if(viewChanged && typeof animateCounters==="function") animateCounters();
+  if(typeof syncHistory==="function") syncHistory();
   const fi = document.getElementById("importFile");
   if(fi) fi.addEventListener("change", e=>{
     const f = e.target.files && e.target.files[0]; if(!f) return;

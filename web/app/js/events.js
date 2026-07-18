@@ -187,7 +187,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="nav-agenda"){ state.view="agenda"; state.selId=null; }
   else if(a==="nav-logout"){
     if(!confirm("¿Cerrar sesión?")) return;
-    setSes(null); state.view="tablero"; render(); return;
+    setSes(null); state.view="tablero"; _navSnapshot=null; render(); return;
   }
   else if(a==="agenda-view-semana"){ state.agendaViewMode="semana"; }
   else if(a==="agenda-view-mes"){ state.agendaViewMode="mes"; }
@@ -546,7 +546,7 @@ document.addEventListener("click", (e)=>{
     });
     return;
   }
-  else if(a==="auth-logout"){ setSes(null); state.view="tablero"; render(); return; }
+  else if(a==="auth-logout"){ setSes(null); state.view="tablero"; _navSnapshot=null; render(); return; }
   else if(a==="open"){
     state.view="detalle"; state.selId=el.dataset.id; state.tab="resumen"; state.confirmDel=false;
     state.simTimer=null; state.simPrefillNote=""; state.fichaError=""; state.sessionPrefillDate="";
@@ -1383,10 +1383,122 @@ setInterval(()=>{
   }
 },1000);
 
+/* ============ historial del navegador (paso 124) ============
+   Hasta acá la app nunca tocaba la History API (salvo el replaceState puntual de
+   parseRecoveryHash más abajo) — "atrás" sacaba de la app derecho a la landing. Cada cambio de
+   vista principal (o de overlay a pantalla completa: alta de alumno, buscador, elegir alumno
+   del FAB, QR) pasa a sumar una entrada de history con un state chico y serializable
+   ({v, id, rid, m, mx}): no hace falta guardar más que eso porque applyNavSnapshot() reconstruye
+   el resto llamando a las mismas piezas de state que ya arma cualquier navegación normal.
+   syncHistory() se llama desde render() (views.js) en vez de desde cada acción: como CUALQUIER
+   cambio de vista termina pasando por render(), ese es el único lugar que hace falta tocar para
+   cubrir los ~40 sitios que hoy mutan state.view/selId directamente sin pasar por una función
+   común de navegación.
+   El login y la recuperación de contraseña quedan afuera a propósito (ver los guards de
+   state.recovery/getSes() más abajo): antes de haber sesión nunca se pushea nada, así que
+   "atrás" ahí se comporta como en cualquier página sin JS de por medio. */
+const NAV_VIEWS = ["tablero","lista","detalle","cuenta","panel","catalog","stats","pagos","agenda","informe","contrato","recibo","agenda-imprimir"];
+
+function activeOverlayName(){
+  if(state.showNew) return "new";
+  if(state.searchOpen) return "search";
+  if(state.fabPick) return "fabPick";
+  if(state.qrOverlay) return "qr";
+  return null;
+}
+function navSnapshot(){
+  const m = activeOverlayName();
+  let mx = null;
+  if(m==="fabPick") mx = {target: state.fabPick.target||"resumen"};
+  else if(m==="qr") mx = {url: state.qrOverlay.url, title: state.qrOverlay.title||""};
+  return {
+    v: state.view,
+    id: state.selId || null,
+    rid: state.view==="recibo" ? (state.reciboId||null) : null,
+    m, mx,
+  };
+}
+function navSnapshotsEqual(a,b){
+  if(!a || !b) return a===b;
+  return a.v===b.v && a.id===b.id && a.rid===b.rid && a.m===b.m && JSON.stringify(a.mx||null)===JSON.stringify(b.mx||null);
+}
+function urlForNavSnapshot(snap){
+  let hash = "v="+encodeURIComponent(snap.v||"tablero");
+  if(snap.id) hash += "&id="+encodeURIComponent(snap.id);
+  if(snap.rid) hash += "&rid="+encodeURIComponent(snap.rid);
+  return location.pathname+location.search+"#"+hash;
+}
+// Reconstruye state a partir de una entrada de history (o del hash inicial, ver parseNavHash) —
+// usado tanto al restaurar con atrás/adelante como al recargar con F5.
+function applyNavSnapshot(snap){
+  state.view = NAV_VIEWS.includes(snap.v) ? snap.v : "tablero";
+  state.selId = snap.id || null;
+  if(state.view==="recibo") state.reciboId = snap.rid || null;
+  state.showNew = snap.m==="new";
+  state.searchOpen = snap.m==="search";
+  state.fabPick = snap.m==="fabPick" ? (snap.mx || {target:"resumen"}) : null;
+  state.qrOverlay = snap.m==="qr" ? snap.mx : null;
+  if((state.view==="detalle"||state.view==="informe"||state.view==="contrato") && !sel()){
+    state.view="tablero"; state.selId=null;
+  }
+  if(state.view==="recibo" && (!sel() || !reciboFor(sel(), state.reciboId))){
+    state.view="tablero"; state.selId=null; state.reciboId=null;
+  }
+}
+// #v=<vista>&id=<alumno>&rid=<recibo>, puesto por urlForNavSnapshot — se lee sólo al arrancar,
+// para que F5 recargue en la misma vista (ver "arranque" más abajo). Nunca colisiona con el hash
+// de recuperación de contraseña (#access_token=...&type=recovery, ver parseRecoveryHash en
+// auth.js): éste se revisa primero y, si está presente, gana siempre.
+function parseNavHash(){
+  if(!location.hash || !location.hash.startsWith("#v=")) return null;
+  const p = new URLSearchParams(location.hash.slice(1));
+  const v = p.get("v");
+  if(!NAV_VIEWS.includes(v)) return null;
+  return {v, id:p.get("id")||null, rid:p.get("rid")||null, m:null, mx:null};
+}
+
+let _navSnapshot = null; // último snapshot ya reflejado en el history real del navegador
+let _restoringNav = false; // true mientras se aplica un snapshot por popstate — evita re-pushearlo
+
+function syncHistory(){
+  if(_restoringNav) return;
+  if(state.recovery || (!getSes() && !IS_DEMO)) return; // sin sesión no se toca el history
+  const snap = navSnapshot();
+  if(navSnapshotsEqual(snap, _navSnapshot)) return;
+  const url = urlForNavSnapshot(snap);
+  // La primera vista tras el login reemplaza la entrada ya existente (para que "atrás" desde
+  // ahí salga de la app en vez de volver a un estado intermedio nuestro); cerrar un modal/overlay
+  // (m!=null en el snapshot anterior) también reemplaza en vez de apilar, para no dejar una
+  // entrada fantasma que reabra ese modal si después se navega para otro lado.
+  if(_navSnapshot===null || _navSnapshot.m){
+    history.replaceState(snap, "", url);
+  } else {
+    history.pushState(snap, "", url);
+  }
+  _navSnapshot = snap;
+}
+
+window.addEventListener("popstate", (e)=>{
+  if(state.recovery || (!getSes() && !IS_DEMO)) return;
+  const snap = (e.state && e.state.v) ? e.state : {v:"tablero", id:null, rid:null, m:null, mx:null};
+  _restoringNav = true;
+  applyNavSnapshot(snap);
+  _navSnapshot = snap;
+  render();
+  _restoringNav = false;
+});
+
 /* ============ arranque ============ */
 const _recovery = parseRecoveryHash();
 if(_recovery){ state.recovery=_recovery; history.replaceState(null,"",location.pathname+location.search); }
-load(); render();
+load(); // antes de aplicar el hash de vista: applyNavSnapshot() valida con sel() (necesita
+         // state.students ya cargado — en modo demo load() además regenera los ids, así que
+         // validar contra el estado default de antes de cargar siempre fallaba y mandaba a tablero
+if(!_recovery){
+  const _navRestore = parseNavHash();
+  if(_navRestore) applyNavSnapshot(_navRestore);
+}
+render();
 syncNow();
 checkForNewVersion();
 checkTauriUpdate();
