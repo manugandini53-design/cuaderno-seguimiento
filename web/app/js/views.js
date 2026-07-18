@@ -181,6 +181,7 @@ function helpTip(id){
 }
 const ICON_INBOX=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5.5 5h13l2.5 7v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7z"/></svg>`;
 const ICON_LINK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>`;
+const ICON_TRASH=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>`;
 
 /* ============ skeletons: placeholders con animación mientras carga/sincroniza una sección
    (reemplaza los "Cargando…" sueltos) ============ */
@@ -410,10 +411,14 @@ function vTablero(){
   h += `<div class="stitle">Alertas</div>`;
   h += alerts.length===0
     ? `<div class="empty">Sin alertas. Todo el mundo al día — buen momento para conseguir parciales viejos.</div>`
-    : alerts.map(a=>`<div class="alert-row">
+    : alerts.map(a=>`<div style="margin-bottom:6px">
+      <div class="alert-row" style="margin-bottom:0">
         <button class="alert" data-a="open" data-id="${a.s.id}">
           <span class="dot"></span><b>${esc(a.s.name)}</b><span class="t">${esc(a.text)}</span></button>
         ${hasPhone(a.s)?`<a class="wa-quick" title="Enviar WhatsApp" target="_blank" rel="noopener" href="${waLink(a.s,waMsgForAlert(a.s,a.wa))}">${ICON_CHAT}</a>`:""}
+        <button class="chip" style="margin:0" data-a="toggle-alert-msg" data-id="${a.s.id}">Mandar mensaje</button>
+      </div>
+      ${state.alertMsgFor===a.s.id?vAlertMsgPicker(a.s):""}
       </div>`).join("");
 
   h += `<div class="stitle">Próximos exámenes</div>`;
@@ -568,7 +573,7 @@ function vLista(){
     ? emptyState(ICON_USERS, "Todavía no hay alumnos",
         "Agregá tu primer alumno para empezar a llevar el seguimiento.",
         `<button class="btn btn-primary" data-a="new">+ Agregá tu primer alumno</button>`)
-    : `<div class="empty">Nadie coincide con estos filtros.</div>`);
+    : `<div class="empty">Nadie coincide con estos filtros.</div>`) + vTrashFootLink();
 
   // En la vista "Todos" los alumnos en pausa (paso 114) se separan del resto en su propia
   // sección al final — mezclados en la misma lista se perdían entre exámenes/deudas de los
@@ -581,10 +586,10 @@ function vLista(){
       h += `<div class="stitle" style="margin-top:20px">En pausa</div>`;
       h += pausados.map(vAlumnoRow).join("");
     }
-    return h;
+    return h + vTrashFootLink();
   }
   h += shown.map(vAlumnoRow).join("");
-  return h;
+  return h + vTrashFootLink();
 }
 function vAlumnoRow(s){
   const d=daysTo(s.examDate);
@@ -1470,6 +1475,19 @@ function vWaRecordarClaseBtn(e, dia){
   const s = state.students.find(x=>x.id===e.studentId);
   if(!s || !hasPhone(s)) return "";
   return `<a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgRecordatorioClase(s,dia,e.time))}">Recordar por WhatsApp</a>`;
+}
+// Botón general "Mandar mensaje" de las alertas (paso 126): a diferencia del ícono rápido de al
+// lado (atado al motivo puntual de esa alerta, ver waMsgForAlert), este siempre deja elegir entre
+// un recordatorio (próxima clase o, si el examen está cerca, el de examen — mismo criterio que
+// waQuickMessage), un aviso de pago (con o sin deuda, ver waMsgCobro) o el mensaje libre de la
+// ficha, sin importar si esta alerta en particular vino de un examen, una tarea o una ausencia.
+function vAlertMsgPicker(s){
+  if(!hasPhone(s)) return `<div class="hint" style="margin:2px 0 8px 4px">Cargá el teléfono en la ficha para mandar WhatsApp.</div>`;
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px 4px">
+    <a class="chip" target="_blank" rel="noopener" href="${waLink(s,waQuickMessage(s))}">Recordatorio</a>
+    <a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgCobro(s))}">Aviso de pago</a>
+    <button class="chip" data-a="open" data-id="${s.id}">Mensaje libre (en la ficha)</button>
+  </div>`;
 }
 function vWhatsApp(s){
   const pendiente = pendienteTotalFor(s);
@@ -2635,6 +2653,19 @@ function vTrashRow(kind, id, label, sub, deletedAt){
       <button class="chip" data-a="trash-restore-${kind}" data-id="${id}">Restaurar</button>
       <button class="chip" data-a="trash-purge-ask" data-key="${key}">Eliminar definitivo</button>
     </div></div>`;
+}
+// Acceso discreto a la Papelera al pie de Estudiantes (paso 126) — el acceso "de verdad" sigue
+// siendo la sección de Papelera en Cuenta (vPapeleraCard, más abajo); esto es sólo un atajo para
+// no tener que acordarse de que vive ahí, chico a propósito y sólo si hay algo para restaurar.
+function vTrashFootLink(){
+  const total = state.students.filter(s=>s.deleted).length + (state.catalog.trash||[]).filter(t=>t.type==="subject").length;
+  if(!total) return "";
+  return `<div style="margin-top:16px;text-align:right">
+    <button data-a="nav-cuenta" style="background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+      font-size:12px;color:var(--faint);padding:4px 2px">
+      ${ICON_TRASH.replace('stroke-width="2"','stroke-width="1.8" width="13" height="13"')} Papelera (${total})
+    </button>
+  </div>`;
 }
 function vPapeleraCard(){
   const students=state.students.filter(s=>s.deleted);

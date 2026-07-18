@@ -1096,6 +1096,7 @@ document.addEventListener("click", (e)=>{
     }); return;
   }
   else if(a==="toggle-help"){ state.helpOpen = state.helpOpen===el.dataset.id ? null : el.dataset.id; }
+  else if(a==="toggle-alert-msg"){ state.alertMsgFor = state.alertMsgFor===el.dataset.id ? null : el.dataset.id; }
   else if(a==="toggle-faq"){
     const i=+el.dataset.i; state.faqOpenIdx = state.faqOpenIdx===i ? null : i;
   }
