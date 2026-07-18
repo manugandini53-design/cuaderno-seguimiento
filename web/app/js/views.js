@@ -39,6 +39,8 @@ const ICON_CHAT=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ICON_TARGET=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>`;
 const ICON_FLAME=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.5 0 7-2.7 7-6.5C19 11 15.5 9 15 5c-1.8 2-2.5 3.7-2.5 5.5C10 9 9.5 6 10 3c-3 2-5 6-5 9.5C5 17.5 7.5 22 12 22z"/></svg>`;
 const ICON_WARNING=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v4"/><path d="M12 17.5v.1"/></svg>`;
+// Cumpleaños (paso 115) — vela + torta, mismo criterio de línea que el resto del set.
+const ICON_CAKE=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><path d="M10.7 1.3c0 .8.6 1 .6 1.7s-.6.9-.6 1.7"/><rect x="4" y="10" width="16" height="9" rx="2"/><path d="M4 14.5c1.3 1 2.3 1 3.6 0 1.3-1 2.3-1 3.6 0 1.3 1 2.3 1 3.6 0 1.3-1 2.3-1 3.6 0"/><path d="M4 19v-3.5M20 19v-3.5"/></svg>`;
 const ICON_HALF=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>`;
 const ICON_X=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
 const ICON_WAVE=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V6a1.8 1.8 0 0 1 3.6 0v5"/><path d="M11.6 11V4.6a1.8 1.8 0 0 1 3.6 0V11"/><path d="M15.2 11V6.4a1.8 1.8 0 0 1 3.6 0V15c0 4-2.5 7-6.8 7-3 0-4.6-1-6-2.7L3 15.4c-.6-.9-.4-2 .5-2.6.8-.5 1.8-.3 2.4.4L8 15.5"/></svg>`;
@@ -269,6 +271,22 @@ function vBackupReminder(){
     </div>
   </div>`;
 }
+// Cumpleaños de hoy/mañana (paso 115) — fecha de nacimiento opcional (s.birthDate, ficha →
+// Resumen); sólo compara mes-día (isBirthday en helpers.js), el año no importa. Arriba del todo
+// del tablero, con saludo pre-armado por WhatsApp si tiene teléfono cargado.
+function vCumpleanosBanner(){
+  const hoy = cumpleaneros(today());
+  const manana = cumpleaneros(addDays(today(),1));
+  if(hoy.length===0 && manana.length===0) return "";
+  const fila = (s,cuando)=>`<div class="alert-row">
+    <div class="alert" style="cursor:default"><span class="dot"></span><span class="t">${cuando==="hoy"?"Hoy":"Mañana"} cumple <b>${esc(s.name)}</b></span></div>
+    ${hasPhone(s)?`<a class="wa-quick" title="Enviar saludo por WhatsApp" target="_blank" rel="noopener" href="${waLink(s,waMsgCumple(s))}">${ICON_CHAT}</a>`:""}
+  </div>`;
+  return `<div class="formcard">
+    <div class="ftitle" style="display:flex;align-items:center;gap:7px"><span class="icon-inline">${ICON_CAKE}</span> Cumpleaños</div>
+    ${hoy.map(s=>fila(s,"hoy")).join("")}${manana.map(s=>fila(s,"manana")).join("")}
+  </div>`;
+}
 /* ============ panel "Hoy": lo importante del día de un vistazo, arriba del tablero ============
    Tres bloques con la misma tarjeta (.ds-card.hoy-card): "Clases de hoy" (agenda del día,
    con botón registrar/ver), "Para cobrar" (reusa cobrosAtrasadosSummary/vCobrosBanner, el
@@ -371,6 +389,7 @@ function vTablero(){
   let h = pageHead("Tablero","Hoy",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`);
   h += vTips();
   h += vBackupReminder();
+  h += vCumpleanosBanner();
 
   h += `<div class="hoy-grid">${vHoyClasesHoy()}${vHoyCobrar()}${vHoyProximo()}</div>`;
 
@@ -738,7 +757,8 @@ function vFichaResumen(s){
       <div class="field"><div class="flabel">Estado</div><select data-f="status">
         ${Object.entries(STATUS_META).map(([k,m])=>opt(k,s.status,m.label)).join("")}</select></div>
       <div class="field"><div class="flabel">Fecha de examen / parcial</div><input type="date" data-f="examDate" value="${esc(s.examDate)}"></div>
-      <div class="field"><div class="flabel">Empezó clases</div><input type="date" data-f="startDate" value="${esc(s.startDate)}"></div></div>
+      <div class="field"><div class="flabel">Empezó clases</div><input type="date" data-f="startDate" value="${esc(s.startDate)}"></div>
+      <div class="field"><div class="flabel">Cumpleaños (opcional)</div><input type="date" data-f="birthDate" value="${esc(s.birthDate||"")}"></div></div>
     <div class="field"><div class="flabel">Notas del alumno (diagnóstico inicial, agujeros de secundaria, cómo estudia)</div>
       <textarea data-f="notes">${esc(s.notes)}</textarea></div>
     <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--soft)">
@@ -1284,6 +1304,9 @@ function vExportIcsHint(){
 }
 
 /* ============ WhatsApp: mensajes pre-armados, solo links wa.me (sin API) ============ */
+function waMsgCumple(s){
+  return `¡Feliz cumpleaños, ${studentFirstName(s)}! Espero que la pases muy bien.`;
+}
 function waMsgProximaClase(s){
   return `Hola ${studentFirstName(s)}! Te escribo para coordinar/recordar nuestra próxima clase de ${s.subject||"la materia"}. ¡Cualquier cosa avisame!`;
 }

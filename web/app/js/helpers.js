@@ -451,6 +451,11 @@ function hasPagos(s){ return !!(Number(s.tarifa)>0 && (s.modalidad==="clase"||s.
    Una ausencia queda en el mismo s.sessions que una clase dada (misma fecha, mismo flujo de
    "Registrar clase") pero no cuenta como clase dictada — se excluye de pagoResumen() y
    classesInMonth() más abajo para no inflar cobros ni horas dictadas con clases que no pasaron. */
+/* ============ cumpleaños (paso 115) ============ */
+// Compara sólo mes-día (los últimos 5 caracteres de YYYY-MM-DD) — el año de nacimiento no
+// importa acá, sólo si la fecha "cae" hoy o mañana.
+function isBirthday(s, dateStr){ return !!(s.birthDate && s.birthDate.slice(5)===dateStr.slice(5)); }
+function cumpleaneros(dateStr){ return alive().filter(s=>s.status==="activo" && isBirthday(s,dateStr)); }
 function isAusente(c){ return !!(c && c.ausente); }
 function ausenciaCobraSugerida(motivo){ return motivo!=="aviso_tiempo"; }
 // Asistencia de un alumno en un rango de fechas inclusive — para la ficha y Estadísticas.
