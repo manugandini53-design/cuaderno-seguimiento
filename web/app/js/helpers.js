@@ -522,17 +522,12 @@ function reciboTipoLabel(tipo){
 }
 function buildReciboText(s, r){
   const doc = docenteFor();
-  const lines = [];
-  lines.push(`*Recibo Nº ${r.numero}*`);
-  lines.push(`Fecha: ${fmtDate(r.date)}`);
-  lines.push(`Concepto: ${r.concepto}`);
-  lines.push(`Monto: ${fmtMoney(r.monto)}`);
-  if(r.saldo>0) lines.push(`Saldo restante: ${fmtMoney(r.saldo)}`);
-  lines.push(`Alumno/a: ${s.name}`);
-  if(doc.nombre) lines.push(`Docente: ${doc.nombre}`);
-  lines.push("");
-  lines.push("_Generado con Entreclases_");
-  return lines.join("\n");
+  return fillTemplateLines(mensajesFor().recibo, {
+    numero:r.numero, fecha:fmtDate(r.date), concepto:r.concepto, monto:fmtMoney(r.monto),
+    saldo: r.saldo>0 ? `Saldo restante: ${fmtMoney(r.saldo)}` : "",
+    alumno:s.name,
+    docente: doc.nombre ? `Docente: ${doc.nombre}` : "",
+  });
 }
 
 /* ============ export contable (paso 83): CSV local (Blob + download, sin backend) de los
@@ -604,7 +599,32 @@ function buildPagosCsv(monthKeys){
 function recordatoriosFor(){ return state.catalog.recordatorios || defaultRecordatorios(); }
 function costosFor(){ return state.catalog.costos || defaultCostos(); }
 function docenteFor(){ return state.catalog.docente || defaultDocente(); }
-function waRecordatorioClaseFor(){ return state.catalog.waRecordatorioClase || defaultWaRecordatorioClase(); }
+/* ============ plantillas de mensajes (paso 117) ============
+   mensajesFor() mezcla defaults (config.js) con lo guardado; legacyRecordatorio sostiene la
+   plantilla de recordatorio de clase del paso 111 (state.catalog.waRecordatorioClase, guardada
+   antes de unificar todo acá) para que un catálogo que ya la tenía personalizada no la pierda —
+   se puede seguir editando desde la misma "Mensajes" de siempre, ahora en un solo lugar. */
+function mensajesFor(){
+  const legacy = state.catalog.waRecordatorioClase;
+  return { ...defaultMensajes(), ...(legacy?{recordatorioClase:legacy}:{}), ...(state.catalog.mensajes||{}) };
+}
+// Sustitución simple {llave}->valor, sin tocar lo que no matchea (para no romper si algún
+// texto libre trae llaves sueltas que no son variables reconocidas).
+function fillTemplate(str, vars){
+  return String(str||"").replace(/\{(\w+)\}/g, (m,k)=> (k in vars) ? vars[k] : m);
+}
+// Igual que fillTemplate pero además borra cualquier línea que sea EXACTAMENTE un solo token
+// (nada más alrededor) cuando ese valor viene vacío — usado sólo por el recibo, para que
+// "Saldo restante"/"Docente" no dejen un renglón suelto cuando no aplican (ver plantilla
+// "recibo" en config.js).
+function fillTemplateLines(str, vars){
+  return String(str||"").split("\n").map(line=>{
+    const solo = /^\{(\w+)\}$/.exec(line.trim());
+    if(solo && !vars[solo[1]]) return null;
+    return fillTemplate(line, vars);
+  }).filter(l=>l!==null).join("\n");
+}
+function mensajeTexto(key, vars){ return fillTemplate(mensajesFor()[key], vars); }
 // Qué de este alumno se comparte en su portal individual (ver s.portalShare, ficha → "Portal
 // para este alumno"). Por diseño sólo puede llevar estos tres booleanos — nunca notas, pagos,
 // señas ni comentarios privados (ver buildAlumnoBlock() en sync.js, que es lo único que lee esto

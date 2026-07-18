@@ -242,14 +242,35 @@ function defaultCostos(){ return {fijos:[], variables:[]}; }
 // se cargan una sola vez en Cuenta y se reutilizan donde haga falta (por ahora, el generador de
 // contratos — ver docenteFor() en helpers.js y vContrato() en views.js).
 function defaultDocente(){ return {nombre:"", telefono:"", dni:""}; }
-// Texto base del recordatorio de clase por WhatsApp (paso 111, state.catalog.waRecordatorioClase)
-// — mismo patrón que cancelPolicy/recordatorios/costos/docente: sincroniza vía catalog, con este
-// default para catálogos viejos que todavía no lo tienen (ver waRecordatorioClaseFor() en
-// helpers.js). Variables reemplazadas al armar el mensaje (ver waMsgRecordatorioClase() en
-// views.js): {alumno}, {materia}, {dia}, {hora}. La firma ("Nos vemos — nombre") se agrega aparte,
-// automática con docenteFor().nombre si está cargado — no es parte de este texto para no duplicar
-// el dato del nombre del docente en dos lugares editables.
-function defaultWaRecordatorioClase(){ return "¡Hola {alumno}! Te recuerdo la clase de {materia} de {dia} {hora}."; }
+// Plantillas de mensajes (paso 117, state.catalog.mensajes): centraliza TODOS los textos que la
+// app arma para WhatsApp (y el recibo, que se comparte igual por ahí) en un solo lugar editable
+// — Cuenta → "Mensajes" (ver vMensajesCard() en views.js). Cada entrada es la plantilla por
+// defecto; el docente puede pisarla (mensajesFor() en helpers.js) y "Restaurar" vuelve sólo esa
+// plantilla puntual a este valor, sin tocar las demás. Variables con {llave}, reemplazadas al
+// armar el mensaje real (mensajeTexto() en helpers.js) — nunca HTML, siempre texto plano.
+// La firma del recordatorio de clase ("Nos vemos — nombre") y las líneas condicionales del
+// recibo (saldo/docente, ver fillTemplateLines en helpers.js) son la única lógica que queda
+// fuera del texto editable, a propósito: evita que una plantilla rota deje al recibo con datos
+// mal armados o duplique el nombre del docente como variable.
+const MENSAJES_META = [
+  { key:"proximaClase", label:"Próxima clase (mensaje rápido)", vars:"{alumno}, {materia}",
+    default:"Hola {alumno}! Te escribo para coordinar/recordar nuestra próxima clase de {materia}. ¡Cualquier cosa avisame!" },
+  { key:"recordatorioClase", label:"Recordatorio de clase (hoy/mañana, paso 111)", vars:"{alumno}, {materia}, {dia}, {hora}",
+    default:"¡Hola {alumno}! Te recuerdo la clase de {materia} de {dia} {hora}." },
+  { key:"tarea", label:"Tarea de la última clase", vars:"{alumno}, {fecha}, {tarea}",
+    default:"Hola {alumno}! Te recuerdo la tarea de la clase del {fecha}: {tarea}" },
+  { key:"examen", label:"Recordatorio de examen", vars:"{alumno}, {materia}, {dias}, {fecha}",
+    default:"Hola {alumno}! Faltan {dias} para tu examen de {materia}{fecha}. ¡Vamos con todo!" },
+  { key:"cumpleanos", label:"Saludo de cumpleaños", vars:"{alumno}",
+    default:"¡Feliz cumpleaños, {alumno}! Espero que la pases muy bien." },
+  { key:"cobro", label:"Coordinar pago (sin deuda pendiente)", vars:"{alumno}",
+    default:"Hola {alumno}! Te escribo para coordinar el pago de las clases." },
+  { key:"avisoDeuda", label:"Aviso de pago pendiente", vars:"{alumno}, {monto}",
+    default:"Hola {alumno}! Te escribo por el pago pendiente de {monto}. ¡Avisame cuando lo puedas hacer, gracias!" },
+  { key:"recibo", label:"Texto del recibo", vars:"{numero}, {fecha}, {concepto}, {monto}, {saldo}, {alumno}, {docente}",
+    default:"*Recibo Nº {numero}*\nFecha: {fecha}\nConcepto: {concepto}\nMonto: {monto}\n{saldo}\nAlumno/a: {alumno}\n{docente}\n\n_Generado con Entreclases_" },
+];
+function defaultMensajes(){ const o={}; MENSAJES_META.forEach(m=>{ o[m.key]=m.default; }); return o; }
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 // Plantillas de materias: temarios típicos de primer año universitario para no arrancar

@@ -1320,23 +1320,29 @@ function vExportIcsHint(){
   return `<div class="hint" style="margin-top:8px">Descarga un archivo .ics — abrilo con Google Calendar, Outlook o el calendario del teléfono para importar estas clases (en Google Calendar: engranaje → Configuración → Importar y exportar → Importar).</div>`;
 }
 
-/* ============ WhatsApp: mensajes pre-armados, solo links wa.me (sin API) ============ */
+/* ============ WhatsApp: mensajes pre-armados, solo links wa.me (sin API) ============
+   Todos los textos salen de plantillas editables en Cuenta → "Mensajes" (paso 117, ver
+   MENSAJES_META en config.js, mensajeTexto()/mensajesFor() en helpers.js) — estas funciones sólo
+   resuelven QUÉ variables corresponden en cada caso y, cuando el dato de fondo no alcanza para
+   completar la plantilla (sin historial de clases, sin fecha de examen), devuelven una pregunta
+   genérica fija en vez de mandar una plantilla a medio completar. */
 function waMsgCumple(s){
-  return `¡Feliz cumpleaños, ${studentFirstName(s)}! Espero que la pases muy bien.`;
+  return mensajeTexto("cumpleanos", {alumno:studentFirstName(s)});
 }
 function waMsgProximaClase(s){
-  return `Hola ${studentFirstName(s)}! Te escribo para coordinar/recordar nuestra próxima clase de ${s.subject||"la materia"}. ¡Cualquier cosa avisame!`;
+  return mensajeTexto("proximaClase", {alumno:studentFirstName(s), materia:s.subject||"la materia"});
 }
 function waMsgTareaHoy(s){
   const last=[...(s.sessions||[])].sort((a,b)=>b.date.localeCompare(a.date))[0];
   if(!last) return `Hola ${studentFirstName(s)}! ¿Cómo veníamos con la tarea?`;
   const tarea = last.note || last.topic || "lo que vimos en la última clase";
-  return `Hola ${studentFirstName(s)}! Te recuerdo la tarea de la clase del ${fmtDate(last.date)}: ${tarea}`;
+  return mensajeTexto("tarea", {alumno:studentFirstName(s), fecha:fmtDate(last.date), tarea});
 }
 function waMsgExamen(s){
   const d=daysTo(s.examDate);
   if(d===null) return `Hola ${studentFirstName(s)}! ¿Cómo venís con el estudio para el examen?`;
-  return `Hola ${studentFirstName(s)}! Faltan ${d} día${d===1?"":"s"} para tu examen de ${s.subject||"la materia"}${s.examDate?" ("+fmtDate(s.examDate)+")":""}. ¡Vamos con todo!`;
+  return mensajeTexto("examen", {alumno:studentFirstName(s), materia:s.subject||"la materia",
+    dias:`${d} día${d===1?"":"s"}`, fecha:s.examDate?` (${fmtDate(s.examDate)})`:""});
 }
 function waQuickMessage(s){
   const d=daysTo(s.examDate);
@@ -1349,22 +1355,19 @@ function waMsgForAlert(s, kind){
 }
 // Recordatorio de pago pendiente (clases sin cobrar + mensualidad del mes + señas pendientes,
 // ver pendienteTotalFor en helpers.js) — lo usa tanto el menú de WhatsApp de la ficha como el
-// aviso de cobros atrasados del tablero.
+// aviso de cobros atrasados del tablero. Sin deuda usa la plantilla "cobro" (coordinar nomás);
+// con deuda, "avisoDeuda".
 function waMsgCobro(s){
   const total = pendienteTotalFor(s);
-  if(total<=0) return `Hola ${studentFirstName(s)}! Te escribo para coordinar el pago de las clases.`;
-  return `Hola ${studentFirstName(s)}! Te escribo por el pago pendiente de ${fmtMoney(total)}. ¡Avisame cuando lo puedas hacer, gracias!`;
+  const alumno = studentFirstName(s);
+  return total<=0 ? mensajeTexto("cobro", {alumno}) : mensajeTexto("avisoDeuda", {alumno, monto:fmtMoney(total)});
 }
-// Recordatorio de una clase de hoy/mañana (paso 111): texto base editable en Cuenta
-// (waRecordatorioClaseFor(), ver config.js/helpers.js) con variables {alumno}/{materia}/{dia}/
-// {hora} — la firma con el nombre del docente se agrega aparte, sólo si está cargado.
+// Recordatorio de una clase de hoy/mañana (paso 111, plantilla "recordatorioClase") — la firma
+// con el nombre del docente se agrega aparte, sólo si está cargado (no es una variable de la
+// plantilla a propósito, para no duplicar ese dato en dos lugares editables).
 function waMsgRecordatorioClase(s, dia, hora){
   const doc = docenteFor();
-  const texto = waRecordatorioClaseFor()
-    .replace(/\{alumno\}/g, studentFirstName(s))
-    .replace(/\{materia\}/g, s.subject||"la materia")
-    .replace(/\{dia\}/g, dia)
-    .replace(/\{hora\}/g, hora);
+  const texto = mensajeTexto("recordatorioClase", {alumno:studentFirstName(s), materia:s.subject||"la materia", dia, hora});
   return doc.nombre ? `${texto} Nos vemos — ${doc.nombre}` : texto;
 }
 // Botón "Recordar por WhatsApp" para una clase puntual de hoy/mañana (tablero Hoy y Agenda) —
@@ -2230,15 +2233,22 @@ function vEscalaObjetivoCard(){
     </div>
   </div>`;
 }
-// Texto base del recordatorio de clase por WhatsApp (paso 111) — botón "Recordar por WhatsApp"
-// en el tablero Hoy y en Agenda, sólo para clases de hoy/mañana (ver vWaRecordarClaseBtn en
-// esta misma vista). La firma con el nombre del docente (tarjeta "Datos del docente" arriba) se
-// agrega sola si está cargada, no hace falta repetirla acá.
-function vWaRecordatorioClaseCard(){
-  const texto = waRecordatorioClaseFor();
-  return `<div class="formcard"><div class="ftitle">Recordatorio de clase por WhatsApp</div>
-    <div class="hint" style="margin-bottom:10px">Texto del botón "Recordar por WhatsApp" (tablero Hoy y Agenda). Variables: {alumno}, {materia}, {dia}, {hora}.</div>
-    <textarea data-cf="wa-recordatorio-clase" placeholder="${esc(defaultWaRecordatorioClase())}">${esc(texto)}</textarea>
+// Plantillas de mensajes (paso 117) — TODOS los mensajes de WhatsApp que arma la app (más el
+// texto del recibo, que se comparte por el mismo medio), en un solo lugar editable. Cada una
+// con su "Restaurar" propio — vuelve sólo esa plantilla al default de MENSAJES_META (config.js),
+// nunca toca las demás. Ver mensajesFor()/mensajeTexto() en helpers.js.
+function vMensajesCard(){
+  const mensajes = mensajesFor();
+  return `<div class="formcard"><div class="ftitle">Mensajes</div>
+    <div class="hint" style="margin-bottom:10px">Los textos que la app arma para WhatsApp (y el recibo) — editá cada uno con las variables que se indican; "Restaurar" vuelve esa plantilla puntual a como venía.</div>
+    ${MENSAJES_META.map(m=>`<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--soft)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+        <div class="flabel" style="margin:0">${esc(m.label)}</div>
+        <button class="chip" data-a="restaurar-mensaje" data-key="${m.key}">Restaurar</button>
+      </div>
+      <div class="hint" style="margin-bottom:6px">Variables: ${esc(m.vars)}</div>
+      <textarea data-cf="mensaje-${m.key}" placeholder="${esc(m.default)}">${esc(mensajes[m.key]||"")}</textarea>
+    </div>`).join("")}
   </div>`;
 }
 function vCuenta(){
@@ -2272,7 +2282,7 @@ function vCuenta(){
       <textarea data-cf="policy-texto" placeholder="Ej: Las clases se cancelan con 24hs de aviso. Con menos aviso, la seña no se devuelve.">${esc(pol.texto||"")}</textarea></div>
     <div class="hint" style="margin-top:6px">Si la seña de esa clase todavía no se cobró, cancelar no tiene ninguna consecuencia sobre ella.</div>
   </div>
-  ${vWaRecordatorioClaseCard()}
+  ${vMensajesCard()}
   <div class="formcard"><div class="ftitle">Cuenta</div>
     <div style="font-size:13.5px;margin-bottom:6px">Conectado como <b>${esc(ses?ses.email:"")}</b></div>
     <div class="hint" style="margin-bottom:6px">${sesIsAdmin(ses)?"Cuenta de administrador":"Cuenta de profesor"}</div>

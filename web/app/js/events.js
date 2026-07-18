@@ -874,6 +874,11 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="toggle-resumen-semanal"){ setResumenSemanal(el.dataset.f==="si"); return; }
   else if(a==="toggle-notif-clases"){ setNotifClasesDia(el.dataset.f==="si"); return; }
+  else if(a==="restaurar-mensaje"){
+    const key=el.dataset.key, def=defaultMensajes()[key]; if(def==null) return;
+    state.catalog.mensajes = {...mensajesFor(), [key]:def};
+    touchCatalog(); toast("Plantilla restaurada"); return;
+  }
   else if(a==="toggle-recordatorios"){
     state.catalog.recordatorios = {...recordatoriosFor(), activo: el.dataset.f==="si"};
     touchCatalog(); return;
@@ -1234,7 +1239,11 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf==="docente-nombre"){ state.catalog.docente={...docenteFor(), nombre:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-telefono"){ state.catalog.docente={...docenteFor(), telefono:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-dni"){ state.catalog.docente={...docenteFor(), dni:cf.value}; touchCatalog(); return; }
-  if(cf && cf.dataset.cf==="wa-recordatorio-clase"){ state.catalog.waRecordatorioClase=cf.value; touchCatalog(); return; }
+  if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("mensaje-")){
+    const key=cf.dataset.cf.slice("mensaje-".length);
+    state.catalog.mensajes = {...mensajesFor(), [key]:cf.value};
+    touchCatalog(); return;
+  }
   if(cf && cf.dataset.cf==="portal-nombre"){ if(state.portal) state.portal.draftNombre=cf.value; return; }
   if(cf && cf.dataset.cf==="rec-dias"){
     state.catalog.recordatorios = {...recordatoriosFor(), diasAtraso:Math.max(0, parseInt(cf.value,10)||0)};
