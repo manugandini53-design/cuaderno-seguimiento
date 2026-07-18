@@ -10,7 +10,6 @@ const LAST_REMOTE_KEY = "tutoria-last-remote-updated"; // último updated_at de 
 const VERSION_CHECK_KEY = "tutoria-last-version-check"; // timestamp del último chequeo de versión (apps nativas)
 const VERSION_CHECK_INTERVAL_MS = 24*60*60*1000;
 const SW_UPDATE_CHECK_INTERVAL_MS = 60*60*1000; // cada cuánto se pide al service worker que busque una versión nueva (además del chequeo al cargar y al volver a la pestaña)
-const ONBOARDING_TIPS_KEY = "tutoria-onboarding-tips-dismissed"; // "1" una vez que el usuario descarta la guía de primeros pasos
 const LAST_EXPORT_KEY = "tutoria-last-export"; // timestamp de la última descarga manual del .json
 const BACKUP_REMINDER_DISMISS_KEY = "tutoria-backup-reminder-dismissed-at"; // timestamp del último "descartar" del aviso de respaldo
 const BACKUP_REMINDER_DAYS = 30; // a partir de cuántos días sin exportar se sugiere hacerlo

@@ -92,7 +92,7 @@
     --bg:#F6F8FC; --bg-alt:#EEF1F9; --card:#FFFFFF; --border:#E4E9F5;
     --ink:#12192E; --text:#1A2238; --text-soft:#5C6480;
     --navy:#1E2B4D; --navy-2:#2F4272;
-    --accent:#14B8A6; --accent-dark:#0E9488; --accent-soft:#CFF7F0;
+    --accent:#14B8A6; --accent-dark:#0E9488; --accent-soft:#CFF7F0; --accent-strong:#0F766E;
     --green:#22C55E; --amber:#F59E0B; --red:#EF4444; --blue:#3B82F6;
     --header-bg:rgba(246,248,252,.85);
     --shadow-1:rgba(26,34,66,.14); --shadow-2:rgba(26,34,66,.25); --shadow-3:rgba(26,34,66,.35);
@@ -102,8 +102,6 @@
     --sans:'Inter',-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     --display:'Poppins',var(--sans);
     --mono:ui-monospace,"Cascadia Mono",Consolas,"Roboto Mono",monospace;
-    /* accesibilidad: #fff sobre --accent no llega a 4.5:1 en ningún tema (paso 75) */
-    --on-accent:#062824;
   }
   /* modo automático: sigue prefers-color-scheme, salvo que haya una elección explícita
      (clase theme-light/theme-dark en <html>, puesta por cycleTheme() de arriba) */
@@ -112,7 +110,7 @@
       --bg:#0F1420; --bg-alt:#171D2C; --card:#1B2333; --border:#2B3348;
       --ink:#EDEFF7; --text:#C7CCDC; --text-soft:#8890AA;
       --navy:#2B3A63; --navy-2:#3D5089;
-      --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38;
+      --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38; --accent-strong:#0F766E;
       --green:#4ADE80; --amber:#FBBF24; --red:#FF6B6B; --blue:#60A5FA;
       --header-bg:rgba(15,20,32,.85);
       --shadow-1:rgba(0,0,0,.35); --shadow-2:rgba(0,0,0,.5); --shadow-3:rgba(0,0,0,.6);
@@ -126,7 +124,7 @@
     --bg:#0F1420; --bg-alt:#171D2C; --card:#1B2333; --border:#2B3348;
     --ink:#EDEFF7; --text:#C7CCDC; --text-soft:#8890AA;
     --navy:#2B3A63; --navy-2:#3D5089;
-    --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38;
+    --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38; --accent-strong:#0F766E;
     --green:#4ADE80; --amber:#FBBF24; --red:#FF6B6B; --blue:#60A5FA;
     --header-bg:rgba(15,20,32,.85);
     --shadow-1:rgba(0,0,0,.35); --shadow-2:rgba(0,0,0,.5); --shadow-3:rgba(0,0,0,.6);
@@ -170,7 +168,7 @@
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
     border-radius:11px;padding:11px 20px;font-weight:600;font-size:14.5px;cursor:pointer;
     border:1px solid transparent;white-space:nowrap;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease,color .12s ease}
-  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:var(--on-accent);
+  .btn-primary{background:var(--accent-strong);color:#FFFFFF;
     box-shadow:0 8px 20px -6px rgba(20,184,166,.55)}
   .btn-primary:hover{box-shadow:0 10px 24px -6px rgba(20,184,166,.65);transform:translateY(-2px)}
   .btn-ghost{color:var(--ink);font-weight:600}

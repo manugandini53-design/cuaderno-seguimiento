@@ -220,7 +220,7 @@ const ONBOARDING_STEPS = [
 function vTips(){
   if(tipsDismissed()) return "";
   const steps = ONBOARDING_STEPS.map(s=>({...s, ok:s.done()}));
-  if(steps.every(s=>s.ok)) return "";
+  if(steps.every(s=>s.ok)) return ""; // normalmente ya la descartó checkOnboardingComplete() antes; fallback defensivo
   return `<div class="formcard" style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between">
     <div style="flex:1">
       <div class="ftitle" style="margin-bottom:8px">Primeros pasos</div>
@@ -2441,6 +2441,7 @@ const KEYBOARD_SHORTCUTS = [
 function vCentroAyuda(){
   return `<div class="formcard"><div class="ftitle">Centro de ayuda</div>
     <div class="hint" style="margin-bottom:12px">Preguntas frecuentes sobre la app.</div>
+    ${tipsDismissed()?`<button class="chip" data-a="reactivate-tips" style="margin-bottom:14px">Volver a mostrar "Primeros pasos"</button>`:""}
     <div class="flabel" style="margin-bottom:6px">Atajos de teclado (escritorio)</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
       ${KEYBOARD_SHORTCUTS.map(k=>`<div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)">
@@ -3809,6 +3810,7 @@ function render(){
     return;
   }
   document.body.classList.add("has-nav");
+  if(typeof checkOnboardingComplete==="function") checkOnboardingComplete();
   const ses = getSes();
   const isAdmin = sesIsAdmin(ses);
   let m = "";

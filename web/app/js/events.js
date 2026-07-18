@@ -558,7 +558,8 @@ document.addEventListener("click", (e)=>{
     state.students.push(st); save();
     state.view="detalle"; state.selId=st.id; state.tab="resumen";
   }
-  else if(a==="dismiss-tips"){ dismissTips(); }
+  else if(a==="dismiss-tips"){ dismissTips(); return; }
+  else if(a==="reactivate-tips"){ reactivateTips(); return; }
   // FAB de acciones rápidas (paso 77): siempre visible, con las 3 acciones más repetitivas.
   // Precarga lo que puede según el contexto — si ya estás en la ficha de un alumno, "nueva
   // clase"/"registrar pago" van directo a su pestaña; si no, primero piden elegir a quién.
@@ -1226,6 +1227,14 @@ document.addEventListener("keydown",(e)=>{
 // que dispare este handler un tick, para que el navegador mueva el foco primero con el DOM
 // viejo intacto, y recién ahí se reconstruye — restaurando el foco al equivalente del
 // elemento que quedó enfocado (ver focusSelectorFor en helpers.js).
+// paso 125: cuando el blur no deja un foco puntual (tocar afuera de cualquier campo para
+// cerrar el teclado en el celular, el caso más común al terminar de cargar "Cátedra" — el
+// próximo campo de esa fila es "Teléfono", pero muchas veces se toca afuera en vez de tabular)
+// el foco cae en <body> y focusSelectorFor() devuelve null: no había nada que restaurar el
+// foco, pero tampoco se restauraba el SCROLL, así que reconstruir #app entero de cero (sin
+// diffing) podía dejar la página arriba de todo. Ahora se guarda scrollX/scrollY antes de
+// reconstruir y se reaplican después de intentar restaurar el foco (para que el "scroll into
+// view" nativo de un foco recién puesto no gane la última palabra).
 document.addEventListener("change",(e)=>{
   const realRender=render;
   let pending=false;
@@ -1233,6 +1242,7 @@ document.addEventListener("change",(e)=>{
   try{ handleFormChange(e); }
   finally{ render=realRender; }
   if(pending){
+    const scrollX=window.scrollX, scrollY=window.scrollY;
     setTimeout(()=>{
       const active=document.activeElement;
       const sel=focusSelectorFor(active);
@@ -1245,6 +1255,7 @@ document.addEventListener("change",(e)=>{
           if(pos!=null && typeof ne.setSelectionRange==="function"){ try{ ne.setSelectionRange(pos,pos); }catch(err){} }
         }
       }
+      window.scrollTo(scrollX, scrollY);
     },0);
   }
 });

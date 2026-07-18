@@ -327,9 +327,28 @@ function sampleStudent(){
   };
 }
 
-/* ============ guía de primeros pasos ============ */
-function tipsDismissed(){ return localStorage.getItem(ONBOARDING_TIPS_KEY)==="1"; }
-function dismissTips(){ localStorage.setItem(ONBOARDING_TIPS_KEY,"1"); }
+/* ============ guía de primeros pasos (paso 125, sobre el paso 74) ============
+   El descarte vivía en localStorage (ONBOARDING_TIPS_KEY, ya sin uso) — reaparecía en cada
+   dispositivo/navegador nuevo porque localStorage no sincroniza. Ahora es un campo más de
+   catalog (state.catalog.onboardingDismissed), así que viaja con el resto del cuaderno. */
+function tipsDismissed(){ return !!state.catalog.onboardingDismissed; }
+function dismissTips(){ state.catalog.onboardingDismissed=true; touchCatalog(); }
+function reactivateTips(){ state.catalog.onboardingDismissed=false; touchCatalog(); }
+// Se llama desde render(), antes de armar el HTML (nunca desde vTips(): tocar toast()/render()
+// ahí adentro reentraría en el render() que ya está corriendo). Al completarse los 4 pasos se
+// descarta sola — no "se recalcula en cada render" como antes, así que aunque después se
+// desactive el portal o se borre el único alumno, la tarjeta ya no vuelve a aparecer (salvo
+// reactivarla a mano desde Ayuda, ver reactivateTips()).
+function checkOnboardingComplete(){
+  if(state.catalog.onboardingDismissed) return;
+  if(!ONBOARDING_STEPS.every(s=>s.done())) return;
+  state.catalog.onboardingDismissed=true;
+  state.catalog.updatedAt=Date.now();
+  save();
+  const id=uid();
+  state.toasts=[...state.toasts, {id, text:"¡Listo! Ya diste los primeros pasos.", tone:"ok", undo:null, action:null}];
+  setTimeout(()=>{ state.toasts=state.toasts.filter(t=>t.id!==id); render(); }, TOAST_MS);
+}
 
 /* ============ recordatorio de copia manual (.json) ============ */
 function getLastExport(){ const v=localStorage.getItem(LAST_EXPORT_KEY); return v?parseInt(v,10):null; }
