@@ -24,6 +24,12 @@ const LAST_COBROS_NOTIFY_KEY = "tutoria-last-cobros-notify-date"; // fecha (YYYY
 const PORTAL_LINK_TTL_DAYS = 30;
 const PORTAL_LINK_RENEW_AFTER_DAYS = 20;
 const PORTAL_RENEW_CHECK_KEY = "tutoria-portal-renew-check-date"; // fecha (YYYY-MM-DD) del último chequeo de renovación — uno por día, por dispositivo
+// Sonidos discretos (paso 143): preferencia local del dispositivo, mismo criterio que THEME_KEY
+// más abajo (no viaja en el catalog sincronizado — un dispositivo compartido/de aula puede querer
+// mutearlos sin afectar a los demás). Activado por defecto (ausente en localStorage = "on").
+const SOUNDS_KEY = "tutoria-sounds";
+function soundsOn(){ return localStorage.getItem(SOUNDS_KEY)!=="off"; }
+function setSoundsOn(on){ localStorage.setItem(SOUNDS_KEY, on?"on":"off"); }
 const THEME_KEY = "tutoria-theme"; // "light" | "dark" | "system" (default)
 function getTheme(){ return localStorage.getItem(THEME_KEY) || "system"; }
 function applyTheme(theme){

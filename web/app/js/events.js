@@ -13,7 +13,7 @@ function prefersReducedMotion(){
 function animateCounters(){
   const els = document.querySelectorAll(".cnt");
   if(prefersReducedMotion()) return;
-  const dur = 600;
+  const dur = 650; // paso 143: un toque más lenta que antes (era 600ms)
   els.forEach(el=>{
     const target = parseFloat(el.dataset.count);
     if(isNaN(target)) return;
@@ -49,6 +49,84 @@ function observeGrowBars(){
   }
   bars.forEach(el=>_growBarObserver.observe(el));
 }
+
+/* ============ festejo + sonidos discretos (paso 143) ============
+   Sólo en MOMENTOS puntuales (registrar clase, cobrar una deuda hasta dejarla en $0, completar
+   un objetivo) — nunca en carga de página ni en navegación. Ambos respetan reduced-motion/apagado
+   por separado: el confetti se salta directo con prefersReducedMotion() (mismo criterio que el
+   resto de las animaciones de este archivo); el sonido además depende de soundsOn() (toggle de
+   Cuenta → Preferencias, config.js). Uno no depende del otro — con reduced-motion activado pero
+   sonidos encendidos, sigue sonando el "tin"/"ding"/acorde sin el confetti visual. */
+function fireConfetti(){
+  if(prefersReducedMotion()) return;
+  const canvas=document.createElement("canvas");
+  canvas.style.cssText="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999";
+  canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx=canvas.getContext("2d");
+  const colors=["#ff6b6b","#4dabf7","#69db7c","#ffd43b","#da77f2"];
+  const N=54;
+  const originY=canvas.height*0.3;
+  const particles=Array.from({length:N},()=>({
+    x:canvas.width/2+(Math.random()-0.5)*140,
+    y:originY,
+    vx:(Math.random()-0.5)*9,
+    vy:-Math.random()*7-5,
+    size:4+Math.random()*4,
+    color:colors[Math.floor(Math.random()*colors.length)],
+    rot:Math.random()*Math.PI*2,
+    vrot:(Math.random()-0.5)*0.35,
+  }));
+  const gravity=0.25;
+  const start=performance.now();
+  const DURATION=1000;
+  function step(now){
+    const t=now-start;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const fade=Math.max(0, 1-t/DURATION);
+    particles.forEach(p=>{
+      p.vy+=gravity; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vrot;
+      ctx.save();
+      ctx.globalAlpha=fade;
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.color;
+      ctx.fillRect(-p.size/2,-p.size*0.3,p.size,p.size*0.6);
+      ctx.restore();
+    });
+    if(t<DURATION) requestAnimationFrame(step);
+    else canvas.remove();
+  }
+  requestAnimationFrame(step);
+}
+let _audioCtx=null;
+function getAudioCtx(){
+  if(_audioCtx) return _audioCtx;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC) return null;
+  _audioCtx=new AC();
+  return _audioCtx;
+}
+// freqs+dur cortos y volumen bajo a propósito (paso 143: "discretos, <200ms" salvo el acorde de
+// objetivo, un pelín más largo por tener 3 notas). Nunca se llama desde carga de página/nav —
+// sólo desde los tres triggers de más abajo.
+function playTone(freqs, dur, type){
+  if(prefersReducedMotion() || !soundsOn()) return;
+  const ctx=getAudioCtx(); if(!ctx) return;
+  if(ctx.state==="suspended") ctx.resume().catch(()=>{});
+  const now=ctx.currentTime;
+  freqs.forEach(f=>{
+    const osc=ctx.createOscillator(), gain=ctx.createGain();
+    osc.type=type||"sine"; osc.frequency.value=f;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.09, now+0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now+dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now); osc.stop(now+dur+0.02);
+  });
+}
+function soundClase(){ playTone([660], 0.14, "sine"); }
+function soundCobro(){ playTone([880], 0.16, "triangle"); }
+function soundObjetivo(){ playTone([523.25,659.25,783.99], 0.32, "sine"); }
 
 /* ============ aviso de versión nueva (apps nativas) ============ */
 // Compara por partes numéricas en vez de string-equality para no avisar de una "versión
@@ -818,6 +896,7 @@ document.addEventListener("click", (e)=>{
     },0);
     return;
   }
+  else if(a==="toggle-sonidos"){ setSoundsOn(el.dataset.f==="si"); }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }
   else if(a==="set-density"){ setDensity(el.dataset.f); }
   else if(a==="set-accent"){ setAccent(el.dataset.f); }
@@ -1174,7 +1253,9 @@ document.addEventListener("click", (e)=>{
       objetivo:goal, objetivoResult:null,
       cobrada:false}]});
     state.registrarClaseTipo=null;
-    toast("Clase registrada"); return;
+    toast("Clase registrada");
+    fireConfetti(); soundClase();
+    return;
   }
   else if(a==="set-session-estado"){ state.sessionEstado=el.dataset.f; render(); return; }
   else if(a==="set-session-ausente-cobra"){ state.sessionAusenteCobra = el.dataset.f==="si"; render(); return; }
@@ -1185,6 +1266,7 @@ document.addEventListener("click", (e)=>{
     update(sid,{sessions:st.sessions.map(x=>x.id===cid?{...x,objetivoResult:{estado:r,pct}}:x)});
     state.goalCelebrate={sid,estado:r};
     render();
+    if(r==="si"){ fireConfetti(); soundObjetivo(); } // paso 143: festejo sólo si se cumplió del todo
     setTimeout(()=>{
       if(state.goalCelebrate && state.goalCelebrate.sid===sid){ state.goalCelebrate=null; render(); }
     }, 1600);
@@ -1199,6 +1281,7 @@ document.addEventListener("click", (e)=>{
     update(sid,{sessions:st.sessions.map(x=>x.id===cid?{...x,objetivoResult:{estado:r,pct}}:x)});
     state.goalCelebrate={sid,estado:r};
     render();
+    if(r==="si"){ fireConfetti(); soundObjetivo(); }
     setTimeout(()=>{
       if(state.goalCelebrate && state.goalCelebrate.sid===sid){ state.goalCelebrate=null; render(); }
     }, 1600);
@@ -1323,9 +1406,13 @@ document.addEventListener("click", (e)=>{
     const wasCobrada = sessionEl && sessionEl.cobrada;
     const sessions = s.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:!x.cobrada}:x);
     if(!wasCobrada && sessionEl){
+      const prevPendiente=pendienteTotalFor(s);
       const r = crearRecibo(s,{tipo:"clase", concepto:`Clase del ${fmtDate(sessionEl.date)}`, monto:Number(s.tarifa)||0});
       update(s.id,{sessions, recibos:[...(s.recibos||[]), r]});
       toast("Clase marcada como cobrada", "ok", null, {label:"Ver recibo", run:()=>{ state.reciboId=r.id; state.view="recibo"; }});
+      // Festejo (paso 143) sólo si esto deja al alumno sin nada pendiente — no en cada clase cobrada.
+      const st2=state.students.find(x=>x.id===s.id);
+      if(st2 && prevPendiente>0 && pendienteTotalFor(st2)<=0){ fireConfetti(); soundCobro(); }
     }else{
       update(s.id,{sessions});
       toast("Clase marcada como pendiente");
@@ -1335,12 +1422,16 @@ document.addEventListener("click", (e)=>{
   else if(a==="save-pago" && s){
     const date=document.getElementById("pago-date").value; if(!date) return;
     const amount=parseFloat(document.getElementById("pago-amount").value); if(!amount) return;
+    const prevPendiente=pendienteTotalFor(s);
     const pagos=[...(s.pagos||[]),{id:uid(),date,amount}];
     const mk = monthKeyOf(date);
     const pendiente = pagoResumen({...s,pagos}, mk).pendiente;
     const r = crearRecibo(s,{tipo:"mensual", concepto:`Mensualidad ${monthLabel(mk)}`, monto:amount, date, saldo:pendiente});
     update(s.id,{pagos, recibos:[...(s.recibos||[]), r]});
     toast("Pago registrado", "ok", null, {label:"Ver recibo", run:()=>{ state.reciboId=r.id; state.view="recibo"; }});
+    // Festejo (paso 143) sólo si esto deja al alumno sin nada pendiente.
+    const st2=state.students.find(x=>x.id===s.id);
+    if(st2 && prevPendiente>0 && pendienteTotalFor(st2)<=0){ fireConfetti(); soundCobro(); }
     return;
   }
   else if(a==="del-pago" && s){

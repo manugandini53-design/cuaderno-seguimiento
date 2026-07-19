@@ -2880,7 +2880,7 @@ function vCuenta(){
       <div class="field"><div class="flabel">DNI / CUIT (opcional)</div><input data-cf="docente-dni" value="${esc(doc.dni||"")}"></div>
     </div>`)}
   ${vCuentaGroup("cobros","Cobros","Alias, links de pago y QR — se muestran en el portal individual de cada alumno.", vCobrosCard())}
-  ${vCuentaGroup("preferencias","Preferencias","Tema, color, densidad, escala de objetivos, cancelaciones, recordatorios y avisos.", `
+  ${vCuentaGroup("preferencias","Preferencias","Tema, color, densidad, sonidos, escala de objetivos, cancelaciones, recordatorios y avisos.", `
     <div class="formcard"><div class="ftitle">Apariencia</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${themeBtn("system","Según el sistema")}${themeBtn("light","Claro")}${themeBtn("dark","Oscuro")}
@@ -2897,6 +2897,13 @@ function vCuenta(){
         return `<button class="subj-swatch ${sel?"sel":""}" data-a="set-accent" data-f="${k}"
           style="background:${ACCENT_PALETTE[k].light.accent}" title="${esc(ACCENT_PALETTE[k].label)}">${sel?ICON_CHECK:""}</button>`;
       }).join("")}</div>
+    </div>
+    <div class="formcard"><div class="ftitle">Sonidos</div>
+      <div class="hint" style="margin-bottom:8px">Un "tin"/"ding" discreto al registrar una clase o confirmar un cobro, y un acorde corto al cumplir un objetivo — nunca al cargar la página ni al navegar. Se silencian solos si el sistema pide reducir animaciones.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="chip ${!soundsOn()?"on":""}" data-a="toggle-sonidos" data-f="no">Apagados</button>
+        <button class="chip ${soundsOn()?"on":""}" data-a="toggle-sonidos" data-f="si">Activados</button>
+      </div>
     </div>
     ${vEscalaObjetivoCard()}
     <div class="formcard"><div class="ftitle" style="display:flex;align-items:center;gap:7px">Política de cancelación${helpTip("cancelPolicy")}</div>
