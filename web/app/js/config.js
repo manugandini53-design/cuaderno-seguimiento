@@ -294,6 +294,16 @@ function defaultRecordatorios(){ return {activo:true, diasAtraso:1, notificacion
 // futuro resumen semanal por mail (cuaderno-supabase) para armar "estuviste al día X de Y días".
 function defaultRacha(){ return {actual:0, mejor:0, ultimoCheck:null, hitos:[], historial:[]}; }
 const RACHA_HISTORIAL_DIAS = 7;
+// Disponibilidad declarada del docente (paso 159, state.catalog.disponibilidad) — mismo patrón que
+// racha: sincroniza vía catalog, ausente en catálogos viejos (ver disponibilidadFor() en helpers.js)
+// sin que eso rompa nada ni dispare ningún aviso — "sin disponibilidad declarada" es simplemente el
+// estado inicial, no un error. Cada entrada es una celda horaria suelta {day (0=Lunes..6=Domingo,
+// igual que DIAS_SEMANA), hour ("HH:00", mismo bucket horario que usa la grilla semanal de paso 134
+// — ver vAgendaWeekGrid)} pintada como disponible; no son rangos con start/end porque el pintado es
+// celda por celda (un click = una hora) y una lista plana de celdas alcanza para saber "esta celda
+// está pintada sí/no" sin tener que fusionar o partir rangos cuando se toca una celda en el medio de
+// un bloque ya pintado.
+function defaultDisponibilidad(){ return []; }
 // Costos del negocio (state.catalog.costos) — mismo patrón que cancelPolicy/recordatorios: sincroniza
 // vía catalog, con este default para catálogos viejos que todavía no lo tienen (ver costosFor() en
 // helpers.js). Cada costo tiene subjectId/studentId opcionales (nunca ambos) para asignarlo a una

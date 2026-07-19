@@ -1746,13 +1746,18 @@ function vAgendaSemana(){
       ${offset!==0?`<button class="chip" data-a="agenda-today">Esta semana</button>`:""}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="chip ${state.agendaDispEdit?"on":""}" data-a="agenda-disp-edit-toggle">${state.agendaDispEdit?"Listo, guardar disponibilidad":"Mi disponibilidad"}</button>
       <button class="chip" data-a="grupal-form-open-agenda">+ Clase grupal</button>
       <button class="chip" data-a="open-agenda-imprimir">Imprimir semana</button>
       ${vExportIcsButton()}
     </div>
   </div>`;
 
-  if(alive().filter(s=>s.status==="activo").length===0){
+  if(state.agendaDispEdit){
+    h += `<div class="hint" style="margin-bottom:10px">Tocá las celdas de la grilla para marcarlas como disponibles (o volver a tocarlas para sacarlas) — se guarda solo, celda por celda. Esto es sólo tu disponibilidad declarada, no bloquea agendar clases fuera de ella.</div>`;
+  }
+
+  if(alive().filter(s=>s.status==="activo").length===0 && !state.agendaDispEdit){
     h += emptyState(ICON_CALENDAR, "Sin alumnos activos",
       "Cargá horarios habituales o agendá una próxima clase desde la ficha de cada alumno (pestaña «Clases»).",
       `<button class="btn btn-primary" data-a="nav-lista">Ir a Estudiantes</button>`);
@@ -1760,9 +1765,9 @@ function vAgendaSemana(){
   }
 
   const events = markOverlaps(collapseGrupalEvents(agendaWeekEvents(weekStart)));
-  if(events.length===0){
+  if(events.length===0 && !state.agendaDispEdit){
     h += `<div class="hint" style="margin-bottom:10px">Sin clases agendadas esta semana — clickeá un bloque de la grilla para programar una.</div>`;
-  }else{
+  }else if(events.length>0){
     h += vExportIcsHint();
   }
 
@@ -1776,6 +1781,16 @@ function vAgendaSemana(){
 // las clases que empiezan en esa hora con el mismo criterio de "lado a lado" que la vista de
 // un día (paso 90, vAgendaDayHours) — mismo componente vAgendaEvent(), sólo más chico. Las
 // celdas vacías son clickeables: abren vAgendaGridQuickForm() con día y hora precargados.
+// Paso 159 (disponibilidad): en modo normal, una celda vacía Y dentro de la disponibilidad
+// declarada (esCeldaDisponible) se pinta con un fondo sutil distinto (.disp-suggest, ver
+// styles.css) para sugerirla como horario libre para agendar — sigue siendo el mismo
+// data-a="agenda-grid-add" de siempre, sólo cambia el fondo. En modo edición
+// (state.agendaDispEdit, chip "Mi disponibilidad" en vAgendaSemana) toda celda pasa a llevar
+// data-a="agenda-disp-toggle" (día+hora en dataset) para pintar/despintar disponibilidad con un
+// click, reusando el mismo delegado de click que el resto de la grilla en vez de inventar un
+// modelo de interacción nuevo — si la celda tiene una clase encima, el click todavía la abre
+// como siempre (vAgendaEvent/vAgendaEventGrupal traen su propio data-a más específico, que
+// closest() encuentra primero); sólo clickear el fondo de la celda pinta/despinta.
 function vAgendaWeekGrid(weekStart, events){
   const days = Array.from({length:7},(_,i)=>addDays(weekStart,i));
   const byDay = Array.from({length:7},()=>[]);
@@ -1789,8 +1804,9 @@ function vAgendaWeekGrid(weekStart, events){
   const endHour = events.length ? Math.max(22, ...events.map(e=>Math.ceil(e.endMin/60))) : 22;
   const now = new Date();
   const nowMin = now.getHours()*60+now.getMinutes();
+  const editMode = !!state.agendaDispEdit;
 
-  let h = `<div class="week-scroll"><div class="week-grid">`;
+  let h = `<div class="week-scroll"><div class="week-grid ${editMode?"disp-edit":""}">`;
   h += `<div class="week-corner"></div>`;
   h += days.map((d,i)=>`<div class="week-head ${d===today()?"today":""}">${esc(DIAS_SEMANA[i].slice(0,3))}<span class="week-headdate">${esc(fmtDate(d))}</span></div>`).join("");
 
@@ -1802,8 +1818,13 @@ function vAgendaWeekGrid(weekStart, events){
       const list = byDay[i].filter(e=>Math.floor(e.startMin/60)===hr);
       const nowLine = isToday && nowMin>=hr*60 && nowMin<(hr+1)*60
         ? `<div class="week-now" style="top:${(((nowMin-hr*60)/60)*100).toFixed(1)}%"></div>` : "";
+      const dayIdx = weekdayIdx(d);
+      const disponible = esCeldaDisponible(dayIdx, label);
+      if(editMode){
+        return `<div class="week-cell empty ${isToday?"today":""} ${disponible?"disp-available":""}" data-a="agenda-disp-toggle" data-day="${dayIdx}" data-hour="${label}">${nowLine}${list.map(e=>e.kind==="grupal"?vAgendaEventGrupal(e,d):vAgendaEvent(e,d)).join("")}</div>`;
+      }
       if(list.length===0){
-        return `<div class="week-cell empty ${isToday?"today":""}" data-a="agenda-grid-add" data-date="${d}" data-hour="${label}">${nowLine}</div>`;
+        return `<div class="week-cell empty ${isToday?"today":""} ${disponible?"disp-suggest":""}" data-a="agenda-grid-add" data-date="${d}" data-hour="${label}">${nowLine}</div>`;
       }
       return `<div class="week-cell ${isToday?"today":""}">${nowLine}${list.map(e=>e.kind==="grupal"?vAgendaEventGrupal(e,d):vAgendaEvent(e,d)).join("")}</div>`;
     }).join("");
@@ -1819,6 +1840,12 @@ function vAgendaGridQuickForm(){
   const activos = alive().filter(s=>s.status==="activo").sort((a,b)=>a.name.localeCompare(b.name));
   let h = `<div class="formcard" style="margin-top:12px">
     <div class="ftitle">Programar clase — ${esc(fmtDate(q.date))} ${esc(q.time)}</div>`;
+  // Paso 159: aviso no bloqueante si el bloque clickeado cae fuera de la disponibilidad declarada
+  // (nunca se muestra si el docente no cargó ninguna, ver estaDentroDisponibilidad()) — sólo
+  // informativo, "+ Programar" de acá abajo sigue guardando igual.
+  if(!estaDentroDisponibilidad(q.date, q.time)){
+    h += `<div class="hint" style="margin-bottom:8px">Ojo: este horario cae fuera de tu disponibilidad declarada.</div>`;
+  }
   h += activos.length===0
     ? `<div class="hint">No hay alumnos activos para programarles una clase.</div>`
     : `<div class="frow" style="align-items:flex-end">

@@ -292,6 +292,16 @@
   .week-cell.empty:hover{background:var(--soft)}
   .week-cell .agenda-event{flex:1 1 130px;min-width:110px;margin-bottom:0;font-size:11.5px}
   .week-now{position:absolute;left:0;right:0;height:2px;background:var(--accent);border-radius:1px;pointer-events:none}
+  /* Disponibilidad del docente (paso 159): en modo lectura, .disp-suggest resalta las celdas
+     vacías Y dentro de la disponibilidad declarada (sugeridas para agendar); en modo edición
+     (.week-grid.disp-edit, chip "Mi disponibilidad") .disp-available marca las celdas ya pintadas
+     y toda celda queda clickeable para pintar/despintar (ver vAgendaWeekGrid en views.js). Fondo
+     sutil en ambos casos, siempre distinguible de .agenda-event encima. */
+  .week-cell.disp-suggest{background:var(--greenbg)}
+  .week-cell.disp-suggest:hover{background:var(--greenbg)}
+  .week-grid.disp-edit .week-cell{cursor:pointer}
+  .week-grid.disp-edit .week-cell:hover{outline:1px dashed var(--accent);outline-offset:-1px}
+  .week-grid.disp-edit .week-cell.disp-available{background:var(--accent-soft)}
   @media (max-width:480px){
     .week-grid{grid-template-columns:44px repeat(7,minmax(96px,1fr));min-width:716px}
     .week-hourlabel{font-size:9px;padding:4px 3px}

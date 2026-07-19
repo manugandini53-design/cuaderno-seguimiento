@@ -309,6 +309,11 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="agenda-grid-add"){ state.agendaGridQuick={date:el.dataset.date, time:el.dataset.hour}; }
   else if(a==="agenda-grid-quick-cancel"){ state.agendaGridQuick=null; }
+  else if(a==="agenda-disp-edit-toggle"){ state.agendaDispEdit=!state.agendaDispEdit; state.agendaGridQuick=null; }
+  else if(a==="agenda-disp-toggle"){
+    toggleDisponibilidadCelda(parseInt(el.dataset.day,10), el.dataset.hour);
+    return;
+  }
   else if(a==="agenda-grid-quick-add"){
     const studentEl=document.getElementById("wq-student"); if(!studentEl) return;
     const q=state.agendaGridQuick; if(!q) return;

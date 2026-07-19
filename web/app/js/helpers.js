@@ -121,7 +121,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               informePeriod:"3m", informeImgBusy:false,
               agendaWeekOffset:0, sessionPrefillDate:"",
               agendaViewMode:"semana", agendaMonthOffset:0, agendaSelectedDay:null, agendaQuickAddOpen:false,
-              agendaGridQuick:null,
+              agendaGridQuick:null, agendaDispEdit:false,
               puntualCancelAskId:null, cobrosBannerOpen:false, registrarClaseTipo:null,
               portal:null, portalLoaded:false, portalError:"",
               portalSaving:false, portalSaveMsg:"", portalCopyMsg:"",
@@ -1544,6 +1544,35 @@ function monthGridDays(mk){
   return days;
 }
 
+/* ============ disponibilidad del docente (paso 159) ============
+   Grilla de celdas horarias sueltas (state.catalog.disponibilidad, ver defaultDisponibilidad() en
+   config.js) que el docente pinta sobre la misma grilla semanal de paso 134, en modo edición
+   (state.agendaDispEdit, chip "Mi disponibilidad" en vAgendaSemana — ver toggleDisponibilidadCelda()
+   y agenda-disp-toggle en events.js). estaDentroDisponibilidad() se usa tanto para resaltar en la
+   grilla las celdas libres-y-disponibles (las sugeridas para agendar, ver vAgendaWeekGrid) como para
+   el aviso no bloqueante al programar una clase puntual fuera de la disponibilidad declarada (ver
+   addPuntualClase más abajo) — si la lista está vacía (docente que nunca la cargó, o un catálogo
+   sincronizado antes de este paso) esta función siempre da true, así nunca se dispara un aviso por
+   falta de datos. */
+function disponibilidadFor(){ return state.catalog.disponibilidad || defaultDisponibilidad(); }
+// mismo bucket horario que usa vAgendaWeekGrid para agrupar clases por fila (Math.floor(startMin/60)) —
+// "14:37" cae en la celda "14:00", igual que una clase que arranca a esa hora cae en esa fila.
+function horaCeldaDe(time){ return (time||"00:00").slice(0,2)+":00"; }
+function esCeldaDisponible(day, hourLabel){ return disponibilidadFor().some(d=>d.day===day && d.hour===hourLabel); }
+function estaDentroDisponibilidad(date, time){
+  const list = disponibilidadFor();
+  if(list.length===0) return true; // nunca avisar si el docente no cargó ninguna disponibilidad
+  return esCeldaDisponible(weekdayIdx(date), horaCeldaDe(time));
+}
+function toggleDisponibilidadCelda(day, hourLabel){
+  const list = disponibilidadFor();
+  const existe = list.some(d=>d.day===day && d.hour===hourLabel);
+  state.catalog.disponibilidad = existe
+    ? list.filter(d=>!(d.day===day && d.hour===hourLabel))
+    : [...list, {day, hour:hourLabel}];
+  touchCatalog();
+}
+
 /* ============ señas y política de cancelación (dentro de clasesPuntuales, opcional por alumno) ============
    Seña: opt-in por alumno (s.seniaActiva). Cada clase puntual creada mientras está activa guarda
    una foto del monto (s.seniaValor/tarifa al momento de crearla, ver seniaMontoFor) y arranca en
@@ -1584,6 +1613,10 @@ function addPuntualClase(studentId, date, time, duration, link, topic){
     nueva.seniaEstado="pendiente"; nueva.seniaMonto=seniaMontoFor(s);
     const prev = previousPendingSenia(s, date);
     if(prev) warning = `No le cobraste la seña de la clase del ${fmtDate(prev.date)}.`;
+  }
+  if(!estaDentroDisponibilidad(date, time)){
+    const dispWarning = "Ojo: agendaste fuera de tu disponibilidad declarada.";
+    warning = warning ? warning+"\n"+dispWarning : dispWarning;
   }
   update(studentId, {clasesPuntuales:[...(s.clasesPuntuales||[]), nueva]});
   return {warning};
