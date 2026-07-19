@@ -644,7 +644,7 @@ document.addEventListener("click", (e)=>{
     state.view="detalle"; state.selId=el.dataset.id; state.tab="resumen"; state.confirmDel=false;
     state.simTimer=null; state.simPrefillNote=""; state.fichaError=""; state.sessionPrefillDate="";
   }
-  else if(a==="back"){ state.view="lista"; state.selId=null; state.simTimer=null; state.simPrefillNote=""; }
+  else if(a==="back"){ state.view="lista"; state.selId=null; state.simTimer=null; state.simPrefillNote=""; state.editSessionTopicId=null; }
   else if(a==="new"){ state.showNew=true; state.newStudentError=""; }
   else if(a==="load-sample"){
     const st=sampleStudent();
@@ -722,7 +722,7 @@ document.addEventListener("click", (e)=>{
     }
   }
   else if(a.startsWith("tab-")){
-    state.tab=a.slice(4); state.confirmDel=false; state.fichaError=""; state.sessionPrefillDate="";
+    state.tab=a.slice(4); state.confirmDel=false; state.fichaError=""; state.sessionPrefillDate=""; state.editSessionTopicId=null;
     if(state.tab==="portal" && !state.portalLoaded){ state.portalError=""; loadPortal(); }
   }
   else if(a==="goto-subject-materials"){
@@ -931,6 +931,16 @@ document.addEventListener("click", (e)=>{
     setTimeout(()=>{
       if(state.goalCelebrate && state.goalCelebrate.sid===sid){ state.goalCelebrate=null; render(); }
     }, 1600);
+    return;
+  }
+  else if(a==="session-topic-rename-start"){ state.editSessionTopicId=el.dataset.id; return; }
+  else if(a==="session-topic-rename-cancel"){ state.editSessionTopicId=null; return; }
+  else if(a==="session-topic-rename-done" && s){
+    const cid=el.dataset.id;
+    const input=document.getElementById("session-topic-input");
+    const v=input?input.value:"";
+    state.editSessionTopicId=null;
+    update(s.id,{sessions:s.sessions.map(x=>x.id===cid?{...x,topic:v}:x)});
     return;
   }
   else if(a==="del-session" && s){

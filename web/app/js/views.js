@@ -851,9 +851,7 @@ function vFichaClases(s){
     <div class="frow">
       <div class="field"><div class="flabel">Fecha</div><input type="date" id="c-date" value="${esc(state.sessionPrefillDate||today())}" data-enter="save-session"></div>
       ${estado==="dada" ? `
-      <div class="field"><div class="flabel">Tema principal</div><select id="c-topic" data-enter="save-session"><option value="">—</option>
-        ${flattenUnitLabels(unitsFor(s)).map(t=>`<option>${esc(t)}</option>`).join("")}
-        <option>Nivelación</option><option>Repaso / parciales viejos</option></select></div>
+      <div class="field"><div class="flabel">Tema principal</div><select id="c-topic" data-enter="save-session">${topicOptionsHtml(s,"")}</select></div>
       <div class="field"><div class="flabel">¿Trajo la tarea?</div><select id="c-tarea" data-enter="save-session">
         <option value="sd">—</option><option value="hecha">Hecha</option>
         <option value="intentada">Intentada</option><option value="no">No hecha</option></select></div>
@@ -889,8 +887,16 @@ function vFichaClases(s){
             ${c.note?`<div class="note">${esc(c.note)}</div>`:""}</div>
             <button class="del" data-a="del-session" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button></div>`;
         }
+        const editandoTema = state.editSessionTopicId===c.id;
         return `<div class="log"><div class="d">${fmtDate(c.date)}</div>
-      <div class="body"><span style="font-weight:600">${esc(c.topic||"Clase")}</span>
+      <div class="body">${editandoTema
+        ? `<span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap">
+             <select id="session-topic-input" data-enter="session-topic-rename-done">${topicOptionsHtml(s,c.topic)}</select>
+             <button class="chip" data-a="session-topic-rename-done" data-id="${c.id}">Guardar</button>
+             <button class="chip" data-a="session-topic-rename-cancel">Cancelar</button>
+           </span>`
+        : `<span style="font-weight:600">${esc(c.topic||"Clase")}</span>
+           <button class="iconbtn" data-a="session-topic-rename-start" data-id="${c.id}" title="Editar tema" aria-label="Editar tema">${ICON_EDIT}</button>`}
       <span class="tareatag">${c.duration!=null&&c.duration!==""?Math.round(c.duration)+" min":"60 min (asumido)"}</span>
       ${s.modalidad==="hora"?`<span class="tareatag">${fmtMoney(montoSesion(s,c))}${c.monto!=null&&c.monto!==""?" (manual)":""}</span>`:""}
       ${c.tarea&&c.tarea!=="sd"?`<span class="tareatag" style="color:${TAREA_META[c.tarea].fg}">tarea: ${TAREA_META[c.tarea].label}</span>`:""}

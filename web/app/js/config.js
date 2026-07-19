@@ -122,6 +122,11 @@ function detectPlatform(){
   if(window.Capacitor) return "Android";
   return "Web";
 }
+// Temas genéricos siempre disponibles al registrar/editar el "tema principal" de una clase (paso
+// 131, ver topicOptionsHtml en helpers.js), además de las unidades/subunidades de la materia —
+// independientes de s.topics (avance por unidad, ver TOPIC_CYCLE abajo): loguear una clase con
+// cualquiera de estos strings no toca el avance de ninguna unidad, nunca se derivó de acá.
+const GENERIC_TOPICS = ["Ejercicios","Teoría","Nivelación","Repaso / parciales viejos"];
 const TOPIC_CYCLE = ["pendiente","visto","practica","parcial","noentra"];
 const TOPIC_META = {
   pendiente:{label:"Pendiente",bg:"var(--topic-pendiente-bg)",fg:"var(--topic-pendiente-fg)",bd:"var(--topic-pendiente-bd)"},

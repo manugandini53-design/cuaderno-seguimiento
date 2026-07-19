@@ -269,6 +269,23 @@ function flattenUnitLabels(units){
   });
   return out;
 }
+// Opciones del <select> de "tema principal" al registrar una clase o editar una ya guardada
+// (paso 131, ver vFichaClases en views.js) — unidades/subunidades de la materia agrupadas en un
+// optgroup, más los genéricos de GENERIC_TOPICS (config.js) siempre disponibles en otro optgroup:
+// agrupar con <optgroup> es la única forma confiable entre navegadores de que se note que un tema
+// genérico no es una unidad real del catálogo (los estilos por <option> no son controlables).
+// Si el valor actual no matchea ninguna opción listada (tema viejo de texto libre, o una unidad
+// borrada del catálogo desde entonces) se inyecta como opción extra al final para no perderlo —
+// mismo truco que careerOptions() usa para una carrera huérfana.
+function topicOptionsHtml(s, cur){
+  const units = flattenUnitLabels(unitsFor(s));
+  const known = new Set([...units, ...GENERIC_TOPICS]);
+  const opt=(t)=>`<option ${t===cur?"selected":""}>${esc(t)}</option>`;
+  return `<option value="" ${!cur?"selected":""}>—</option>`
+    + (units.length ? `<optgroup label="Unidades">${units.map(opt).join("")}</optgroup>` : "")
+    + `<optgroup label="General">${GENERIC_TOPICS.map(opt).join("")}</optgroup>`
+    + (cur && !known.has(cur) ? opt(cur) : "");
+}
 // Unidades de nivel superior en un formato {id,label} listo para un <select> (paso 128, ver el
 // selector de unidad de vMaterialRow en views.js) — a propósito sólo el nivel de unidad, sin
 // subunidades: un material se enlaza a la unidad entera, no hace falta la granularidad de
