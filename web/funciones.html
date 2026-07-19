@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Todo lo que hace Entreclases</title>
+<meta name="description" content="El catálogo completo de funciones de Entreclases: alumnos, agenda, cobros, materias, portal del alumno, estadísticas, comunicación, informes, seguridad y personalización.">
+<link rel="icon" href="app/icon-192.png">
+<meta name="theme-color" id="theme-color-meta" content="#1E2B4D">
+<script>
+  var THEME_KEY = "tutoria-theme";
+  var THEME_ORDER = ["system","light","dark"];
+  var THEME_LABELS = {system:"Automático",light:"Claro",dark:"Oscuro"};
+  var THEME_ICONS = {
+    system:'<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>',
+    light:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>',
+    dark:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>'
+  };
+  function getTheme(){ try{ return localStorage.getItem(THEME_KEY) || "system"; }catch(e){ return "system"; } }
+  function isDarkEffective(t){
+    if(t==="dark") return true;
+    if(t==="light") return false;
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+  function updateThemeColorMeta(t){
+    var meta=document.getElementById("theme-color-meta");
+    if(meta) meta.setAttribute("content", isDarkEffective(t) ? "#0F1420" : "#1E2B4D");
+  }
+  function applyTheme(t){
+    var root=document.documentElement;
+    root.classList.remove("theme-light","theme-dark");
+    if(t==="light") root.classList.add("theme-light");
+    else if(t==="dark") root.classList.add("theme-dark");
+    updateThemeColorMeta(t);
+  }
+  applyTheme(getTheme());
+  if(window.matchMedia){
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(){
+      if(getTheme()==="system") updateThemeColorMeta("system");
+    });
+  }
+  function updateThemeButton(t){
+    var btn=document.getElementById("theme-toggle");
+    if(!btn) return;
+    btn.innerHTML = THEME_ICONS[t];
+    var label = "Tema: "+THEME_LABELS[t]+" — tocar para cambiar";
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
+  }
+  function cycleTheme(){
+    var next = THEME_ORDER[(THEME_ORDER.indexOf(getTheme())+1) % THEME_ORDER.length];
+    try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+    applyTheme(next);
+    updateThemeButton(next);
+  }
+</script>
+<style>
+  @font-face{
+    font-family:'Inter'; font-style:normal; font-weight:400 700; font-display:swap;
+    src:url('fonts/inter-latin.woff2') format('woff2');
+  }
+  @font-face{
+    font-family:'Poppins'; font-style:normal; font-weight:600 800; font-display:swap;
+    src:url('fonts/poppins-700.woff2') format('woff2');
+  }
+  :root{
+    --bg:#F6F8FC; --bg-alt:#EEF1F9; --card:#FFFFFF; --border:#E4E9F5;
+    --ink:#12192E; --text:#1A2238; --text-soft:#5C6480;
+    --navy:#1E2B4D; --navy-2:#2F4272;
+    --accent:#14B8A6; --accent-dark:#0E9488; --accent-soft:#CFF7F0; --accent-strong:#0F766E;
+    --header-bg:rgba(246,248,252,.85); --shadow-2:rgba(26,34,66,.25);
+    --sans:'Inter',-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --display:'Poppins',var(--sans);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not(.theme-light):not(.theme-dark){
+      --bg:#0F1420; --bg-alt:#171D2C; --card:#1B2333; --border:#2B3348;
+      --ink:#EDEFF7; --text:#C7CCDC; --text-soft:#8890AA;
+      --navy:#2B3A63; --navy-2:#3D5089;
+      --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38; --accent-strong:#0F766E;
+      --header-bg:rgba(15,20,32,.85); --shadow-2:rgba(0,0,0,.5);
+    }
+  }
+  :root.theme-dark{
+    --bg:#0F1420; --bg-alt:#171D2C; --card:#1B2333; --border:#2B3348;
+    --ink:#EDEFF7; --text:#C7CCDC; --text-soft:#8890AA;
+    --navy:#2B3A63; --navy-2:#3D5089;
+    --accent:#2DD4C0; --accent-dark:#14B8A6; --accent-soft:#123C38; --accent-strong:#0F766E;
+    --header-bg:rgba(15,20,32,.85); --shadow-2:rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:var(--display)}
+  a{text-decoration:none;color:inherit}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+  header.site{position:sticky;top:0;z-index:50;background:var(--header-bg);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);padding-top:env(safe-area-inset-top)}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;row-gap:10px;
+    padding:14px calc(20px + env(safe-area-inset-right)) 14px calc(20px + env(safe-area-inset-left));max-width:1180px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;color:var(--ink)}
+  .brand .mark{width:32px;height:32px;border-radius:9px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--navy),var(--navy-2));
+    display:flex;align-items:center;justify-content:center}
+  .nav-actions{display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .theme-toggle{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+    width:34px;height:34px;border-radius:99px;border:1px solid var(--border);background:var(--card);
+    color:var(--ink);cursor:pointer;padding:0;transition:transform .12s ease,border-color .12s ease}
+  .theme-toggle:hover{border-color:var(--ink);transform:translateY(-1px)}
+  .back-link{font-size:14px;font-weight:600;color:var(--text-soft)}
+  .back-link:hover{color:var(--ink)}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    border-radius:11px;padding:11px 20px;font-weight:600;font-size:14.5px;cursor:pointer;
+    border:1px solid transparent;white-space:nowrap;transition:transform .12s ease,box-shadow .12s ease}
+  .btn-primary{background:var(--accent-strong);color:#FFFFFF;box-shadow:0 8px 20px -6px rgba(20,184,166,.55)}
+  .btn-primary:hover{box-shadow:0 10px 24px -6px rgba(20,184,166,.65);transform:translateY(-2px)}
+  .btn-secondary{background:var(--card);color:var(--ink);border:1.5px solid var(--border)}
+  .btn-secondary:hover{border-color:var(--accent);color:var(--accent-dark);transform:translateY(-2px)}
+  .btn:active{transform:scale(.97)}
+
+  main{padding:44px 20px 20px}
+  .hero-cat{text-align:center;max-width:680px;margin:0 auto 40px}
+  .eyebrow{display:inline-block;background:var(--accent-soft);color:var(--accent-dark);
+    font-weight:700;font-size:12px;letter-spacing:.06em;padding:6px 14px;border-radius:20px;margin-bottom:16px}
+  h1{font-size:32px;line-height:1.2;font-weight:800;color:var(--ink);margin-bottom:12px;letter-spacing:-.01em}
+  .hero-cat p{font-size:15.5px;color:var(--text-soft);line-height:1.6}
+
+  .toc{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 auto 8px;max-width:900px}
+  .toc a{font-size:12.5px;font-weight:600;color:var(--text-soft);background:var(--card);
+    border:1px solid var(--border);border-radius:20px;padding:6px 13px}
+  .toc a:hover{color:var(--accent-dark);border-color:var(--accent)}
+
+  section.cat{padding:36px 20px;border-top:1px solid var(--border)}
+  section.cat:first-of-type{border-top:none}
+  .cat-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+  .cat-icon{width:38px;height:38px;border-radius:11px;background:var(--accent-soft);color:var(--accent-dark);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cat-icon svg{width:19px;height:19px}
+  .cat-head h2{font-size:20px;color:var(--ink);letter-spacing:-.005em}
+  .func-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 24px}
+  .func{padding:2px 0}
+  .func b{display:block;font-size:14px;color:var(--ink);margin-bottom:2px}
+  .func span{font-size:13.5px;color:var(--text-soft);line-height:1.5}
+
+  .cta{text-align:center;padding:56px 20px 64px}
+  .cta h2{font-size:22px;color:var(--ink);margin-bottom:10px}
+  .cta p{font-size:14.5px;color:var(--text-soft);margin-bottom:22px}
+  .cta-row{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+
+  footer.site{padding:32px 20px;text-align:center;border-top:1px solid var(--border)}
+  footer.site .brand{justify-content:center;margin-bottom:10px}
+  footer.site p{color:var(--text-soft);font-size:13px}
+  footer.site a:hover{color:var(--ink)}
+  footer.site .copyright{margin-top:16px;font-size:11.5px;color:var(--text-soft);opacity:.75}
+
+  @media (max-width:680px){
+    main{padding:32px 16px 12px}
+    h1{font-size:25px}
+    .func-grid{grid-template-columns:1fr}
+    .theme-toggle{width:44px;height:44px}
+    .toc{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="nav">
+    <div class="brand">
+      <span class="mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+      Entreclases
+    </div>
+    <div class="nav-actions">
+      <a href="./index.html" class="back-link">← Volver al inicio</a>
+      <button type="button" id="theme-toggle" class="theme-toggle" onclick="cycleTheme()"></button>
+    </div>
+  </div>
+</header>
+<script>updateThemeButton(getTheme());</script>
+
+<main>
+  <div class="wrap">
+    <div class="hero-cat">
+      <span class="eyebrow">CATÁLOGO COMPLETO</span>
+      <h1>Todo lo que hace Entreclases</h1>
+      <p>Cada función real de la app, agrupada por tema — sin relleno, sin promesas de lo que "viene pronto". Si algo no está acá, todavía no lo hicimos.</p>
+    </div>
+    <div class="toc">
+      <a href="#alumnos">Alumnos y fichas</a>
+      <a href="#agenda">Clases y agenda</a>
+      <a href="#cobros">Cobros y pagos</a>
+      <a href="#materias">Materias y materiales</a>
+      <a href="#portal">Portal del alumno</a>
+      <a href="#estadisticas">Estadísticas y aula</a>
+      <a href="#comunicacion">Comunicación</a>
+      <a href="#documentos">Informes y recibos</a>
+      <a href="#datos">Seguridad y datos</a>
+      <a href="#personalizacion">Personalización</a>
+    </div>
+  </div>
+
+  <section class="cat" id="alumnos">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-7 7-7s7 3 7 7"/><path d="M17 8h5M19.5 5.5v5"/></svg></span>
+        <h2>Alumnos y fichas</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Alta simple y avanzada</b><span>Lo esencial en segundos (nombre, materia, carrera, tarifa) con un desplegable para el resto: mail, cátedra, cumpleaños, videollamada, tags, notas y seña inicial.</span></div>
+        <div class="func"><b>Ficha con pestañas</b><span>Resumen, Clases, Pagos, Objetivos, Materiales y Portal — todo lo de un alumno organizado, sin scroll infinito.</span></div>
+        <div class="func"><b>Estado y semáforo</b><span>Activo, pausado, aprobó, a recuperar o dejó, más un semáforo verde/amarillo/rojo de cómo llega a su objetivo.</span></div>
+        <div class="func"><b>Modo vacaciones</b><span>Pausar un alumno con fecha de vuelta opcional: no aparece en agenda ni cobros mientras no tiene clases.</span></div>
+        <div class="func"><b>Ausencias con motivo</b><span>Avisó con tiempo, avisó tarde o no avisó, con sugerencia automática de si corresponde cobrarla y % de asistencia.</span></div>
+        <div class="func"><b>Etiquetas libres</b><span>Tags a medida por alumno ("ingreso", "online", "verano"…), filtrables desde la lista y el buscador.</span></div>
+        <div class="func"><b>Interesados</b><span>Mini lista de espera para consultas que todavía no arrancaron, con estado (consultó → en charla → arranca) y conversión a alumno con un click.</span></div>
+        <div class="func"><b>Cumpleaños</b><span>Tarjeta en el tablero con quién cumple hoy o mañana, con saludo de WhatsApp ya armado.</span></div>
+        <div class="func"><b>Foto de perfil</b><span>Opcional, recortada y liviana (WebP); sin foto, iniciales con color estable.</span></div>
+        <div class="func"><b>Papelera con deshacer</b><span>Borrar un alumno no es definitivo al toque: 7 días para restaurarlo, con un botón de deshacer en el momento.</span></div>
+        <div class="func"><b>Buscador global</b><span>Lupa siempre visible o la tecla "/" para encontrar un alumno, materia o material al instante.</span></div>
+        <div class="func"><b>Resultados de examen</b><span>Cargá aprobó/a recuperar y la nota de cada examen rendido, con su fecha.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="agenda">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+        <h2>Clases y agenda</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Registrar clase pasada o agendar próxima</b><span>Un mismo flujo para anotar lo ya dado (tema, tarea, objetivo, cobro) o dejar programada una clase futura.</span></div>
+        <div class="func"><b>Horarios habituales y clases puntuales</b><span>Recurrencia semanal automática para lo fijo, más clases sueltas para lo excepcional.</span></div>
+        <div class="func"><b>Grilla semanal por hora</b><span>Los 7 días como columnas de 08 a 22hs, con varias clases a la misma hora conviviendo lado a lado.</span></div>
+        <div class="func"><b>Vista mensual</b><span>Calendario del mes con mini-marcas por día y detalle de un día en bloques horarios al tocarlo.</span></div>
+        <div class="func"><b>Aviso de superposición</b><span>Alerta automática si dos clases quedan a la misma hora, en semana, mes o día.</span></div>
+        <div class="func"><b>Edición desde la agenda</b><span>Tocar cualquier clase abre un popover para cambiar fecha/hora/duración, registrarla, cancelarla o borrarla ahí mismo.</span></div>
+        <div class="func"><b>Exportar a tu calendario</b><span>Descarga en .ics del período que estés viendo, para importar en Google Calendar, Outlook o el calendario del teléfono.</span></div>
+        <div class="func"><b>Imprimir la semana</b><span>Documento prolijo con la semana agendada, para pegar en el aula o llevar impreso.</span></div>
+        <div class="func"><b>Objetivos de clase</b><span>Marcá si se cumplió al cerrar la clase siguiente, con racha de objetivos cumplidos en la ficha.</span></div>
+        <div class="func"><b>Link de videollamada</b><span>Por alumno o por clase puntual — aparece como botón "Entrar a la clase" en agenda, tablero y portal.</span></div>
+        <div class="func"><b>Recordatorio de tus clases del día</b><span>Notificación a la mañana con cuántas clases tenés y a qué hora es la primera, aunque la app esté cerrada.</span></div>
+        <div class="func"><b>Recordatorio de clase por WhatsApp</b><span>Un toque para avisarle a un alumno su clase de hoy o mañana, con texto editable.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="cobros">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 17l1.5-1.5L12 17l1.5-1.5L15 17"/></svg></span>
+        <h2>Cobros y pagos</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Tres modalidades de cobro</b><span>Por clase, mensual o por hora (con cálculo automático tarifa × duración).</span></div>
+        <div class="func"><b>Señas</b><span>Adelanto opcional por alumno con política de cancelación configurable (devolución o retención según el aviso).</span></div>
+        <div class="func"><b>Recordatorios de cobro</b><span>Banner en el tablero con clases sin cobrar y mensualidades vencidas, más notificación opcional del navegador.</span></div>
+        <div class="func"><b>Ajuste de tarifas en lote</b><span>Aumento porcentual o por monto fijo a varios alumnos de una, con vista previa y redondeo, e historial de tarifas por alumno.</span></div>
+        <div class="func"><b>Rentabilidad real</b><span>Costos fijos y variables por materia o alumno, $/hora neto del mes y un histórico de 12 meses.</span></div>
+        <div class="func"><b>Export contable a Excel</b><span>CSV con cada movimiento del período elegido y un resumen por mes, listo para abrir en Excel.</span></div>
+        <div class="func"><b>Medios de cobro del docente</b><span>Alias/CVU, link de Mercado Pago y QR, mostrados en el portal individual de cada alumno junto a su saldo pendiente.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="materias">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+        <h2>Materias, carreras y materiales</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Catálogo de materias con color</b><span>Cada materia con su color propio, visible en lista, agenda, estadísticas y portal.</span></div>
+        <div class="func"><b>Unidades con subunidades</b><span>Un nivel de subunidades por unidad, reordenables con flechas, sin perder el avance ya cargado al renombrar.</span></div>
+        <div class="func"><b>Carreras vinculadas a materias</b><span>Vínculo N:M entre carreras y materias, con la lista de Materias agrupable por carrera.</span></div>
+        <div class="func"><b>Packs de materias</b><span>Combos predefinidos para dar de alta varias materias juntas en un alta rápida.</span></div>
+        <div class="func"><b>Duplicar materia</b><span>Copia nombre, unidades y color a una materia nueva en un toque.</span></div>
+        <div class="func"><b>Materiales por materia y por unidad</b><span>Subí guías y resúmenes, opcionalmente enlazados a una unidad puntual, accesibles desde cualquier dispositivo.</span></div>
+        <div class="func"><b>Límites claros de almacenamiento</b><span>100 archivos por materia, 10 MB por archivo y 50 MB en total por cuenta, con barra de uso siempre visible.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="portal">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg></span>
+        <h2>Portal del alumno</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Llave general, individual y grupal</b><span>Un link (o QR) para todos, uno por alumno o uno por materia — sin que el alumno necesite crear cuenta.</span></div>
+        <div class="func"><b>QR para el aula</b><span>Código QR generado al momento para compartir en clase, sin depender de ningún servicio externo.</span></div>
+        <div class="func"><b>Biblioteca por unidad</b><span>Los materiales compartidos, agrupados por unidad dentro de cada materia, con buscador.</span></div>
+        <div class="func"><b>Próxima clase, tarea y avance</b><span>Con llave individual, cada alumno ve su próxima clase, la tarea de la última y su avance — nunca notas ni pagos, salvo su saldo si corresponde.</span></div>
+        <div class="func"><b>Avisos segmentados</b><span>Mensaje corto a todos, a una materia o a un alumno puntual, con fecha, visible arriba de todo en el portal.</span></div>
+        <div class="func"><b>Formas de pago en el portal</b><span>El portal individual muestra el saldo pendiente del alumno y cómo pagarle al docente (alias, link, QR).</span></div>
+        <div class="func"><b>Compartir acceso al toque</b><span>Mini-modal de llave (link, WhatsApp, QR, regenerar) disparable desde la ficha, la lista o el editor de materia.</span></div>
+        <div class="func"><b>Envío de llave grupal asistido</b><span>WhatsApp uno por uno con seguimiento de enviados, mail a todos en CCO o copiar la lista completa.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="estadisticas">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></span>
+        <h2>Estadísticas y aula</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Semáforo y avance del grupo</b><span>Estado general por materia, avance por unidad y tasa de aprobación.</span></div>
+        <div class="func"><b>El aula</b><span>Mapa visual de 30 bancos por materia, con foto/iniciales sobre el color de semáforo de cada alumno.</span></div>
+        <div class="func"><b>Retención</b><span>Duración promedio de un alumno y altas/bajas de los últimos 6 meses.</span></div>
+        <div class="func"><b>Salud del mes</b><span>Quién sigue activo, quién se está enfriando (3 a 6 semanas sin clase) y quién quedó inactivo.</span></div>
+        <div class="func"><b>Comparar períodos</b><span>Dos meses lado a lado: ingresos, clases dadas, horas dictadas y % de objetivos cumplidos.</span></div>
+        <div class="func"><b>Asistencia</b><span>% de asistencia y cantidad de ausencias por alumno y por materia.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="comunicacion">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+        <h2>Comunicación</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Ocho plantillas de WhatsApp editables</b><span>Próxima clase, recordatorio de clase, tarea, examen, cumpleaños, coordinar pago y aviso de deuda — con variables y botón "Restaurar" propio.</span></div>
+        <div class="func"><b>Avisos del portal</b><span>Mensajes cortos para todos, una materia o un alumno, sin pasar por WhatsApp.</span></div>
+        <div class="func"><b>Resumen semanal por mail</b><span>Cada domingo, un resumen de clases dadas, cobrado y pendiente, próximos exámenes y alumnos que se enfrían.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="documentos">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></span>
+        <h2>Informes, contratos y recibos</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Informe de progreso</b><span>Reporte prolijo por alumno — temas, clases, simulacros y tu comentario — en texto, PDF o imagen para compartir.</span></div>
+        <div class="func"><b>Contrato de servicio</b><span>Modelo precargado (docente, alumno, tarifa, horarios, política de cancelación) con campos editables.</span></div>
+        <div class="func"><b>Recibos numerados</b><span>Se generan solos al cobrar, con numeración por año, listos para copiar o mandar por WhatsApp.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="datos">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>
+        <h2>Seguridad y datos</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Respaldos automáticos</b><span>Una copia completa por día, con las últimas 15 disponibles para restaurar.</span></div>
+        <div class="func"><b>Copia manual</b><span>Descargá tu cuaderno completo en .json cuando quieras — es tuyo.</span></div>
+        <div class="func"><b>Papelera con deshacer</b><span>Alumnos y materias borrados quedan 7 días restaurables antes de purgarse solos.</span></div>
+        <div class="func"><b>Funciona sin conexión</b><span>PWA con service worker: seguís viendo y cargando datos aunque se corte internet, sincroniza sola al volver.</span></div>
+        <div class="func"><b>Sincronización multi-dispositivo</b><span>Con sesión iniciada, tus datos viajan solos entre tus dispositivos (Supabase + aislamiento por cuenta).</span></div>
+        <div class="func"><b>Términos y borrado de cuenta</b><span>Política clara sobre qué se guarda y dónde, con derecho a exportar todo o pedir el borrado de tu cuenta.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat" id="personalizacion">
+    <div class="wrap">
+      <div class="cat-head">
+        <span class="cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>
+        <h2>Personalización</h2>
+      </div>
+      <div class="func-grid">
+        <div class="func"><b>Tema claro, oscuro o automático</b><span>Se adapta al sistema, o lo elegís vos, con un botón siempre a mano.</span></div>
+        <div class="func"><b>Color de acento</b><span>6 acentos a elección, aplicados a botones, pestañas y barras de toda la app.</span></div>
+        <div class="func"><b>Densidad cómoda o compacta</b><span>Achicá el espaciado de las listas largas sin bajar el tamaño de letra.</span></div>
+        <div class="func"><b>Sonidos y animaciones</b><span>Festejos cortos al registrar una clase o cobrar, con toggle propio y respeto total a "reducir movimiento".</span></div>
+        <div class="func"><b>Atajos de teclado</b><span>"/" para buscar, "N" para nuevo alumno, "C" para nueva clase, Esc para cerrar cualquier diálogo.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta wrap">
+    <h2>¿Lo probamos?</h2>
+    <p>Sin crear cuenta, con datos de ejemplo ya cargados — o arrancá la tuya en un minuto.</p>
+    <div class="cta-row">
+      <a href="./app/index.html" class="btn btn-primary">Abrir la aplicación</a>
+      <a href="./app/?demo=1" class="btn btn-secondary">Probá la demo</a>
+    </div>
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="brand">
+      <span class="mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+      Entreclases
+    </div>
+    <p>Contacto: <a href="mailto:manugandini53@gmail.com">manugandini53@gmail.com</a> · <a href="./terminos.html">Términos y privacidad</a></p>
+    <div class="copyright">© 2026 Entreclases</div>
+  </div>
+</footer>
+</body>
+</html>
