@@ -858,7 +858,9 @@ function vFichaClases(s){
         <option value="sd">—</option><option value="hecha">Hecha</option>
         <option value="intentada">Intentada</option><option value="no">No hecha</option></select></div>
       <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div>
-        <input type="number" min="1" id="c-duration" value="60" data-enter="save-session"></div>` : `
+        <input type="number" min="1" id="c-duration" value="60" data-enter="save-session"></div>
+      ${s.modalidad==="hora" ? `<div class="field" style="max-width:150px"><div class="flabel">Monto (opcional)</div>
+        <input type="number" min="0" id="c-monto" placeholder="Auto: tarifa × horas" data-enter="save-session"></div>` : ""}` : `
       <div class="field"><div class="flabel">Motivo</div><select data-cf="session-ausente-motivo">
         ${Object.entries(AUSENCIA_MOTIVO_META).map(([k,m])=>`<option value="${k}" ${motivo===k?"selected":""}>${esc(m.label)}</option>`).join("")}
       </select></div>
@@ -874,7 +876,7 @@ function vFichaClases(s){
     ${estado==="dada" ? `<div class="field"><div class="flabel">Objetivo de hoy (opcional)</div>
       <input id="c-goal" placeholder="Ej: que resuelva sola sistemas 2x2" data-enter="save-session"></div>` : ""}
     <button class="primary" style="margin-top:10px;margin-left:0" data-a="save-session">Guardar</button></div>`;
-  const cobraPorClase = hasPagos(s) && s.modalidad==="clase";
+  const cobraPorClase = hasPagos(s) && (s.modalidad==="clase"||s.modalidad==="hora");
   const sorted=[...s.sessions].sort((a,b)=>b.date.localeCompare(a.date));
   h += sorted.length===0 ? `<div class="empty">Todavía no hay clases registradas.</div>`
     : sorted.map(c=>{
@@ -890,6 +892,7 @@ function vFichaClases(s){
         return `<div class="log"><div class="d">${fmtDate(c.date)}</div>
       <div class="body"><span style="font-weight:600">${esc(c.topic||"Clase")}</span>
       <span class="tareatag">${c.duration!=null&&c.duration!==""?Math.round(c.duration)+" min":"60 min (asumido)"}</span>
+      ${s.modalidad==="hora"?`<span class="tareatag">${fmtMoney(montoSesion(s,c))}${c.monto!=null&&c.monto!==""?" (manual)":""}</span>`:""}
       ${c.tarea&&c.tarea!=="sd"?`<span class="tareatag" style="color:${TAREA_META[c.tarea].fg}">tarea: ${TAREA_META[c.tarea].label}</span>`:""}
       ${c.note?`<div class="note">${esc(c.note)}</div>`:""}
       ${c.objetivo?`<div class="note goaltag"><span class="icon-inline">${ICON_TARGET}</span> ${esc(c.objetivo)}${c.objetivoResult
@@ -923,12 +926,14 @@ function vFichaClases(s){
 function vFichaPagos(s){
   let h = `<div class="formcard">
     <div class="frow">
-      <div class="field"><div class="flabel">Tarifa (pesos)</div><input type="number" min="0" data-f="tarifa" placeholder="Sin cargar = sin cobro" value="${esc(s.tarifa||"")}"></div>
+      <div class="field"><div class="flabel">Tarifa (pesos)${s.modalidad==="hora"?" por hora":""}</div><input type="number" min="0" data-f="tarifa" placeholder="Sin cargar = sin cobro" value="${esc(s.tarifa||"")}"></div>
       <div class="field"><div class="flabel">Modalidad de cobro</div><select data-f="modalidad">
         <option value="" ${!s.modalidad?"selected":""}>—</option>
         <option value="clase" ${s.modalidad==="clase"?"selected":""}>Por clase</option>
+        <option value="hora" ${s.modalidad==="hora"?"selected":""}>Por hora</option>
         <option value="mensual" ${s.modalidad==="mensual"?"selected":""}>Mensual</option></select></div></div>
     ${hasPagos(s)&&s.modalidad==="clase"?`<div class="hint" style="margin-top:2px">Marcá cada clase como cobrada desde la pestaña «Clases».</div>`:""}
+    ${hasPagos(s)&&s.modalidad==="hora"?`<div class="hint" style="margin-top:2px">Cada clase se cobra tarifa × horas dictadas (redondeado) y se marca como cobrada desde la pestaña «Clases» — si una clase puntual vale distinto, cargale un monto manual ahí mismo al registrarla.</div>`:""}
     ${hasPagos(s)&&s.modalidad==="mensual"?vPagosMensuales(s):""}
     ${!hasPagos(s)?`<div class="hint" style="margin-top:8px">Cargá una tarifa y elegí una modalidad para empezar a llevar el cobro de este alumno.</div>`:""}
   </div>`;
@@ -1589,7 +1594,7 @@ function vPagosResumen(){
       const showSubject = nameCount[normName(s.name)]>1;
       return `<button class="row" data-a="open" data-id="${s.id}">
         <div class="main"><div class="name">${esc(s.name)}${showSubject?` <span class="hint">· ${esc(s.subject||"materia s/d")}</span>`:""}</div>
-        <div class="sub">${s.modalidad==="clase"?`${r.clases} clase${r.clases===1?"":"s"} dada${r.clases===1?"":"s"}`:"mensual"} · cobrado ${fmtMoney(r.cobrado)}</div></div>
+        <div class="sub">${(s.modalidad==="clase"||s.modalidad==="hora")?`${r.clases} clase${r.clases===1?"":"s"} dada${r.clases===1?"":"s"}`:"mensual"} · cobrado ${fmtMoney(r.cobrado)}</div></div>
         <div class="right"><span style="color:${r.pendiente?"var(--red)":"var(--green)"};font-weight:600">${r.pendiente?fmtMoney(r.pendiente)+" pendiente":"al día"}</span></div>
       </button>`;
     }).join("");
@@ -2041,6 +2046,7 @@ async function buildInformeImageBlob(s){
    Cuenta (ver docenteFor() en helpers.js) y se reutilizan acá. ============ */
 function modalidadCobroLabel(modalidad){
   if(modalidad==="clase") return "por clase dictada";
+  if(modalidad==="hora") return "por hora de clase dictada";
   if(modalidad==="mensual") return "mensual, independiente de la cantidad de clases dictadas ese mes";
   return "a coordinar entre las partes";
 }

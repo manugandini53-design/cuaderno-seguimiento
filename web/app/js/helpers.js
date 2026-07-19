@@ -616,7 +616,15 @@ function goalCountsInMonth(mk){
    ficha, ni en clases, ni en la vista "Pagos". Todo se calcula por mes (YYYY-MM):
    modalidad "clase" cobra por clase dada ese mes; "mensual" cobra una tarifa fija
    por mes, contra los pagos registrados en ese mes (sin arrastre entre meses). */
-function hasPagos(s){ return !!(Number(s.tarifa)>0 && (s.modalidad==="clase"||s.modalidad==="mensual")); }
+function hasPagos(s){ return !!(Number(s.tarifa)>0 && (s.modalidad==="clase"||s.modalidad==="mensual"||s.modalidad==="hora")); }
+// Monto de una clase puntual para modalidad "clase"/"hora" (paso 130): en "clase" es la tarifa
+// fija de siempre; en "hora" es tarifa × horas dictadas (ver classDurationHours más abajo),
+// redondeado al peso — salvo que esa clase puntual tenga su propio monto cargado (c.monto,
+// override manual desde "Registrar clase", para cuando una clase puntual vale distinto).
+function montoSesion(s, c){
+  if(s.modalidad!=="hora") return Number(s.tarifa)||0;
+  return (c.monto!=null && c.monto!=="") ? Number(c.monto) : Math.round((Number(s.tarifa)||0)*classDurationHours(c));
+}
 /* ============ ausencias (paso 113): sessions[].ausente = {motivo, cobra} ============
    Una ausencia queda en el mismo s.sessions que una clase dada (misma fecha, mismo flujo de
    "Registrar clase") pero no cuenta como clase dictada — se excluye de pagoResumen() y
@@ -657,10 +665,13 @@ function pagoResumen(s, mk){
   if(!hasPagos(s)) return null;
   const tarifa=Number(s.tarifa)||0;
   const clasesMes=(s.sessions||[]).filter(c=>monthKeyOf(c.date)===mk && !isAusente(c));
-  if(s.modalidad==="clase"){
-    const cobradas=clasesMes.filter(c=>c.cobrada).length;
-    const pendientes=clasesMes.length-cobradas;
-    return { clases:clasesMes.length, total:tarifa*clasesMes.length, cobrado:tarifa*cobradas, pendiente:tarifa*pendientes };
+  if(s.modalidad==="clase"||s.modalidad==="hora"){
+    const cobradas=clasesMes.filter(c=>c.cobrada);
+    const pendientes=clasesMes.filter(c=>!c.cobrada);
+    const total=clasesMes.reduce((a,c)=>a+montoSesion(s,c),0);
+    const cobrado=cobradas.reduce((a,c)=>a+montoSesion(s,c),0);
+    const pendiente=pendientes.reduce((a,c)=>a+montoSesion(s,c),0);
+    return { clases:clasesMes.length, total, cobrado, pendiente };
   }
   const cobrado=Math.min(tarifa, (s.pagos||[]).filter(p=>monthKeyOf(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0));
   return { clases:clasesMes.length, total:tarifa, cobrado, pendiente:Math.max(0, tarifa-cobrado) };
@@ -713,11 +724,11 @@ function pagosCsvRows(monthKeys){
   const mkSet = new Set(monthKeys);
   const rows = [];
   alive().forEach(s=>{
-    if(hasPagos(s) && s.modalidad==="clase"){
+    if(hasPagos(s) && (s.modalidad==="clase"||s.modalidad==="hora")){
       (s.sessions||[]).forEach(c=>{
         if(isAusente(c) || !mkSet.has(monthKeyOf(c.date))) return;
         rows.push({date:c.date, alumno:s.name, materia:s.subject||"", concepto:"Clase",
-          monto:Number(s.tarifa)||0, estado:c.cobrada?"Cobrada":"Pendiente"});
+          monto:montoSesion(s,c), estado:c.cobrada?"Cobrada":"Pendiente"});
       });
     }
     if(hasPagos(s) && s.modalidad==="mensual"){
@@ -880,10 +891,10 @@ function cobrosAtrasadosSummary(diasAtraso){
   const items = [];
   const mk = currentMonthKey();
   alive().filter(s=>s.status==="activo").forEach(s=>{
-    if(hasPagos(s) && s.modalidad==="clase"){
+    if(hasPagos(s) && (s.modalidad==="clase"||s.modalidad==="hora")){
       (s.sessions||[]).forEach(c=>{
         if(!isAusente(c) && !c.cobrada && daysSince(c.date)>=dias)
-          items.push({studentId:s.id, kind:"clase", monto:Number(s.tarifa)||0, date:c.date, sessionId:c.id});
+          items.push({studentId:s.id, kind:"clase", monto:montoSesion(s,c), date:c.date, sessionId:c.id});
       });
     }
     if(hasPagos(s) && s.modalidad==="mensual" && daysSince(mk+"-01")>=dias){
@@ -1600,7 +1611,34 @@ function buildDemoData(){
   });
   students.push(renata);
 
-  // 13) Mariano — rindió ayer y todavía no cargaste el resultado (dispara la pregunta del tablero)
+  // 13) Ignacio — modalidad "por hora" (paso 130): tarifa por hora, clases de duración variable
+  //     (45', 60', 90'), una ya cobrada, otra pendiente y una con monto manual distinto al
+  //     calculado (clase de repaso más cara) — para ver el cálculo tarifa × horas en la demo.
+  const ignacio = mk({
+    name:"Ignacio Vega", subject:"Análisis Matemático I", subjectId:"demo-am1",
+    semaforo:"amarillo", examDate:addDays(today(),25), tarifa:10000, modalidad:"hora",
+    topics:{[unitsOf("tpl-analisis-1")[0]]:"visto",[unitsOf("tpl-analisis-1")[1]]:"practica"},
+    sessions:[
+      {id:uid(), date:addDays(today(),-18), topic:"Límites y continuidad", tarea:"hecha", note:"", duration:60, monto:null, cobrada:true},
+      {id:uid(), date:addDays(today(),-11), topic:"Derivadas", tarea:"intentada", note:"", duration:45, monto:null, cobrada:true},
+      {id:uid(), date:addDays(today(),-4), topic:"Derivadas", tarea:"hecha", note:"Repaso extra antes del parcial, clase más larga.", duration:90, monto:20000, cobrada:false},
+    ],
+  });
+  ignacio.recibos=[recibo("clase","Clase del "+fmtDate(addDays(today(),-18)),10000,18)];
+  students.push(ignacio);
+
+  // 14) Delfina — también "por hora", tarifa más baja, sólo clases cortas de 30' de repaso puntual
+  students.push(mk({
+    name:"Delfina Aguirre", subject:"Química General", subjectId:"demo-qui",
+    semaforo:"verde", tarifa:6000, modalidad:"hora",
+    topics:{[unitsOf("tpl-quimica-general")[0]]:"visto"},
+    sessions:[
+      {id:uid(), date:addDays(today(),-9), topic:"Tabla periódica y propiedades", tarea:"hecha", note:"", duration:30, monto:null, cobrada:true},
+      {id:uid(), date:addDays(today(),-2), topic:"Enlace químico", tarea:"hecha", note:"", duration:30, monto:null, cobrada:false},
+    ],
+  }));
+
+  // 15) Mariano — rindió ayer y todavía no cargaste el resultado (dispara la pregunta del tablero)
   const mariano = mk({
     name:"Mariano Luna", subject:"Química General", subjectId:"demo-qui",
     semaforo:"rojo", examDate:addDays(today(),-1), tarifa:9000, modalidad:"clase",
@@ -1614,7 +1652,7 @@ function buildDemoData(){
   mariano.recibos=[recibo("clase","Clase del "+fmtDate(addDays(today(),-16)),9000,16)];
   students.push(mariano);
 
-  // 14) papelera: un alumno de ejemplo ya borrado, restaurable como en una cuenta real
+  // 16) papelera: un alumno de ejemplo ya borrado, restaurable como en una cuenta real
   students.push({...mk({
     name:"Alumno de prueba", subject:"Análisis Matemático I", subjectId:"demo-am1",
     sessions:[ sess(40,"Números reales y funciones","hecha",true) ],

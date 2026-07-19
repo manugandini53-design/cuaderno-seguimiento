@@ -893,11 +893,14 @@ document.addEventListener("click", (e)=>{
     const goal=document.getElementById("c-goal").value.trim();
     const durationRaw=document.getElementById("c-duration").value;
     const duration=durationRaw==="" ? null : (parseInt(durationRaw,10)||60);
+    const montoEl=document.getElementById("c-monto");
+    const monto=(s.modalidad==="hora" && montoEl && montoEl.value!=="") ? Number(montoEl.value) : null;
     update(s.id,{sessions:[...s.sessions,{id:uid(),date,
       topic:document.getElementById("c-topic").value,
       tarea:document.getElementById("c-tarea").value,
       note,
       duration,
+      monto,
       objetivo:goal, objetivoResult:null,
       cobrada:false}]});
     toast("Clase registrada"); return;
