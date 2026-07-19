@@ -798,6 +798,26 @@ document.addEventListener("click", (e)=>{
     window.location.href=mailto;
     return;
   }
+  // Cuenta ordenada (paso 142): abrir/cerrar un grupo colapsable, o saltar a uno desde el
+  // mini-índice (que además lo abre si estaba cerrado, para no llevar a un lugar vacío).
+  else if(a==="cuenta-group-toggle"){
+    const id=el.dataset.id;
+    const closed={...(state.cuentaGroupsClosed||{})};
+    closed[id] = !closed[id];
+    state.cuentaGroupsClosed=closed;
+  }
+  else if(a==="cuenta-group-jump"){
+    const id=el.dataset.id;
+    const closed={...(state.cuentaGroupsClosed||{})};
+    delete closed[id];
+    state.cuentaGroupsClosed=closed;
+    render();
+    setTimeout(()=>{
+      const t=document.getElementById("cuenta-grp-"+id);
+      if(t) t.scrollIntoView({behavior:"smooth", block:"start"});
+    },0);
+    return;
+  }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }
   else if(a==="set-density"){ setDensity(el.dataset.f); }
   else if(a==="set-accent"){ setAccent(el.dataset.f); }

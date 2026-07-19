@@ -12,8 +12,11 @@ const examplePill = (s) => s.sample ? `<span class="pill" style="color:var(--sta
 
 /* ============ título de sección (eyebrow + h2 + acción principal opcional), reusado en cada
    vista de la app para dar jerarquía visual consistente ============ */
-const pageHead = (eyebrow,title,actionHtml) =>
-  `<div class="pagehead"><div><div class="eyebrow">${esc(eyebrow)}</div><h2>${esc(title)}</h2></div>${
+// desc (paso 142, opcional): subtítulo de una línea que explica qué se hace en la vista — sólo
+// texto plano corto, no HTML (usa esc() como todo lo demás acá).
+const pageHead = (eyebrow,title,actionHtml,desc) =>
+  `<div class="pagehead"><div><div class="eyebrow">${esc(eyebrow)}</div><h2>${esc(title)}</h2>${
+    desc?`<div class="hint" style="margin-top:2px">${esc(desc)}</div>`:""}</div>${
     actionHtml?`<div class="pagehead-action">${actionHtml}</div>`:""}</div>`;
 
 /* ============ navegación persistente (sidebar en escritorio / barra inferior en mobile) ============
@@ -527,7 +530,8 @@ function vTablero(){
   const upcoming = activos.filter(s=>s.examDate && daysTo(s.examDate)>=0)
                           .sort((a,b)=>a.examDate.localeCompare(b.examDate));
   const enRiesgo = new Set(alerts.map(a=>a.s.id)).size;
-  let h = pageHead("Tablero","Hoy",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`);
+  let h = pageHead("Tablero","Hoy",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`,
+    "Lo que tenés que mirar hoy: clases del día, alertas y exámenes próximos.");
   h += vTips();
   h += vBackupReminder();
   h += vCumpleanosBanner();
@@ -662,7 +666,8 @@ function vLista(){
       return ((a.examDate||"9999").localeCompare(b.examDate||"9999"))||a.name.localeCompare(b.name);
     });
 
-  let h = pageHead("Estudiantes","Tus alumnos",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`);
+  let h = pageHead("Estudiantes","Tus alumnos",`<button class="btn btn-primary" data-a="new">+ Nuevo estudiante</button>`,
+    "Todos tus alumnos, con filtros y búsqueda — tocá uno para abrir su ficha.");
   const estTab = state.estudiantesTab||"alumnos";
   h += `<div class="tabs" style="margin-bottom:14px">
     ${tabbtn("estudiantes-tab-alumnos",estTab==="alumnos","Alumnos")}
@@ -1466,7 +1471,8 @@ function vSeniaCard(s){
 /* ============ vista "Agenda": semana o mes, todos los alumnos ============ */
 function vAgenda(){
   const mode = state.agendaViewMode||"semana";
-  let h = pageHead("Agenda","Calendario de clases");
+  let h = pageHead("Agenda","Calendario de clases",null,
+    "Horarios habituales y clases sueltas, por semana o por mes — tocá una clase para editarla.");
   h += `<div class="tabs" style="margin-bottom:16px">
     ${tabbtn("agenda-view-semana",mode==="semana","Semana")}
     ${tabbtn("agenda-view-mes",mode==="mes","Mes")}
@@ -1942,7 +1948,8 @@ function vPagosMensuales(s){
    "Rentabilidad" (cuánto se gana de verdad por hora, ver vRentabilidad más abajo) ============ */
 function vPagos(){
   const tab = state.pagosTab||"resumen";
-  let h = pageHead("Pagos","Cobros y rentabilidad");
+  let h = pageHead("Pagos","Cobros y rentabilidad",null,
+    "Qué cobraste, qué falta cobrar y cuánto te queda libre por mes, por materia y por alumno.");
   h += `<div class="tabs" style="margin-bottom:14px">
     <button class="tabbtn ${tab==="resumen"?"on":""}" data-a="pagos-tab" data-t="resumen">Resumen</button>
     <button class="tabbtn ${tab==="rentabilidad"?"on":""}" data-a="pagos-tab" data-t="rentabilidad">Rentabilidad</button>
@@ -2832,96 +2839,135 @@ function vCobrosCard(){
     <div class="hint" style="margin-top:12px">Con llave grupal o general no se muestra nada de esto — sólo lo ve cada alumno en su propio portal individual, junto a su saldo pendiente. Falta "Publicar cambios" abajo en Portal para que un cambio acá se vea del otro lado.</div>
   </div>`;
 }
+// Cuenta ordenada (paso 142): grupos colapsables con mini-índice arriba, en vez de una fila larga
+// de tarjetas sueltas. vCuentaGroup() es el wrapper genérico (abierto por defecto — colapsar es
+// sólo para ordenar la vista, nunca para esconder algo que no se pueda encontrar, ver el mini-
+// índice); cada grupo adentro sigue usando los mismos ${xCard()}/formcards de siempre, sin tocar
+// su HTML interno ni sus data-a/data-cf. CUENTA_GROUPS_META es sólo para el mini-índice (id+label
+// cortos) — el título y la descripción largos de cada grupo van directo en su vCuentaGroup().
+const CUENTA_GROUPS_META = [
+  {id:"perfil", label:"Perfil"}, {id:"cobros", label:"Cobros"}, {id:"preferencias", label:"Preferencias"},
+  {id:"mensajes", label:"Mensajes"}, {id:"portal", label:"Portal"}, {id:"datos", label:"Datos"},
+  {id:"aplicacion", label:"Aplicación"}, {id:"sesion", label:"Sesión"},
+];
+function vCuentaIndice(){
+  return `<div class="cuenta-indice">${CUENTA_GROUPS_META.map(g=>
+    `<button class="chip" data-a="cuenta-group-jump" data-id="${g.id}">${esc(g.label)}</button>`).join("")}</div>`;
+}
+function vCuentaGroup(id, title, desc, bodyHtml){
+  const closed = !!(state.cuentaGroupsClosed && state.cuentaGroupsClosed[id]);
+  return `<div class="cuenta-group" id="cuenta-grp-${id}">
+    <button class="cuenta-group-head" data-a="cuenta-group-toggle" data-id="${id}" aria-expanded="${!closed}">
+      <div><div class="ftitle" style="margin-bottom:2px">${esc(title)}</div>
+        <div class="hint">${esc(desc)}</div></div>
+      <span class="faq-caret ${closed?"":"open"}">${ICON_CHEVRON}</span>
+    </button>
+    ${closed?"":`<div class="cuenta-group-body">${bodyHtml}</div>`}
+  </div>`;
+}
 function vCuenta(){
   const ses=getSes();
   const pol=cancelPolicyFor();
   const doc=docenteFor();
-  return pageHead("Cuenta","Tu cuenta y preferencias") + `
-  <div class="formcard"><div class="ftitle">Datos del docente</div>
-    <div class="hint" style="margin-bottom:10px">Se cargan una sola vez acá y se reutilizan donde haga falta (por ahora, el generador de contratos de servicio, en la ficha de cada alumno).</div>
+  return pageHead("Cuenta","Tu cuenta y preferencias",null,
+    "Todo lo tuyo, agrupado — tocá un grupo para abrirlo/cerrarlo, o un atajo de abajo para ir directo.") + `
+  ${vCuentaIndice()}
+  ${vCuentaGroup("perfil","Perfil docente","Tus datos y tu foto — se reutilizan en el generador de contratos y en el portal.", `
     ${vAvatarEditor(AVATAR_KEY_DOCENTE, doc.nombre||"Docente", doc.foto, 64)}
     <div class="frow" style="margin-top:14px">
       <div class="field"><div class="flabel">Nombre completo</div><input data-cf="docente-nombre" value="${esc(doc.nombre||"")}"></div>
       <div class="field"><div class="flabel">Teléfono</div><input data-cf="docente-telefono" value="${esc(doc.telefono||"")}"></div>
       <div class="field"><div class="flabel">DNI / CUIT (opcional)</div><input data-cf="docente-dni" value="${esc(doc.dni||"")}"></div>
+    </div>`)}
+  ${vCuentaGroup("cobros","Cobros","Alias, links de pago y QR — se muestran en el portal individual de cada alumno.", vCobrosCard())}
+  ${vCuentaGroup("preferencias","Preferencias","Tema, color, densidad, escala de objetivos, cancelaciones, recordatorios y avisos.", `
+    <div class="formcard"><div class="ftitle">Apariencia</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${themeBtn("system","Según el sistema")}${themeBtn("light","Claro")}${themeBtn("dark","Oscuro")}
+      </div>
+      <div class="flabel" style="margin:14px 0 6px">Densidad</div>
+      <div class="hint" style="margin-bottom:8px">Compacta reduce el alto de filas y tarjetas en las listas largas (estudiantes, clases, pagos, agenda, materiales) para ver más de un vistazo.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${densityBtn("comoda","Cómoda")}${densityBtn("compacta","Compacta")}
+      </div>
+      <div class="flabel" style="margin:14px 0 6px">Color de la app</div>
+      <div class="hint" style="margin-bottom:8px">El acento de botones, pestañas y barras en toda la app — el portal para tus alumnos y la landing siguen con el color de marca.</div>
+      <div class="subj-swatches">${Object.keys(ACCENT_PALETTE).map(k=>{
+        const sel = getAccent()===k;
+        return `<button class="subj-swatch ${sel?"sel":""}" data-a="set-accent" data-f="${k}"
+          style="background:${ACCENT_PALETTE[k].light.accent}" title="${esc(ACCENT_PALETTE[k].label)}">${sel?ICON_CHECK:""}</button>`;
+      }).join("")}</div>
     </div>
-  </div>
-  ${vCobrosCard()}
-  ${vRecordatoriosCard()}
-  ${vNotifClasesCard()}
-  ${vEscalaObjetivoCard()}
-  <div class="formcard"><div class="ftitle" style="display:flex;align-items:center;gap:7px">Política de cancelación${helpTip("cancelPolicy")}</div>
-    <div class="hint" style="margin-bottom:10px">Se aplica al cancelar una clase puntual con seña ya cobrada (ver la ficha de cada alumno). El texto queda guardado para reutilizarlo donde haga falta.</div>
-    <div class="frow">
-      <div class="field" style="max-width:200px"><div class="flabel">Horas mínimas de aviso</div>
-        <input type="number" min="0" data-cf="policy-horas" value="${pol.horasMinimas}"></div>
-      <div class="field"><div class="flabel">Si cancela a tiempo, la seña…</div>
-        <select data-cf="policy-atiempo">
-          <option value="devuelve" ${pol.siATiempo!=="acredita"?"selected":""}>Se devuelve</option>
-          <option value="acredita" ${pol.siATiempo==="acredita"?"selected":""}>Se acredita a la próxima clase</option>
-        </select></div>
+    ${vEscalaObjetivoCard()}
+    <div class="formcard"><div class="ftitle" style="display:flex;align-items:center;gap:7px">Política de cancelación${helpTip("cancelPolicy")}</div>
+      <div class="hint" style="margin-bottom:10px">Se aplica al cancelar una clase puntual con seña ya cobrada (ver la ficha de cada alumno). El texto queda guardado para reutilizarlo donde haga falta.</div>
+      <div class="frow">
+        <div class="field" style="max-width:200px"><div class="flabel">Horas mínimas de aviso</div>
+          <input type="number" min="0" data-cf="policy-horas" value="${pol.horasMinimas}"></div>
+        <div class="field"><div class="flabel">Si cancela a tiempo, la seña…</div>
+          <select data-cf="policy-atiempo">
+            <option value="devuelve" ${pol.siATiempo!=="acredita"?"selected":""}>Se devuelve</option>
+            <option value="acredita" ${pol.siATiempo==="acredita"?"selected":""}>Se acredita a la próxima clase</option>
+          </select></div>
+      </div>
+      <div class="field"><div class="flabel">Texto de la política (opcional, para compartir)</div>
+        <textarea data-cf="policy-texto" placeholder="Ej: Las clases se cancelan con 24hs de aviso. Con menos aviso, la seña no se devuelve.">${esc(pol.texto||"")}</textarea></div>
+      <div class="hint" style="margin-top:6px">Si la seña de esa clase todavía no se cobró, cancelar no tiene ninguna consecuencia sobre ella.</div>
     </div>
-    <div class="field"><div class="flabel">Texto de la política (opcional, para compartir)</div>
-      <textarea data-cf="policy-texto" placeholder="Ej: Las clases se cancelan con 24hs de aviso. Con menos aviso, la seña no se devuelve.">${esc(pol.texto||"")}</textarea></div>
-    <div class="hint" style="margin-top:6px">Si la seña de esa clase todavía no se cobró, cancelar no tiene ninguna consecuencia sobre ella.</div>
-  </div>
-  ${vMensajesCard()}
-  <div class="formcard"><div class="ftitle">Cuenta</div>
-    <div style="font-size:13.5px;margin-bottom:6px">Conectado como <b>${esc(ses?ses.email:"")}</b></div>
-    <div class="hint" style="margin-bottom:6px">${sesIsAdmin(ses)?"Cuenta de administrador":"Cuenta de profesor"}</div>
-    <div class="hint" style="margin-bottom:14px">${syncStatusText()}</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="chip" data-a="sync-now">Sincronizar ahora</button>
-      <button class="danger" data-a="auth-logout">Cerrar sesión</button>
-    </div>
-    ${!IS_NATIVE?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
-      <div class="flabel" style="margin-bottom:6px">Versión</div>
-      <div class="hint" style="margin-bottom:8px">Estás usando la v${esc(APP_VERSION)}${state.swUpdateReady?" — hay una versión nueva esperando arriba de todo, tocá «Actualizar».":"."}</div>
-      <button class="chip" data-a="sw-check-update" ${state.swCheckStatus==="checking"?"disabled":""}>${state.swCheckStatus==="checking"?"Buscando…":"Buscar actualización"}</button>
-    </div>`:""}
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
-      <div class="flabel" style="margin-bottom:6px">Resumen semanal por mail</div>
+    ${vRecordatoriosCard()}
+    ${vNotifClasesCard()}
+    <div class="formcard"><div class="ftitle">Resumen semanal por mail</div>
       <div class="hint" style="margin-bottom:8px">Clases dadas, plata cobrada y pendiente, próximos exámenes/objetivos y alumnos que se están enfriando — todos los domingos a la noche.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="chip ${!(ses&&ses.resumenSemanal)?"on":""}" data-a="toggle-resumen-semanal" data-f="no">Apagado</button>
         <button class="chip ${(ses&&ses.resumenSemanal)?"on":""}" data-a="toggle-resumen-semanal" data-f="si">Recibir el resumen semanal por mail</button>
       </div>
+    </div>`)}
+  ${vCuentaGroup("mensajes","Mensajes y plantillas","Los textos que la app arma para WhatsApp y el recibo — todos editables desde acá.", vMensajesCard())}
+  ${vCuentaGroup("portal","Portal y llaves","La página pública para tus alumnos: activarla, la llave general, avisos y llaves grupales por materia.",
+    vPortalCard()+vPortalAvisosCard()+vPortalGruposCard())}
+  ${vCuentaGroup("datos","Datos y respaldos","Copias automáticas, retención y la papelera de alumnos/materias borrados.", `
+    <div class="formcard"><div class="ftitle">Respaldos automáticos</div>
+      <div class="hint" style="margin-bottom:10px">Se guarda una copia completa una vez por día, en la primera sincronización. Se conservan las últimas ${MAX_BACKUPS}. Esto no reemplaza la copia manual (.json), que se descarga desde Estudiantes — conviven.</div>
+      ${vBackupsList()}
     </div>
-  </div>
-  ${vPortalCard()}
-  ${vPortalAvisosCard()}
-  ${vPortalGruposCard()}
-  <div class="formcard"><div class="ftitle">Apariencia</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${themeBtn("system","Según el sistema")}${themeBtn("light","Claro")}${themeBtn("dark","Oscuro")}
+    ${vPapeleraCard()}`)}
+  ${vCuentaGroup("aplicacion","Aplicación","Versión instalada, buscar actualizaciones, ayuda y reportar un problema.", `
+    <div class="formcard"><div class="ftitle">Versión</div>
+      ${!IS_NATIVE?`<div class="hint" style="margin-bottom:8px">Estás usando la v${esc(APP_VERSION)}${state.swUpdateReady?" — hay una versión nueva esperando arriba de todo, tocá «Actualizar».":"."}</div>
+      <button class="chip" data-a="sw-check-update" ${state.swCheckStatus==="checking"?"disabled":""}>${state.swCheckStatus==="checking"?"Buscando…":"Buscar actualización"}</button>`
+      :`<div class="hint">Estás usando la v${esc(APP_VERSION)}.</div>`}
     </div>
-    <div class="flabel" style="margin:14px 0 6px">Densidad</div>
-    <div class="hint" style="margin-bottom:8px">Compacta reduce el alto de filas y tarjetas en las listas largas (estudiantes, clases, pagos, agenda, materiales) para ver más de un vistazo.</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${densityBtn("comoda","Cómoda")}${densityBtn("compacta","Compacta")}
-    </div>
-    <div class="flabel" style="margin:14px 0 6px">Color de la app</div>
-    <div class="hint" style="margin-bottom:8px">El acento de botones, pestañas y barras en toda la app — el portal para tus alumnos y la landing siguen con el color de marca.</div>
-    <div class="subj-swatches">${Object.keys(ACCENT_PALETTE).map(k=>{
-      const sel = getAccent()===k;
-      return `<button class="subj-swatch ${sel?"sel":""}" data-a="set-accent" data-f="${k}"
-        style="background:${ACCENT_PALETTE[k].light.accent}" title="${esc(ACCENT_PALETTE[k].label)}">${sel?ICON_CHECK:""}</button>`;
-    }).join("")}</div>
-  </div>
-  <div class="formcard"><div class="ftitle">Respaldos automáticos</div>
-    <div class="hint" style="margin-bottom:10px">Se guarda una copia completa una vez por día, en la primera sincronización. Se conservan las últimas ${MAX_BACKUPS}. Esto no reemplaza la copia manual (.json) del tablero — conviven.</div>
-    ${vBackupsList()}
-  </div>
-  ${vPapeleraCard()}
-  ${vCentroAyuda()}
-  <div class="formcard"><div class="ftitle">Reportar un problema</div>
-    <div class="field"><textarea id="report-msg" placeholder="Contanos qué pasó — cuanto más detalle, mejor.">${esc(state.reportMsg||"")}</textarea></div>
-    <button class="primary" style="margin:10px 0 0;margin-left:0" data-a="send-report" ${state.reportStatus==="sending"?"disabled":""}>Enviar reporte</button>
-    <div class="hint" id="reportMsg" style="margin-top:10px;min-height:16px;color:${state.reportStatus==="error"?"var(--red)":state.reportStatus==="ok"?"var(--green)":"var(--faint)"}">${esc(reportStatusText())}</div>
-  </div>`;
+    ${vCentroAyuda()}
+    <div class="formcard"><div class="ftitle">Reportar un problema</div>
+      <div class="field"><textarea id="report-msg" placeholder="Contanos qué pasó — cuanto más detalle, mejor.">${esc(state.reportMsg||"")}</textarea></div>
+      <button class="primary" style="margin:10px 0 0;margin-left:0" data-a="send-report" ${state.reportStatus==="sending"?"disabled":""}>Enviar reporte</button>
+      <div class="hint" id="reportMsg" style="margin-top:10px;min-height:16px;color:${state.reportStatus==="error"?"var(--red)":state.reportStatus==="ok"?"var(--green)":"var(--faint)"}">${esc(reportStatusText())}</div>
+    </div>`)}
+  ${vCuentaGroup("sesion","Sesión","Con qué cuenta estás conectado, sincronizar a mano y cerrar sesión.", `
+    <div class="formcard"><div class="ftitle">Cuenta</div>
+      <div style="font-size:13.5px;margin-bottom:6px">Conectado como <b>${esc(ses?ses.email:"")}</b></div>
+      <div class="hint" style="margin-bottom:6px">${sesIsAdmin(ses)?"Cuenta de administrador":"Cuenta de profesor"}</div>
+      <div class="hint" style="margin-bottom:14px">${syncStatusText()}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="chip" data-a="sync-now">Sincronizar ahora</button>
+        <button class="danger" data-a="auth-logout">Cerrar sesión</button>
+      </div>
+    </div>`)}`;
 }
 // Mini centro de ayuda (paso 74): acordeón simple sobre FAQ_ITEMS (config.js), un ítem
 // abierto por vez (alcanza para preguntas cortas; no hace falta que convivan varias abiertas).
+// Mapa de la app (paso 142): qué hay en cada sección de la barra de navegación, para orientarse
+// rápido — mismo orden que la barra (ver navShell() más abajo).
+const APP_MAP = [
+  {nombre:"Tablero", desc:"lo que tenés que mirar hoy — clases, alertas y exámenes próximos"},
+  {nombre:"Estudiantes", desc:"la lista completa de alumnos, con filtros y su ficha"},
+  {nombre:"Agenda", desc:"calendario de clases, por semana o por mes"},
+  {nombre:"Materias", desc:"catálogo de materias, unidades, carreras, packs y archivos"},
+  {nombre:"Estadísticas", desc:"panorama del grupo: avance, objetivos, exámenes, asistencia"},
+  {nombre:"Pagos", desc:"cobros, deudas y rentabilidad"},
+  {nombre:"Cuenta", desc:"tus datos, cobros, preferencias, portal, respaldos y ayuda"},
+];
 const KEYBOARD_SHORTCUTS = [
   {keys:"/", desc:"Buscar alumnos, materias o materiales"},
   {keys:"N", desc:"Nuevo alumno"},
@@ -2932,6 +2978,10 @@ function vCentroAyuda(){
   return `<div class="formcard"><div class="ftitle">Centro de ayuda</div>
     <div class="hint" style="margin-bottom:12px">Preguntas frecuentes sobre la app.</div>
     ${tipsDismissed()?`<button class="chip" data-a="reactivate-tips" style="margin-bottom:14px">Volver a mostrar "Primeros pasos"</button>`:""}
+    <div class="flabel" style="margin-bottom:6px">Mapa de la app</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+      ${APP_MAP.map(m=>`<div style="font-size:12.5px;color:var(--muted)"><b style="color:var(--ink)">${esc(m.nombre)}</b> — ${esc(m.desc)}</div>`).join("")}
+    </div>
     <div class="flabel" style="margin-bottom:6px">Atajos de teclado (escritorio)</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
       ${KEYBOARD_SHORTCUTS.map(k=>`<div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)">
@@ -3246,7 +3296,8 @@ function vUnitRow(u, i, total, subjectId){
 }
 function vCatalog(){
   const c=state.catalog;
-  let h = pageHead("Materias","Materias, carreras y materiales");
+  let h = pageHead("Materias","Materias, carreras y materiales",null,
+    "El catálogo compartido: unidades por materia, carreras, packs y archivos — editar acá no toca el avance ya cargado de ningún alumno.");
   const em = state.editSubjectId ? subjById(state.editSubjectId) : null;
   if(em){
     h += `<div class="formcard"><div class="ftitle" style="display:flex;align-items:center;gap:8px">${subjectDot(em)}Editar materia</div>
@@ -3601,7 +3652,8 @@ function vEstadisticasComparar(){
   return h;
 }
 function vEstadisticas(){
-  let h = pageHead("Estadísticas","Panorama del grupo");
+  let h = pageHead("Estadísticas","Panorama del grupo",null,
+    "Cómo viene el grupo en conjunto: avance por tema, objetivos, exámenes y asistencia, por materia.");
   h += `<div class="tabs" style="margin-bottom:16px">
     <button class="tabbtn ${(state.statsMode||"normal")==="normal"?"on":""}" data-a="stats-mode" data-m="normal">Vista normal</button>
     <button class="tabbtn ${state.statsMode==="comparar"?"on":""}" data-a="stats-mode" data-m="comparar">Comparar períodos</button>
@@ -3967,7 +4019,8 @@ function vTuActividad(){
 
 function vPanel(){
   const tab = state.panelTab||"reportes";
-  let h = pageHead("Panel","Administración");
+  let h = pageHead("Panel","Administración",null,
+    "Sólo para administradores: reportes de usuarios, actividad y recursos de todo el sistema.");
   h += `<div class="tabs" style="margin-bottom:14px">
     ${tabbtn("panel-tab-reportes",tab==="reportes","Reportes")}
     ${tabbtn("panel-tab-usuarios",tab==="usuarios","Usuarios")}

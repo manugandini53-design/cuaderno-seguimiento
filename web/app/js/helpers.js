@@ -129,6 +129,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               portalGrupoEditing:null, portalGrupoDraftAlumnos:[],
               shareOverlay:null, envioOverlay:null,
               cobrosLinkMPError:"", cobrosLinkOtroError:"", cobrosQrUploading:false, cobrosQrError:"", cobrosQrDeleteConfirm:false,
+              cuentaGroupsClosed:{},
               avisoSaving:false, avisoError:"",
               toasts:[],
               fabOpen:false, fabPick:null,
