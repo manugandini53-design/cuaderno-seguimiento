@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /funciones.html
+Allow: /terminos.html
+Disallow: /app/
+
+Sitemap: https://entreclases.github.io/sitemap.xml
