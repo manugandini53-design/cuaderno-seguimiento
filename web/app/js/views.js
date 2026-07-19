@@ -194,7 +194,7 @@ function vShareOverlayAlumno(s, o){
   const dias = llaveAlumnoVenceDias(s.id);
   const vencida = dias!==null && dias<=0;
   const busy = state.portalAlumnoBusy===s.id;
-  return `<div class="hint" style="margin-bottom:10px">Un link propio para ${esc(s.name)}, sin login — nunca muestra notas, pagos, señas ni comentarios privados.</div>
+  return `<div class="hint" style="margin-bottom:10px">Un link propio para ${esc(s.name)}, sin login — muestra su propio saldo pendiente y cómo pagarte, nunca notas, señas ni comentarios privados.</div>
   <div class="field"><input readonly value="${esc(url)}" onclick="this.select()"></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
     <button class="chip" data-a="share-copy">Copiar link</button>
@@ -1332,7 +1332,7 @@ function vPortalAlumnoCard(s){
   const token = tokenForStudent(s.id);
   const busy = state.portalAlumnoBusy===s.id;
   const share = portalShareFor(s);
-  h += `<div class="hint" style="margin-bottom:10px">Un link propio para ${esc(s.name)}, sin login — nunca muestra notas, pagos, señas ni comentarios privados, sólo lo que tildes abajo.</div>`;
+  h += `<div class="hint" style="margin-bottom:10px">Un link propio para ${esc(s.name)}, sin login — siempre muestra su propio saldo pendiente y cómo pagarte (paso 141), más lo que tildes abajo; nunca notas, señas ni comentarios privados.</div>`;
   if(!token){
     h += `<button class="chip" data-a="portal-alumno-generar" ${busy?"disabled":""}>${busy?"Generando…":"Generar llave de acceso"}</button>`;
   }else{
@@ -1354,7 +1354,7 @@ function vPortalAlumnoCard(s){
         <button class="chip ${share.avance?"on":""}" data-a="portal-alumno-share-toggle" data-key="avance">Avance por unidades</button>
       </div>
       <div class="hint" style="margin-top:8px">Esto se actualiza solo al tocar un tilde de arriba y cada vez que tocás «Publicar cambios» en Cuenta — si cambiás una clase, tarea o avance sin tocar nada acá, convendría republicar para que se vea al toque.</div>
-      <div class="hint" style="margin-top:6px">Nunca se comparten notas del alumno, pagos, señas ni comentarios privados, tilde o no tilde nada.</div>
+      <div class="hint" style="margin-top:6px">Nunca se comparten notas, señas ni comentarios privados, tilde o no tilde nada — su saldo pendiente sí se muestra siempre (ver arriba).</div>
     </div>`;
   }
   if(state.portalAlumnoError) h += `<div class="saveerr" style="margin-top:10px">${esc(state.portalAlumnoError)}</div>`;
@@ -1867,7 +1867,15 @@ function waMsgCobro(s){
   const total = pendienteTotalFor(s);
   const alumno = studentFirstName(s);
   const mail = s.email||"";
-  return total<=0 ? mensajeTexto("cobro", {alumno, mail}) : mensajeTexto("avisoDeuda", {alumno, monto:fmtMoney(total), mail});
+  // {link_pago}/{alias} (paso 141): datos de Cuenta → Cobros, disponibles para armar el mensaje a
+  // mano; {link_pago_linea} es la versión ya compuesta ("Podés pagar acá: …") que usa el default
+  // de "avisoDeuda" — se cae sola (fillTemplateLines) si el docente no cargó ningún link.
+  const cobros = cobrosDocenteFor();
+  const link_pago = cobros.linkMP || cobros.linkOtro || "";
+  const alias = cobros.alias || "";
+  const link_pago_linea = link_pago ? `Podés pagar acá: ${link_pago}` : "";
+  return total<=0 ? mensajeTexto("cobro", {alumno, mail, link_pago, alias, link_pago_linea})
+    : mensajeTexto("avisoDeuda", {alumno, monto:fmtMoney(total), mail, link_pago, alias, link_pago_linea});
 }
 // Recordatorio de una clase de hoy/mañana (paso 111, plantilla "recordatorioClase") — la firma
 // con el nombre del docente se agrega aparte, sólo si está cargado (no es una variable de la
@@ -2611,6 +2619,13 @@ function vRecibo(){
       <div class="informe-row"><div class="informe-rowbody"><b>Monto:</b> ${fmtMoney(r.monto)}</div></div>
       ${r.saldo>0?`<div class="informe-row"><div class="informe-rowbody"><b>Saldo restante:</b> ${fmtMoney(r.saldo)}</div></div>`:""}
     </div>
+    ${(()=>{ const c=cobrosDocenteFor(); if(!c.alias && !c.linkMP && !c.linkOtro) return "";
+      return `<div class="informe-section">
+        <div class="informe-stitle">Formas de pago</div>
+        ${c.alias?`<div class="informe-row"><div class="informe-rowbody"><b>Alias/CVU:</b> ${esc(c.alias)}</div></div>`:""}
+        ${c.linkMP?`<div class="informe-row"><div class="informe-rowbody"><b>Mercado Pago:</b> ${esc(c.linkMP)}</div></div>`:""}
+        ${c.linkOtro?`<div class="informe-row"><div class="informe-rowbody"><b>Otro medio:</b> ${esc(c.linkOtro)}</div></div>`:""}
+      </div>`; })()}
 
     <div class="informe-footer">Generado con Entreclases — ${esc(fmtDate(today()))}</div>
   </div>`;
@@ -2772,6 +2787,51 @@ function vMensajesCard(){
     </div>`).join("")}
   </div>`;
 }
+// Cobros del docente (paso 141): alias/CVU + links de pago propios (sin API, sin comisiones,
+// sin procesar nada nosotros — el docente sigue registrando los pagos a mano, como siempre) y un
+// QR opcional (mismo bucket/cuota que las fotos de perfil, ver uploadCobrosQr en sync.js). Se
+// muestra en el portal individual de cada alumno (buildAlumnoBlock/publicarPortal en sync.js) —
+// nunca en la llave grupal ni la general.
+function vCobrosCard(){
+  const c = cobrosDocenteFor();
+  const qrUrl = c.qr ? avatarUrlFor(c.qr) : null;
+  const uploading = state.cobrosQrUploading;
+  const confirming = state.cobrosQrDeleteConfirm;
+  const offline = !navigator.onLine;
+  return `<div class="formcard"><div class="ftitle">Cobros</div>
+    <div class="hint" style="margin-bottom:10px">Tus medios de pago, para que cada alumno vea cómo pagarte desde su propio portal — sin API, sin comisiones, sin procesar nada nosotros. Cuando te paguen, registralo como siempre (pestaña Pagos, en la ficha del alumno); esto no cobra ni confirma nada solo.</div>
+    <div class="frow">
+      <div class="field"><div class="flabel">Alias / CVU</div><input data-cf="cobros-alias" placeholder="tu.alias.mp" value="${esc(c.alias||"")}"></div>
+    </div>
+    <div class="frow" style="margin-top:10px">
+      <div class="field"><div class="flabel">Link de pago de Mercado Pago</div>
+        <input data-cf="cobros-linkmp" placeholder="https://link.mercadopago.com.ar/…" value="${esc(c.linkMP||"")}">
+        ${state.cobrosLinkMPError?`<div class="hint" style="color:var(--status-desaprobo-fg)">${esc(state.cobrosLinkMPError)}</div>`:""}</div>
+      <div class="field"><div class="flabel">Otro link de pago (Brubank, etc.)</div>
+        <input data-cf="cobros-linkotro" placeholder="https://…" value="${esc(c.linkOtro||"")}">
+        ${state.cobrosLinkOtroError?`<div class="hint" style="color:var(--status-desaprobo-fg)">${esc(state.cobrosLinkOtroError)}</div>`:""}</div>
+    </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
+      <div class="flabel" style="margin-bottom:6px">Código QR (opcional)</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        ${c.qr ? `<img src="${qrUrl||""}" alt="" style="width:96px;height:96px;border-radius:8px;object-fit:contain;background:var(--soft)">` : ""}
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:220px">
+          ${offline ? `<div class="hint">Necesitás conexión a internet para subir o cambiar el QR.</div>` : IS_DEMO ? `<span class="hint">En modo demostración no se pueden subir imágenes.</span>` : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input type="file" accept="image/*" id="cobros-qr-file" style="max-width:220px" ${uploading?"disabled":""}>
+            <button class="chip" data-a="cobros-qr-upload" data-input="cobros-qr-file" ${uploading?"disabled":""}>${uploading?"Subiendo…":(c.qr?"Cambiar QR":"+ Subir QR")}</button>
+            ${c.qr && !confirming ? `<button class="chip" data-a="cobros-qr-delete-ask">Borrar QR</button>` : ""}
+            ${confirming ? `<span style="font-size:12px;color:var(--status-desaprobo-fg)">¿Borrar el QR?</span>
+              <button class="danger" data-a="cobros-qr-delete-confirm">Sí, borrar</button>
+              <button class="chip" data-a="cobros-qr-delete-cancel">Cancelar</button>` : ""}
+          </div>`}
+          ${state.cobrosQrError ? `<div class="hint" style="color:var(--status-desaprobo-fg)">${esc(state.cobrosQrError==="offline"?"Necesitás conexión a internet para subir el QR.":state.cobrosQrError)}</div>` : ""}
+          <div class="hint">Se achica automáticamente antes de subir (máx. ${QR_SIZE_PX}px de lado).</div>
+        </div>
+      </div>
+    </div>
+    <div class="hint" style="margin-top:12px">Con llave grupal o general no se muestra nada de esto — sólo lo ve cada alumno en su propio portal individual, junto a su saldo pendiente. Falta "Publicar cambios" abajo en Portal para que un cambio acá se vea del otro lado.</div>
+  </div>`;
+}
 function vCuenta(){
   const ses=getSes();
   const pol=cancelPolicyFor();
@@ -2786,6 +2846,7 @@ function vCuenta(){
       <div class="field"><div class="flabel">DNI / CUIT (opcional)</div><input data-cf="docente-dni" value="${esc(doc.dni||"")}"></div>
     </div>
   </div>
+  ${vCobrosCard()}
   ${vRecordatoriosCard()}
   ${vNotifClasesCard()}
   ${vEscalaObjetivoCard()}

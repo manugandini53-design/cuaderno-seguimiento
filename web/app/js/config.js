@@ -111,6 +111,11 @@ const MATERIAL_MAX_TOTAL_BYTES = 50*1024*1024; // por usuario, sumando materiale
 // Cuentan contra el mismo MATERIAL_MAX_TOTAL_BYTES de arriba (ver materialesTotalBytes en sync.js).
 const AVATAR_SIZE_PX = 256;
 const AVATAR_TARGET_BYTES = 60*1024; // objetivo tras el resize — no un tope duro, ver resizeImageToAvatar
+// QR de cobros (paso 141): mismo patrón que las fotos de perfil, pero sin recorte cuadrado (un QR
+// ya viene cuadrado tal cual lo exporta la billetera/banco; recortarlo podría comerse el borde) —
+// sólo se lo achica si excede QR_SIZE_PX de lado, ver resizeImageToQr en helpers.js.
+const QR_SIZE_PX = 512;
+const QR_TARGET_BYTES = 150*1024;
 // Recordatorio push de las clases del día (paso 108): clave pública VAPID, apta para exponerse
 // en el cliente por diseño (no es secreta) — el par se generó una sola vez con
 // `npx web-push generate-vapid-keys`; la privada vive sólo como secreto de la Edge Function
@@ -268,6 +273,11 @@ function defaultCostos(){ return {fijos:[], variables:[]}; }
 // se cargan una sola vez en Cuenta y se reutilizan donde haga falta (por ahora, el generador de
 // contratos — ver docenteFor() en helpers.js y vContrato() en views.js).
 function defaultDocente(){ return {nombre:"", telefono:"", dni:""}; }
+// Cobros del docente (paso 141, state.catalog.cobrosDocente): alias/CVU + links de pago propios,
+// mostrados en el portal individual de cada alumno (nunca en la llave grupal/general — ver
+// buildAlumnoBlock en sync.js) como "Formas de pagarle a {docente}". El docente sigue marcando
+// los pagos a mano como siempre: esto es sólo mostrarle al alumno cómo pagar, nunca procesa nada.
+function defaultCobrosDocente(){ return {alias:"", linkMP:"", linkOtro:"", qr:null}; }
 // Plantillas de mensajes (paso 117, state.catalog.mensajes): centraliza TODOS los textos que la
 // app arma para WhatsApp (y el recibo, que se comparte igual por ahí) en un solo lugar editable
 // — Cuenta → "Mensajes" (ver vMensajesCard() en views.js). Cada entrada es la plantilla por
@@ -289,12 +299,12 @@ const MENSAJES_META = [
     default:"Hola {alumno}! Faltan {dias} para tu examen de {materia}{fecha}. ¡Vamos con todo!" },
   { key:"cumpleanos", label:"Saludo de cumpleaños", vars:"{alumno}, {mail}",
     default:"¡Feliz cumpleaños, {alumno}! Espero que la pases muy bien." },
-  { key:"cobro", label:"Coordinar pago (sin deuda pendiente)", vars:"{alumno}, {mail}",
+  { key:"cobro", label:"Coordinar pago (sin deuda pendiente)", vars:"{alumno}, {mail}, {link_pago}, {alias}",
     default:"Hola {alumno}! Te escribo para coordinar el pago de las clases." },
-  { key:"avisoDeuda", label:"Aviso de pago pendiente", vars:"{alumno}, {monto}, {mail}",
-    default:"Hola {alumno}! Te escribo por el pago pendiente de {monto}. ¡Avisame cuando lo puedas hacer, gracias!" },
-  { key:"recibo", label:"Texto del recibo", vars:"{numero}, {fecha}, {concepto}, {monto}, {saldo}, {alumno}, {docente}",
-    default:"*Recibo Nº {numero}*\nFecha: {fecha}\nConcepto: {concepto}\nMonto: {monto}\n{saldo}\nAlumno/a: {alumno}\n{docente}\n\n_Generado con Entreclases_" },
+  { key:"avisoDeuda", label:"Aviso de pago pendiente", vars:"{alumno}, {monto}, {mail}, {link_pago}, {alias}",
+    default:"Hola {alumno}! Te escribo por el pago pendiente de {monto}.\n{link_pago_linea}\n¡Avisame cuando lo puedas hacer, gracias!" },
+  { key:"recibo", label:"Texto del recibo", vars:"{numero}, {fecha}, {concepto}, {monto}, {saldo}, {alumno}, {docente}, {mediosPago}, {link_pago}, {alias}",
+    default:"*Recibo Nº {numero}*\nFecha: {fecha}\nConcepto: {concepto}\nMonto: {monto}\n{saldo}\nAlumno/a: {alumno}\n{docente}\n{mediosPago}\n\n_Generado con Entreclases_" },
   { key:"compartirLlave", label:"Compartir acceso al portal (paso 139)", vars:"{alumno}, {link}, {mail}",
     default:"¡Hola {alumno}! Te paso tu acceso al portal, donde vas a poder ver tu próxima clase y avance: {link}" },
   { key:"compartirLlaveGrupal", label:"Compartir llave grupal (paso 140)", vars:"{alumno}, {materia}, {link}, {mail}",

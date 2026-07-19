@@ -15,6 +15,9 @@ function showMsg(big, small){
     `<div class="msg"><div class="big">${esc(big)}</div>${small?`<div class="small">${esc(small)}</div>`:""}</div>`;
 }
 
+// Duplicado de fmtMoney (helpers.js) — portal.js es standalone y no lo carga (ver el comentario
+// de SUPA_URL arriba).
+function fmtMoneyPortal(n){ return "$" + Math.round(Number(n)||0).toLocaleString("es-AR"); }
 function fmtBytes(n){
   n = Number(n) || 0;
   if(n < 1024) return n + " B";
@@ -50,9 +53,10 @@ const TOPIC_BAR_META = {
   parcial:{pct:100, label:"Nivel parcial", color:"var(--subj-green-fg)"},
   noentra:{pct:100, label:"No entra", color:"var(--faint)"},
 };
-// Bloque personal de un alumno con llave individual (ver buildAlumnoBlock en sync.js) — sólo
-// trae los campos que el docente tildó explícitamente en la ficha; nunca notas, pagos, señas ni
-// comentarios privados (eso ni siquiera sale de la app, ver el comentario en esa función).
+// Bloque personal de un alumno con llave individual (ver buildAlumnoBlock en sync.js) — trae los
+// campos que el docente tildó explícitamente en la ficha, más "pendiente" (paso 141, siempre
+// presente, es sólo la deuda propia de este alumno); nunca notas, señas ni comentarios privados
+// (eso ni siquiera sale de la app, ver el comentario en esa función).
 // Ícono de saludo, mismo set de línea que la app (ICON_WAVE en views.js) — duplicado acá
 // porque portal.js es standalone y no carga ese archivo (ver el comentario de SUPA_URL arriba).
 const ICON_WAVE=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V6a1.8 1.8 0 0 1 3.6 0v5"/><path d="M11.6 11V4.6a1.8 1.8 0 0 1 3.6 0V11"/><path d="M15.2 11V6.4a1.8 1.8 0 0 1 3.6 0V15c0 4-2.5 7-6.8 7-3 0-4.6-1-6-2.7L3 15.4c-.6-.9-.4-2 .5-2.6.8-.5 1.8-.3 2.4.4L8 15.5"/></svg>`;
@@ -86,6 +90,29 @@ function personalHtml(alumno){
         </div>
       </div>`;
     }).join("");
+    h += `</div>`;
+  }
+  return h + `</div>`;
+}
+// Pagos (paso 141): sólo con llave individual — pendiente es SIEMPRE del propio alumno (nunca de
+// otro, ver buildAlumnoBlock en sync.js) y "cobros" es el bloque de medios de pago del docente
+// (alias/links/QR, ver publicarPortal en sync.js), que el backend (portal_publico()) sólo debe
+// entregar cuando res.tipo==="alumno" — con llave grupal o general esto no se muestra nunca.
+function pagosHtml(alumno, cobros, nombreDocente){
+  if(typeof alumno.pendiente!=="number" && !cobros) return "";
+  let h = `<div class="card"><div class="ctitle">Pagos</div>`;
+  h += `<div class="prow"><div class="plabel">Pendiente</div>
+    ${alumno.pendiente>0 ? `<div class="pvalue" style="color:var(--red,#c0392b)">${fmtMoneyPortal(alumno.pendiente)}</div>` : `<div class="pempty">Estás al día.</div>`}
+  </div>`;
+  if(cobros){
+    h += `<div class="prow"><div class="plabel">Formas de pagarle a ${esc(nombreDocente||"tu profesor")}</div>`;
+    const btns=[];
+    if(cobros.linkMP) btns.push(`<a class="dl" target="_blank" rel="noopener" href="${esc(cobros.linkMP)}">Pagar con Mercado Pago</a>`);
+    if(cobros.linkOtro) btns.push(`<a class="dl" target="_blank" rel="noopener" href="${esc(cobros.linkOtro)}">Otro medio de pago</a>`);
+    if(btns.length) h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${btns.join("")}</div>`;
+    if(cobros.alias) h += `<div class="pvalue" style="margin-top:8px">Alias/CVU: <b>${esc(cobros.alias)}</b>
+      <button type="button" class="dl" id="copy-alias-btn" data-alias="${esc(cobros.alias)}" style="margin-left:6px">Copiar</button></div>`;
+    if(cobros.qr && cobros.qr.url) h += `<div style="margin-top:10px"><img src="${esc(cobros.qr.url)}" alt="Código QR para pagar" style="max-width:200px;border-radius:8px"></div>`;
     h += `</div>`;
   }
   return h + `</div>`;
@@ -210,8 +237,10 @@ function showPortal(res){
   let h = `<h1 style="display:flex;align-items:center;gap:10px">${fotoDocente?`<img src="${esc(fotoDocente)}" alt="" class="docente-foto">`:""}<span>${esc(titulo)}</span></h1>`;
   h += avisosHtml(avisos);
   // Llave de alumno: su bloque personal va primero, arriba de lo general (biblioteca/links) —
-  // es lo que más le importa a él en particular.
-  if(res.tipo==="alumno" && res.alumno) h += personalHtml(res.alumno);
+  // es lo que más le importa a él en particular. Pagos (paso 141) va justo después: res.cobros
+  // sólo debería venir presente cuando res.tipo==="alumno" (portal_publico() del lado del
+  // backend es quien lo decide) — acá sólo se pinta si está.
+  if(res.tipo==="alumno" && res.alumno) h += personalHtml(res.alumno) + pagosHtml(res.alumno, res.cobros||null, nombre);
   // Llave grupal: próximas clases/exámenes del grupo, antes de la biblioteca — mismo criterio
   // que el bloque personal, es lo más "de esta llave puntual" frente a lo genérico de abajo.
   if(esGrupo) h += grupoHtml(res.grupo);
@@ -227,6 +256,17 @@ function showPortal(res){
   if(search){
     search.addEventListener("input", ()=>{
       document.getElementById("biblio-list").innerHTML = bibliotecaHtml(biblioteca, search.value);
+    });
+  }
+  const copyAlias = document.getElementById("copy-alias-btn");
+  if(copyAlias){
+    copyAlias.addEventListener("click", ()=>{
+      if(!navigator.clipboard) return;
+      navigator.clipboard.writeText(copyAlias.dataset.alias||"").then(()=>{
+        const prev=copyAlias.textContent;
+        copyAlias.textContent="¡Copiado!";
+        setTimeout(()=>{ copyAlias.textContent=prev; }, 1500);
+      }).catch(()=>{});
     });
   }
 }

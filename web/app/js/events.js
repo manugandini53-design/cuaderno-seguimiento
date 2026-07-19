@@ -568,6 +568,16 @@ document.addEventListener("click", (e)=>{
     const key=el.dataset.key; state.avatarDeleteConfirmKey=null;
     deleteAvatar(key); return;
   }
+  else if(a==="cobros-qr-upload"){
+    const input=document.getElementById(el.dataset.input);
+    const file=input && input.files && input.files[0];
+    if(!file) return;
+    if(!/^image\//.test(file.type)){ state.cobrosQrError="Elegí un archivo de imagen."; render(); return; }
+    uploadCobrosQr(file); return;
+  }
+  else if(a==="cobros-qr-delete-ask"){ state.cobrosQrDeleteConfirm=true; }
+  else if(a==="cobros-qr-delete-cancel"){ state.cobrosQrDeleteConfirm=false; }
+  else if(a==="cobros-qr-delete-confirm"){ state.cobrosQrDeleteConfirm=false; deleteCobrosQr(); return; }
   else if(a==="mat-reload"){ loadMateriales(el.dataset.id); return; }
   else if(a==="mat-upload"){
     const input=document.getElementById(el.dataset.input||"mat-file");
@@ -1708,6 +1718,20 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf==="docente-nombre"){ state.catalog.docente={...docenteFor(), nombre:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-telefono"){ state.catalog.docente={...docenteFor(), telefono:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-dni"){ state.catalog.docente={...docenteFor(), dni:cf.value}; touchCatalog(); return; }
+  // Cobros del docente (paso 141): alias/CVU sin validar (texto libre); los dos links sí, sólo
+  // https — se guardan igual si no cumplen (para no perder lo tipeado a medio escribir), pero
+  // avisa con un hint bajo el campo (ver vCobrosCard, views.js).
+  if(cf && cf.dataset.cf==="cobros-alias"){ state.catalog.cobrosDocente={...cobrosDocenteFor(), alias:cf.value.trim()}; touchCatalog(); return; }
+  if(cf && cf.dataset.cf==="cobros-linkmp"){
+    const v=cf.value.trim();
+    state.cobrosLinkMPError = v && !isHttpsUrl(v) ? "Tiene que ser un link que empiece con https://." : "";
+    state.catalog.cobrosDocente={...cobrosDocenteFor(), linkMP:v}; touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf==="cobros-linkotro"){
+    const v=cf.value.trim();
+    state.cobrosLinkOtroError = v && !isHttpsUrl(v) ? "Tiene que ser un link que empiece con https://." : "";
+    state.catalog.cobrosDocente={...cobrosDocenteFor(), linkOtro:v}; touchCatalog(); return;
+  }
   if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("mensaje-")){
     const key=cf.dataset.cf.slice("mensaje-".length);
     state.catalog.mensajes = {...mensajesFor(), [key]:cf.value};

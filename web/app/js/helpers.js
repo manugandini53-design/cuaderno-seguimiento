@@ -128,6 +128,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               portalGrupoBusy:null, portalGrupoError:"", portalGrupoCopyMsg:"",
               portalGrupoEditing:null, portalGrupoDraftAlumnos:[],
               shareOverlay:null, envioOverlay:null,
+              cobrosLinkMPError:"", cobrosLinkOtroError:"", cobrosQrUploading:false, cobrosQrError:"", cobrosQrDeleteConfirm:false,
               avisoSaving:false, avisoError:"",
               toasts:[],
               fabOpen:false, fabPick:null,
@@ -209,6 +210,29 @@ async function resizeImageToAvatar(file){
   for(let i=0;i<4;i++){
     blob = await new Promise(res=>canvas.toBlob(res, "image/webp", quality));
     if(!blob || blob.size<=AVATAR_TARGET_BYTES || quality<=0.5) break;
+    quality -= 0.1;
+  }
+  return blob;
+}
+// QR de cobros (paso 141): a diferencia de resizeImageToAvatar, sin recorte cuadrado — sólo achica
+// si excede QR_SIZE_PX de lado, manteniendo la proporción original (un QR recortado mal puede
+// dejar de leerse).
+async function resizeImageToQr(file){
+  const dataUrl = await new Promise((resolve,reject)=>{
+    const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=reject; fr.readAsDataURL(file);
+  });
+  const img = await new Promise((resolve,reject)=>{
+    const im=new Image(); im.onload=()=>resolve(im); im.onerror=reject; im.src=dataUrl;
+  });
+  const scale = Math.min(1, QR_SIZE_PX/Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width*scale)), h = Math.max(1, Math.round(img.height*scale));
+  const canvas=document.createElement("canvas");
+  canvas.width=w; canvas.height=h;
+  canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+  let quality=0.9, blob=null;
+  for(let i=0;i<4;i++){
+    blob = await new Promise(res=>canvas.toBlob(res, "image/webp", quality));
+    if(!blob || blob.size<=QR_TARGET_BYTES || quality<=0.5) break;
     quality -= 0.1;
   }
   return blob;
@@ -824,13 +848,23 @@ function reciboTipoLabel(tipo){
   if(tipo==="senia") return "Seña";
   return "Clase";
 }
+// Medios de pago del docente (paso 141) en el pie del recibo — sólo si hay algo cargado en
+// Cuenta → Cobros (ver cobrosDocenteFor); mismo criterio de línea condicional que saldo/docente.
 function buildReciboText(s, r){
   const doc = docenteFor();
+  const cobros = cobrosDocenteFor();
+  const medios = [];
+  if(cobros.alias) medios.push(`Alias/CVU: ${cobros.alias}`);
+  if(cobros.linkMP) medios.push(`Mercado Pago: ${cobros.linkMP}`);
+  if(cobros.linkOtro) medios.push(`Otro medio: ${cobros.linkOtro}`);
   return fillTemplateLines(mensajesFor().recibo, {
     numero:r.numero, fecha:fmtDate(r.date), concepto:r.concepto, monto:fmtMoney(r.monto),
     saldo: r.saldo>0 ? `Saldo restante: ${fmtMoney(r.saldo)}` : "",
     alumno:s.name,
     docente: doc.nombre ? `Docente: ${doc.nombre}` : "",
+    mediosPago: medios.length ? `Formas de pago:\n${medios.join("\n")}` : "",
+    link_pago: cobros.linkMP || cobros.linkOtro || "",
+    alias: cobros.alias || "",
   });
 }
 
@@ -903,6 +937,10 @@ function buildPagosCsv(monthKeys){
 function recordatoriosFor(){ return state.catalog.recordatorios || defaultRecordatorios(); }
 function costosFor(){ return state.catalog.costos || defaultCostos(); }
 function docenteFor(){ return state.catalog.docente || defaultDocente(); }
+function cobrosDocenteFor(){ return state.catalog.cobrosDocente || defaultCobrosDocente(); }
+// Sólo https (paso 141): valida los links de pago al cargarlos en Cuenta, para no dejar guardado
+// un link http/mal tipeado que después aparezca roto en el portal del alumno.
+function isHttpsUrl(v){ if(!v) return true; try{ return new URL(v).protocol==="https:"; }catch(e){ return false; } }
 /* ============ interesados (paso 119): mini lista de espera, aparte de state.students ============ */
 function interesadosFor(){ return state.catalog.interesados||[]; }
 // Crea un alumno de verdad a partir de un interesado y lo saca de la lista — un solo
@@ -951,7 +989,11 @@ function fillTemplateLines(str, vars){
     return fillTemplate(line, vars);
   }).filter(l=>l!==null).join("\n");
 }
-function mensajeTexto(key, vars){ return fillTemplate(mensajesFor()[key], vars); }
+// fillTemplateLines (no fillTemplate a secas): así una plantilla que use una variable "sola en su
+// línea" (como {link_pago_linea} de "avisoDeuda", paso 141) desaparece del todo cuando esa
+// variable viene vacía, en vez de dejar un renglón en blanco — mismo criterio que ya usaba sólo
+// el recibo (saldo/docente) desde antes de este paso.
+function mensajeTexto(key, vars){ return fillTemplateLines(mensajesFor()[key], vars); }
 // Qué de este alumno se comparte en su portal individual (ver s.portalShare, ficha → "Portal
 // para este alumno"). Por diseño sólo puede llevar estos tres booleanos — nunca notas, pagos,
 // señas ni comentarios privados (ver buildAlumnoBlock() en sync.js, que es lo único que lee esto
@@ -1636,6 +1678,9 @@ function buildDemoData(){
     { id:"demo-qui", name:"Química General", units:normalizeUnits(unitsOf("tpl-quimica-general")), color:"amber", materiales:[] },
   ];
   catalog.docente = {nombre:"Prof. Demo", telefono:"11-5555-0100", dni:"30111222"};
+  // Cobros (paso 141): con alias y link cargados para que se vea armado en Cuenta y en el portal
+  // individual de Lucía/Valentina (las dos con llave individual, ver el portal más abajo).
+  catalog.cobrosDocente = {alias:"prof.demo.mp", linkMP:"https://link.mercadopago.com.ar/profdemo", linkOtro:"", qr:null};
   catalog.costos = {
     fijos:[
       {id:uid(), name:"Alquiler del aula", monto:25000},

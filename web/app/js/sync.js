@@ -661,13 +661,18 @@ async function signMaterialUrl(s, path, expiresInSec){
   return SUPA_URL+"/storage/v1"+j.signedURL;
 }
 // Arma lo que ve UN alumno puntual en su portal individual, a partir de lo que el docente tildó
-// en su ficha (s.portalShare, ver portalShareFor() en helpers.js). ÚNICA función que lee datos de
-// un alumno para el portal — a propósito acotada a estos tres campos: NUNCA agregar acá notas del
-// alumno, pagos, señas, ni ningún comentario privado. Si se suma un dato nuevo compartible, tiene
-// que sumarse antes como checkbox explícito en la ficha (vPortalAlumnoCard, views.js).
+// en su ficha (s.portalShare, ver portalShareFor() en helpers.js) — proximaClase/tareas/avance,
+// cada uno opt-in por checkbox. ÚNICA función que lee datos de un alumno para el portal — sigue
+// sin haber forma de compartir notas, señas ni comentarios privados desde acá. "pendiente" es la
+// única excepción a "opt-in por checkbox" (paso 141, decisión explícita del docente al pedirlo):
+// siempre va, es sólo SU propia deuda (nunca la de otro alumno) y sólo llega a quien entra con SU
+// llave individual — nunca a la llave grupal/general (ver buildGrupoBlock, sin este campo, y la
+// migración de portal_publico() que tiene que exponer "pendiente"/"cobros" nada más que ahí). Si
+// se suma un dato nuevo compartible aparte de éste, tiene que sumarse como checkbox explícito en
+// la ficha (vPortalAlumnoCard, views.js).
 function buildAlumnoBlock(s){
   const share=portalShareFor(s);
-  const block={nombre:s.name, subjectId:s.subjectId||null};
+  const block={nombre:s.name, subjectId:s.subjectId||null, pendiente:pendienteTotalFor(s)};
   // subjectId (paso 105): no se muestra en el portal — sólo la usa portal_publico() del lado del
   // backend para filtrar qué avisos dirigidos "a una materia" le corresponden a este alumno. Se
   // saca del JSON de vuelta antes de responder (ver la función), así que nunca llega al navegador.
@@ -764,7 +769,16 @@ async function publicarPortal(){
     const fotoDocente = doc.foto
       ? {url:await signMaterialUrl(s, doc.foto.path, PORTAL_LINK_TTL_DAYS*86400), firmadoAt:Date.now()}
       : null;
-    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente};
+    // Cobros del docente (paso 141): un solo bloque a nivel de "publicado" (como fotoDocente), no
+    // uno por alumno — portal_publico() lo expone nada más que al resolver una llave individual
+    // (nunca grupal/general, ver la migración que acompaña este paso), así que del lado del
+    // cliente basta con firmar el QR una sola vez acá en vez de una vez por alumno.
+    const cobrosCfg=cobrosDocenteFor();
+    const cobros = (cobrosCfg.alias||cobrosCfg.linkMP||cobrosCfg.linkOtro||cobrosCfg.qr) ? {
+      alias: cobrosCfg.alias||"", linkMP: cobrosCfg.linkMP||"", linkOtro: cobrosCfg.linkOtro||"",
+      qr: cobrosCfg.qr ? {url:await signMaterialUrl(s, cobrosCfg.qr.path, PORTAL_LINK_TTL_DAYS*86400), firmadoAt:Date.now()} : null,
+    } : null;
+    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros};
     const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
     await patchPortalRow(uid_, h, {publicado});
     state.portal.publicado=publicado;
@@ -804,11 +818,24 @@ async function maybeRenewPortalLibrary(uid_, s){
     const fotoDocenteActual=(row.publicado&&row.publicado.fotoDocente)||null;
     const docFoto=docenteFor().foto;
     const fotoDocenteStale = docFoto && (!fotoDocenteActual || !fotoDocenteActual.firmadoAt || fotoDocenteActual.firmadoAt<staleCutoff);
-    if(!stale.size && !fotoDocenteStale) return;
+    // QR de cobros (paso 141): mismo chequeo de vencimiento que la foto del docente, sobre su
+    // propio path — sólo si el docente tiene un QR cargado hoy (si lo sacó, no hay nada para
+    // renovar; "Publicar cambios" es lo que saca el bloque entero del portal).
+    const cobrosActual=(row.publicado&&row.publicado.cobros)||null;
+    const cobrosCfg=cobrosDocenteFor();
+    const cobrosQrStale = cobrosCfg.qr && (!cobrosActual || !cobrosActual.qr || !cobrosActual.qr.firmadoAt || cobrosActual.qr.firmadoAt<staleCutoff);
+    if(!stale.size && !fotoDocenteStale && !cobrosQrStale) return;
     let fotoDocente=fotoDocenteActual;
     if(fotoDocenteStale){
       try{ fotoDocente={url:await signMaterialUrl(s, docFoto.path, PORTAL_LINK_TTL_DAYS*86400), firmadoAt:Date.now()}; }
       catch(e){ /* best-effort, igual que el resto de la biblioteca */ }
+    }
+    let cobros=cobrosActual;
+    if(cobrosQrStale){
+      try{
+        cobros={...(cobrosActual||{}), alias:cobrosCfg.alias||"", linkMP:cobrosCfg.linkMP||"", linkOtro:cobrosCfg.linkOtro||"",
+          qr:{url:await signMaterialUrl(s, cobrosCfg.qr.path, PORTAL_LINK_TTL_DAYS*86400), firmadoAt:Date.now()}};
+      }catch(e){ /* best-effort, igual que el resto de la biblioteca */ }
     }
     const renewed=await Promise.all([...stale.values()].map(async it=>{
       try{ return [it.path, {url:await signMaterialUrl(s, it.path, PORTAL_LINK_TTL_DAYS*86400), firmadoAt:Date.now()}]; }
@@ -819,7 +846,7 @@ async function maybeRenewPortalLibrary(uid_, s){
     const mergedBiblioteca=biblioteca.map(mergeItem);
     const mergedGrupos={};
     Object.entries(grupos).forEach(([mid,g])=>{ mergedGrupos[mid]={...g, biblioteca:(g.biblioteca||[]).map(mergeItem)}; });
-    const publicado={...row.publicado, biblioteca:mergedBiblioteca, grupos:mergedGrupos, fotoDocente};
+    const publicado={...row.publicado, biblioteca:mergedBiblioteca, grupos:mergedGrupos, fotoDocente, cobros};
     await patchPortalRow(uid_, h, {publicado});
     if(state.portal){ state.portal.publicado=publicado; render(); }
   }catch(e){ /* silencioso: se reintenta al otro día */ }
@@ -1185,6 +1212,57 @@ async function deleteAvatar(key){
   setAvatarField(key, null);
   toast("Foto eliminada");
 }
+// QR de cobros (paso 141): mismo bucket/patrón que las fotos de perfil (misma ruta con
+// "x-upsert", sin nombre único) — objeto propio "cobros-qr" en vez de "docente"/"alumno-{id}"
+// para no pisar la foto de perfil del docente.
+function cobrosQrPath(uid_){ return `${uid_}/avatars/cobros-qr.webp`; }
+async function uploadCobrosQr(file){
+  if(!navigator.onLine){ state.cobrosQrError="offline"; render(); return; }
+  state.cobrosQrUploading=true; state.cobrosQrError=""; render();
+  try{
+    const blob=await resizeImageToQr(file);
+    if(!blob) throw new Error("no se pudo procesar la imagen");
+    const usedBytes=materialesTotalBytes()-(Number(cobrosDocenteFor().qr && cobrosDocenteFor().qr.bytes)||0);
+    if(usedBytes+blob.size > MATERIAL_MAX_TOTAL_BYTES){
+      state.cobrosQrUploading=false;
+      state.cobrosQrError="No entra en tu espacio de materiales (50 MB en total, entre archivos y fotos).";
+      render(); return;
+    }
+    if(IS_DEMO){
+      state.cobrosQrUploading=false;
+      state.cobrosQrError="En modo demostración no se pueden subir imágenes.";
+      render(); return;
+    }
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const path=cobrosQrPath(uid_);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"image/webp", "x-upsert":"true"};
+    const r=await fetch(materialObjectUrl(path), {method:"POST", headers:h, body:blob});
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.message||j.error||("error "+r.status)); }
+    state.catalog.cobrosDocente={...cobrosDocenteFor(), qr:{path, bytes:blob.size, updatedAt:Date.now()}};
+    touchCatalog();
+    state.cobrosQrUploading=false;
+    toast("QR actualizado");
+  }catch(e){
+    state.cobrosQrUploading=false;
+    state.cobrosQrError = !navigator.onLine ? "offline" : "No se pudo subir el QR.";
+    render();
+  }
+}
+async function deleteCobrosQr(){
+  if(!navigator.onLine){ state.cobrosQrError="offline"; render(); return; }
+  if(!IS_DEMO){
+    try{
+      const s=await ensureToken();
+      const uid_=jwtSub(s.access);
+      const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
+      await fetch(materialObjectUrl(cobrosQrPath(uid_)), {method:"DELETE", headers:h});
+    }catch(e){ /* si falla el borrado en Storage, igual se saca de Cuenta — no bloquea al docente */ }
+  }
+  state.catalog.cobrosDocente={...cobrosDocenteFor(), qr:null};
+  touchCatalog();
+  toast("QR eliminado");
+}
 
 // Índice liviano de materiales (nombre, bytes, fecha) guardado dentro de state.catalog, por
 // materia — así uploadMaterial puede chequear el total de MATERIAL_MAX_TOTAL_BYTES sin listar Storage en cada
@@ -1205,6 +1283,8 @@ function materialesTotalBytes(){
   // sean despreciables frente a los materiales.
   total += Number(docenteFor().foto && docenteFor().foto.bytes)||0;
   total += (state.students||[]).reduce((a,s)=>a+(Number(s.foto&&s.foto.bytes)||0),0);
+  // QR de cobros (paso 141): mismo bucket/cuota que fotos de perfil y materiales.
+  total += Number(cobrosDocenteFor().qr && cobrosDocenteFor().qr.bytes)||0;
   return total;
 }
 function materialesIndexMatches(subjectId, storageList){
