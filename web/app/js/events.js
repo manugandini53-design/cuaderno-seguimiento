@@ -392,6 +392,56 @@ document.addEventListener("click", (e)=>{
       });
     }
   }
+  // Popover de edición de una clase GRUPAL desde la agenda (paso 157) — mismo patrón que
+  // agenda-edit-* de arriba, pero resolviendo/aplicando siempre sobre TODO el grupo (ver
+  // findAgendaEditEventGrupal/applyHorarioEditGrupal/cancelHorarioOccurrenceGrupal/
+  // applyCancelacionGrupal en helpers.js).
+  else if(a==="agenda-event-grupal-open"){
+    state.agendaEditGrupal={grupoId:el.dataset.grupoId, kind:el.dataset.kind, origDate:el.dataset.origDate};
+    state.agendaEditGrupalPending=null; state.agendaEditGrupalCancelConfirm=false; state.agendaEditGrupalDeleteConfirm=false;
+  }
+  else if(a==="agenda-edit-grupal-close"){
+    state.agendaEditGrupal=null; state.agendaEditGrupalPending=null; state.agendaEditGrupalCancelConfirm=false; state.agendaEditGrupalDeleteConfirm=false;
+  }
+  else if(a==="agenda-edit-grupal-noop"){ return; }
+  else if(a==="agenda-edit-grupal-register"){
+    const ev=findAgendaEditEventGrupal(state.agendaEditGrupal); if(!ev) return;
+    state.agendaEditGrupal=null; state.agendaEditGrupalPending=null; state.agendaEditGrupalCancelConfirm=false; state.agendaEditGrupalDeleteConfirm=false;
+    state.grupalForm={subjectId:ev.subjectId, studentIds:[...ev.studentIds], pinnedId:null, tipo:"pasada",
+      date:ev.date, topic:ev.topic||"", duration:ev.duration, note:"", asistencias:{},
+      origin:{grupoId:ev.grupoId, kind:ev.kind}};
+  }
+  else if(a==="agenda-edit-grupal-scope-solo"){
+    const ev=findAgendaEditEventGrupal(state.agendaEditGrupal); if(!ev || !state.agendaEditGrupalPending) return;
+    applyHorarioEditGrupal(ev.grupoId, ev.origDate, state.agendaEditGrupalPending, "solo");
+    if(state.agendaEditGrupalPending.date!=null) state.agendaEditGrupal.origDate=state.agendaEditGrupalPending.date;
+    state.agendaEditGrupalPending=null;
+    toast("Clase movida");
+  }
+  else if(a==="agenda-edit-grupal-scope-todas"){
+    const ev=findAgendaEditEventGrupal(state.agendaEditGrupal); if(!ev || !state.agendaEditGrupalPending) return;
+    applyHorarioEditGrupal(ev.grupoId, ev.origDate, state.agendaEditGrupalPending, "todas");
+    state.agendaEditGrupalPending=null;
+    toast("Horario actualizado");
+  }
+  else if(a==="agenda-edit-grupal-scope-cancel"){ state.agendaEditGrupalPending=null; }
+  else if(a==="agenda-edit-grupal-cancel-ask"){ state.agendaEditGrupalCancelConfirm=true; }
+  else if(a==="agenda-edit-grupal-cancel-cancel"){ state.agendaEditGrupalCancelConfirm=false; }
+  else if(a==="agenda-edit-grupal-cancel-confirm"){
+    const ev=findAgendaEditEventGrupal(state.agendaEditGrupal); if(!ev) return;
+    if(ev.kind==="puntual") applyCancelacionGrupal(ev.grupoId);
+    else cancelHorarioOccurrenceGrupal(ev.grupoId, ev.origDate);
+    state.agendaEditGrupal=null; state.agendaEditGrupalPending=null; state.agendaEditGrupalCancelConfirm=false; state.agendaEditGrupalDeleteConfirm=false;
+    toast("Clase grupal cancelada");
+  }
+  else if(a==="agenda-edit-grupal-delete-ask"){ state.agendaEditGrupalDeleteConfirm=true; }
+  else if(a==="agenda-edit-grupal-delete-cancel"){ state.agendaEditGrupalDeleteConfirm=false; }
+  else if(a==="agenda-edit-grupal-delete-confirm"){
+    const ev=findAgendaEditEventGrupal(state.agendaEditGrupal); if(!ev) return;
+    state.agendaEditGrupal=null; state.agendaEditGrupalPending=null; state.agendaEditGrupalCancelConfirm=false; state.agendaEditGrupalDeleteConfirm=false;
+    if(ev.kind==="puntual"){ delPuntualClaseGrupal(ev.grupoId); toast("Clase puntual grupal eliminada"); }
+    else{ delHorarioGrupal(ev.grupoId); toast("Horario grupal eliminado"); }
+  }
   else if(a==="export-agenda-ics"){
     const {events,label}=agendaIcsRangeForView();
     const blob=new Blob([buildAgendaIcs(events)],{type:"text/calendar;charset=utf-8"});
@@ -818,6 +868,29 @@ document.addEventListener("click", (e)=>{
       .then(()=>toast("Link copiado"))
       .catch(()=>toast("No se pudo copiar — seleccioná el texto manualmente.","error"));
     return;
+  }
+  // Cuenta → "Grupos de clase" (paso 157): sólo el roster (quién integra cada clase grupal),
+  // nunca compartido con nadie — no confundir con portal-grupo-* de arriba, que es la llave
+  // pública por materia.
+  else if(a==="grupoclase-editar-abrir"){
+    const g=grupoClaseById(el.dataset.id); if(!g) return;
+    state.gruposClaseEditing=g.id; state.gruposClaseDraftAlumnos=[...g.studentIds]; state.gruposClaseDelConfirm=null;
+  }
+  else if(a==="grupoclase-editar-cancelar"){ state.gruposClaseEditing=null; state.gruposClaseDraftAlumnos=[]; }
+  else if(a==="grupoclase-toggle-alumno"){
+    const id=el.dataset.id, draft=state.gruposClaseDraftAlumnos||[];
+    state.gruposClaseDraftAlumnos = draft.includes(id) ? draft.filter(x=>x!==id) : [...draft, id];
+  }
+  else if(a==="grupoclase-guardar"){
+    actualizarMiembrosGrupoClase(el.dataset.id, state.gruposClaseDraftAlumnos||[]);
+    state.gruposClaseEditing=null; state.gruposClaseDraftAlumnos=[];
+    toast("Grupo actualizado"); return;
+  }
+  else if(a==="grupoclase-del-ask"){ state.gruposClaseDelConfirm=el.dataset.id; }
+  else if(a==="grupoclase-del-cancel"){ state.gruposClaseDelConfirm=null; }
+  else if(a==="grupoclase-del-confirm"){
+    borrarGrupoClase(el.dataset.id); state.gruposClaseDelConfirm=null;
+    toast("Grupo borrado"); return;
   }
   // Llaves a mano (paso 139): mini-modal de "Compartir acceso", disparable desde la ficha, una
   // materia (Materias) o la lista, sin pasar por Cuenta → Portal — ver openShareOverlay (sync.js)
@@ -1247,6 +1320,88 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="set-registrar-clase-tipo"){ state.registrarClaseTipo=el.dataset.f; render(); return; }
   else if(a==="registrar-clase-back"){ state.registrarClaseTipo=null; render(); return; }
+  // Formulario de clase grupal (paso 157) — un único state.grupalForm reusado desde tres
+  // entradas (ficha, Agenda, "Registrar esta clase" sobre una ocurrencia ya agendada), ver el
+  // comentario grande de vGrupalForm()/vGrupalFormBody() en views.js.
+  else if(a==="grupal-form-open-ficha"){
+    if(!s) return;
+    state.grupalForm={subjectId:s.subjectId||null, studentIds:s.subjectId?[s.id]:[], pinnedId:s.id,
+      tipo:null, duration:60, asistencias:{}, origin:null};
+  }
+  else if(a==="grupal-form-open-agenda"){
+    state.grupalForm={subjectId:null, studentIds:[], pinnedId:null, tipo:null, duration:60, asistencias:{}, origin:null};
+  }
+  else if(a==="grupal-form-set-subject"){
+    if(!state.grupalForm) return;
+    state.grupalForm={...state.grupalForm, subjectId:el.dataset.id, studentIds:[], existingGrupoId:null};
+  }
+  else if(a==="grupal-form-toggle-alumno"){
+    const f=state.grupalForm; if(!f) return;
+    if(f.pinnedId===el.dataset.id) return; // el alumno de la ficha no se puede destildar
+    const ids=f.studentIds.includes(el.dataset.id) ? f.studentIds.filter(x=>x!==el.dataset.id) : [...f.studentIds, el.dataset.id];
+    state.grupalForm={...f, studentIds:ids};
+  }
+  else if(a==="grupal-form-usar-grupo"){
+    const f=state.grupalForm; if(!f) return;
+    const g=grupoClaseById(el.dataset.id); if(!g) return;
+    const ids=(f.pinnedId && !g.studentIds.includes(f.pinnedId)) ? [...g.studentIds, f.pinnedId] : [...g.studentIds];
+    state.grupalForm={...f, studentIds:ids, existingGrupoId:g.id, nombre:g.nombre};
+  }
+  else if(a==="grupal-form-set-tipo"){ const f=state.grupalForm; if(!f) return; state.grupalForm={...f, tipo:el.dataset.f}; }
+  else if(a==="grupal-form-back"){
+    const f=state.grupalForm; if(!f) return;
+    if(f.tipo){ state.grupalForm={...f, tipo:null}; return; }
+    if(f.subjectId && !f.pinnedId){ state.grupalForm={...f, subjectId:null, studentIds:[], existingGrupoId:null}; return; }
+    state.grupalForm=null;
+  }
+  else if(a==="grupal-form-cancel" || a==="grupal-form-noop-close"){ state.grupalForm=null; }
+  else if(a==="grupal-form-noop"){ return; }
+  else if(a==="grupal-form-save-proxima"){
+    const f=state.grupalForm; if(!f || f.studentIds.length<2) return;
+    const date=f.date||today(), time=f.time||"18:00", duration=Number(f.duration)||60;
+    const topic=f.topic||"", link=(f.link||"").trim(), recurrente=!!f.recurrente;
+    const nombre=(f.nombre||"").trim() || `${subjById(f.subjectId)?subjById(f.subjectId).name:"Grupo"} — ${DIAS_SEMANA[weekdayIdx(date)]} ${time}`;
+    if(recurrente){
+      const grupoId = f.existingGrupoId || crearGrupoClase(nombre, f.subjectId, f.studentIds).id;
+      if(f.existingGrupoId) actualizarMiembrosGrupoClase(f.existingGrupoId, f.studentIds);
+      addHorarioGrupal(grupoId, f.studentIds, weekdayIdx(date), time, duration, link);
+    }else{
+      const grupoId = f.existingGrupoId || uid();
+      const {warnings} = addPuntualClaseGrupal(grupoId, f.studentIds, date, time, duration, link, topic);
+      if(warnings.length) alert(warnings.join("\n"));
+    }
+    state.grupalForm=null;
+    toast(recurrente ? "Horario grupal agendado" : "Próxima clase grupal agendada");
+    return;
+  }
+  else if(a==="grupal-form-save-pasada"){
+    const f=state.grupalForm; if(!f || f.studentIds.length<2) return;
+    const date=f.date||today(), topic=f.topic||"", duration=Number(f.duration)||60, note=f.note||"";
+    const asistencias = f.studentIds.map(id=>{
+      const a=(f.asistencias&&f.asistencias[id])||{};
+      return {studentId:id, ausente:a.ausente||null, tarea:a.tarea||"sd", monto:a.monto!=null&&a.monto!==""?Number(a.monto):null};
+    });
+    registrarClaseGrupal({topic, date, duration, note, grupoNombre:f.nombre||"", asistencias});
+    state.grupalForm=null;
+    toast("Clase grupal registrada");
+    fireConfetti(); soundClase();
+    return;
+  }
+  else if(a==="grupal-asistencia-presente"){
+    const f=state.grupalForm; if(!f) return;
+    const id=el.dataset.id;
+    state.grupalForm={...f, asistencias:{...f.asistencias, [id]:{...(f.asistencias[id]||{}), ausente:null}}};
+  }
+  else if(a==="grupal-asistencia-ausente"){
+    const f=state.grupalForm; if(!f) return;
+    const id=el.dataset.id, motivo="aviso_tiempo";
+    state.grupalForm={...f, asistencias:{...f.asistencias, [id]:{...(f.asistencias[id]||{}), ausente:{motivo, cobra:ausenciaCobraSugerida(motivo)}}}};
+  }
+  else if(a==="grupal-asistencia-cobra"){
+    const f=state.grupalForm; if(!f) return;
+    const id=el.dataset.id, prev=(f.asistencias[id]&&f.asistencias[id].ausente)||{motivo:"aviso_tiempo"};
+    state.grupalForm={...f, asistencias:{...f.asistencias, [id]:{...(f.asistencias[id]||{}), ausente:{...prev, cobra:el.dataset.f==="si"}}}};
+  }
   else if(a==="save-proxima-clase" && s){
     const date=document.getElementById("pc-date").value; if(!date) return;
     const time=document.getElementById("pc-time").value; if(!time) return;
@@ -1831,6 +1986,51 @@ function handleFormChange(e){
     if(ev.kind==="puntual"){ editPuntualClase(ev.studentId, ev.sourceId, {[field]:value}); render(); return; }
     if(field==="topic"){ applyHorarioEdit(ev.studentId, ev.sourceId, ev.origDate, {topic:value}, "solo"); render(); return; }
     state.agendaEditPending={...(state.agendaEditPending||{}), [field]:value};
+    render(); return;
+  }
+  // Mismo criterio que el bloque agenda-edit-* de arriba, pero para una ocurrencia GRUPAL (paso
+  // 157): el patch se aplica a la fila mirror de TODOS los integrantes a la vez (ver
+  // applyHorarioEditGrupal/editPuntualClaseGrupal en helpers.js) — nunca a uno solo.
+  if(cf && (cf.dataset.cf==="agenda-edit-grupal-date" || cf.dataset.cf==="agenda-edit-grupal-time" || cf.dataset.cf==="agenda-edit-grupal-duration" || cf.dataset.cf==="agenda-edit-grupal-link" || cf.dataset.cf==="agenda-edit-grupal-topic")){
+    const ev=findAgendaEditEventGrupal(state.agendaEditGrupal); if(!ev) return;
+    const field=cf.dataset.cf.slice("agenda-edit-grupal-".length);
+    const value=field==="duration" ? (parseInt(cf.value,10)||60) : cf.value;
+    if(ev.kind==="puntual"){ editPuntualClaseGrupal(ev.grupoId, {[field]:value}); render(); return; }
+    if(field==="topic"){ applyHorarioEditGrupal(ev.grupoId, ev.origDate, {topic:value}, "solo"); render(); return; }
+    state.agendaEditGrupalPending={...(state.agendaEditGrupalPending||{}), [field]:value};
+    render(); return;
+  }
+  // Formulario de clase grupal (paso 157, ver vGrupalForm en views.js) — campos comunes al grupo
+  // (state.grupalForm) y asistencia por alumno (state.grupalForm.asistencias[studentId]).
+  if(cf && (cf.dataset.cf==="grupal-form-date" || cf.dataset.cf==="grupal-form-time" || cf.dataset.cf==="grupal-form-duration"
+      || cf.dataset.cf==="grupal-form-topic" || cf.dataset.cf==="grupal-form-link" || cf.dataset.cf==="grupal-form-note" || cf.dataset.cf==="grupal-form-nombre")){
+    const f=state.grupalForm; if(!f) return;
+    const field=cf.dataset.cf.slice("grupal-form-".length);
+    const value=field==="duration" ? (parseInt(cf.value,10)||60) : cf.value;
+    state.grupalForm={...f, [field]:value};
+    render(); return;
+  }
+  if(cf && cf.dataset.cf==="grupal-form-recurrente"){
+    const f=state.grupalForm; if(!f) return;
+    state.grupalForm={...f, recurrente:cf.checked};
+    render(); return;
+  }
+  if(cf && cf.dataset.cf==="grupal-asistencia-tarea"){
+    const f=state.grupalForm; if(!f) return;
+    const id=cf.dataset.id;
+    state.grupalForm={...f, asistencias:{...f.asistencias, [id]:{...(f.asistencias[id]||{}), tarea:cf.value}}};
+    render(); return;
+  }
+  if(cf && cf.dataset.cf==="grupal-asistencia-monto"){
+    const f=state.grupalForm; if(!f) return;
+    const id=cf.dataset.id;
+    state.grupalForm={...f, asistencias:{...f.asistencias, [id]:{...(f.asistencias[id]||{}), monto:cf.value}}};
+    render(); return;
+  }
+  if(cf && cf.dataset.cf==="grupal-asistencia-motivo"){
+    const f=state.grupalForm; if(!f) return;
+    const id=cf.dataset.id, prev=(f.asistencias[id]&&f.asistencias[id].ausente)||{};
+    state.grupalForm={...f, asistencias:{...f.asistencias, [id]:{...(f.asistencias[id]||{}), ausente:{...prev, motivo:cf.value}}}};
     render(); return;
   }
   if(cf && cf.dataset.cf==="subj-name"){

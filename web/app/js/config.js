@@ -236,6 +236,7 @@ function defaultCatalog(){
     packs:[],
     trash:[],
     tags:[], // etiquetas libres por alumno (paso 103) — {id,label,color}, ver getOrCreateTag() en helpers.js
+    gruposClase:[], // roster de clases grupales (paso 157) — {id,nombre,subjectId,studentIds,createdAt}, ver helpers.js
     cancelPolicy: defaultCancelPolicy(),
     recordatorios: defaultRecordatorios(),
     costos: defaultCostos(),

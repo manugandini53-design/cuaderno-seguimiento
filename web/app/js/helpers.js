@@ -1294,7 +1294,7 @@ function agendaRangeEvents(fromDate, toDate){
         if(Object.prototype.hasOwnProperty.call(exceptions,d)) continue; // lo cubre la 2da pasada (o está cancelada)
         events.push({studentId:s.id, studentName:s.name, subject:s.subject, subjectId:s.subjectId,
           date:d, time:h.time, duration:Number(h.duration)||60, kind:"horario", sourceId:h.id,
-          origDate:d, link:linkVideollamadaFor(s,h.link)});
+          origDate:d, link:linkVideollamadaFor(s,h.link), grupoId:h.grupoId||null});
       }
       Object.keys(exceptions).forEach(origDate=>{
         const ex=exceptions[origDate]; if(!ex || ex.cancelled) return;
@@ -1303,7 +1303,7 @@ function agendaRangeEvents(fromDate, toDate){
         events.push({studentId:s.id, studentName:s.name, subject:s.subject, subjectId:s.subjectId,
           date, time:ex.time||h.time, duration:Number(ex.duration||h.duration)||60,
           kind:"horario", sourceId:h.id, origDate, moved:date!==origDate, topic:ex.topic||"",
-          link:linkVideollamadaFor(s, ex.link!=null?ex.link:h.link)});
+          link:linkVideollamadaFor(s, ex.link!=null?ex.link:h.link), grupoId:h.grupoId||null});
       });
     });
     (s.clasesPuntuales||[]).forEach(p=>{
@@ -1312,10 +1312,74 @@ function agendaRangeEvents(fromDate, toDate){
         studentId:s.id, studentName:s.name, subject:s.subject, subjectId:s.subjectId,
         date:p.date, time:p.time, duration:Number(p.duration)||60,
         kind:"puntual", sourceId:p.id, seniaEstado:p.seniaEstado, topic:p.topic||"",
-        link:linkVideollamadaFor(s,p.link) });
+        link:linkVideollamadaFor(s,p.link), grupoId:p.grupoId||null });
     });
   });
   return events;
+}
+// colapsa eventos que comparten grupoId+kind+date+time en una sola tarjeta "grupal" (paso 157) —
+// se corre SIEMPRE antes de markOverlaps(), así los integrantes de un mismo grupo nunca se marcan
+// superpuestos entre sí (si alguno tiene además una clase individual a esa hora, esa sí sigue
+// marcándose superposición real contra el evento grupal). Eventos sin grupoId pasan intactos.
+function collapseGrupalEvents(events){
+  const byKey = new Map(), out = [];
+  events.forEach(e=>{
+    if(!e.grupoId){ out.push(e); return; }
+    const key = e.grupoId+"|"+e.kind+"|"+e.date+"|"+e.time;
+    let g = byKey.get(key);
+    if(!g){
+      g = {kind:"grupal", sourceKind:e.kind, grupoId:e.grupoId, subject:e.subject, subjectId:e.subjectId,
+        date:e.date, time:e.time, duration:e.duration, link:e.link, topic:e.topic||"",
+        origDate:e.origDate, moved:e.moved, studentIds:[], studentNames:[], members:[]};
+      byKey.set(key,g); out.push(g);
+    }
+    g.studentIds.push(e.studentId); g.studentNames.push(e.studentName);
+    g.members.push({studentId:e.studentId, sourceId:e.sourceId, seniaEstado:e.seniaEstado});
+  });
+  return out;
+}
+// ¿ya se registró esta ocurrencia grupal? — mismo criterio que studentHasSessionOnDate, pero
+// para todo el grupo a la vez (el registro grupal es atómico: o quedan todos con su fila de esa
+// fecha, o ninguno).
+function grupalOccurrenceRegistered(ev){
+  return ev.members.every(m=>studentHasSessionOnDate(m.studentId, ev.date));
+}
+// resuelve los valores vigentes de una ocurrencia grupal para el popover de edición — toma la
+// primera fila mirror que encuentra (todas deberían tener los mismos día/hora/duración/link/tema;
+// si no coincidieran por algún borde raro, gana la primera, sin bloquear la edición).
+function findAgendaEditEventGrupal(edit){
+  if(!edit) return null;
+  const kind = edit.kind;
+  const members = membersOfGrupoId(edit.grupoId, kind);
+  if(members.length===0) return null;
+  if(kind==="puntual"){
+    const first = members.map(({studentId,sourceId})=>{
+      const s=state.students.find(x=>x.id===studentId);
+      const p=s&&(s.clasesPuntuales||[]).find(x=>x.id===sourceId);
+      return p?{s,p}:null;
+    }).filter(Boolean)[0];
+    if(!first) return null;
+    return {grupoId:edit.grupoId, kind:"puntual", subject:first.s.subject, subjectId:first.s.subjectId,
+      date:first.p.date, time:first.p.time, duration:Number(first.p.duration)||60,
+      link:first.p.link||"", topic:first.p.topic||"", seniaEstado:first.p.seniaEstado,
+      studentIds:members.map(m=>m.studentId), studentNames:members.map(m=>(state.students.find(x=>x.id===m.studentId)||{}).name)};
+  }
+  const first = members.map(({studentId,sourceId})=>{
+    const s=state.students.find(x=>x.id===studentId);
+    const h=s&&(s.horarios||[]).find(x=>x.id===sourceId);
+    return h?{s,h}:null;
+  }).filter(Boolean)[0];
+  if(!first) return null;
+  const ex=(first.h.exceptions||{})[edit.origDate];
+  if(ex && ex.cancelled) return null;
+  return {grupoId:edit.grupoId, kind:"horario", subject:first.s.subject, subjectId:first.s.subjectId,
+    origDate:edit.origDate, day:first.h.day,
+    date: ex ? (ex.date||edit.origDate) : edit.origDate,
+    time: ex ? (ex.time||first.h.time) : first.h.time,
+    duration: Number(ex ? (ex.duration||first.h.duration) : first.h.duration)||60,
+    link: ex && ex.link!=null ? ex.link : (first.h.link||""),
+    topic: ex ? (ex.topic||"") : "",
+    studentIds:members.map(m=>m.studentId), studentNames:members.map(m=>(state.students.find(x=>x.id===m.studentId)||{}).name)};
 }
 // resuelve la ocurrencia que está editando el popover de la agenda (paso 135) con sus valores
 // vigentes ahora mismo (aplicando la excepción de ese horario si la hay) — separado de los
@@ -1408,10 +1472,10 @@ function agendaIcsRangeForView(){
   if((state.agendaViewMode||"semana")==="mes"){
     const mk = monthKeyOffset(state.agendaMonthOffset||0);
     const days = monthGridDays(mk);
-    return {events: agendaRangeEvents(days[0], days[days.length-1]), label: mk};
+    return {events: collapseGrupalEvents(agendaRangeEvents(days[0], days[days.length-1])), label: mk};
   }
   const weekStart = addDays(mondayOfWeek(today()), (state.agendaWeekOffset||0)*7);
-  return {events: agendaWeekEvents(weekStart), label: weekStart};
+  return {events: collapseGrupalEvents(agendaWeekEvents(weekStart)), label: weekStart};
 }
 // grilla de un mes (YYYY-MM) en semanas completas de lunes a domingo, con los días de los
 // meses vecinos que completan la primera y última semana (se muestran atenuados en la UI).
@@ -1497,6 +1561,145 @@ function applyCancelacion(studentId, puntualId){
   update(studentId, {clasesPuntuales});
   return {horas, nuevoEstado, credited:!!creditId};
 }
+
+/* ============ clases grupales (paso 157) ============
+   Un grupo (catalog.gruposClase, {id,nombre,subjectId,studentIds,createdAt}) es sólo el roster:
+   quiénes son y de qué materia. La clase en sí sigue viviendo por alumno, exactamente como
+   siempre — s.horarios/s.clasesPuntuales llevan un grupoId opcional que enlaza la fila "mirror"
+   de cada integrante (mismo día/hora/duración/link/tema, pero cada uno con su propio id de fila),
+   y una vez dada, cada s.sessions[] lleva grupoClaseId + grupoClaseNombre + grupoClaseMiembros
+   (snapshot de quiénes fueron, tomado al registrar — igual que el catálogo de materias, editar el
+   roster del grupo después no reescribe historial ya generado). Nada de esto agrega una colección
+   nueva de clases: todo lo que ya lee s.sessions/s.clasesPuntuales/s.horarios por alumno (montoSesion,
+   classDurationHours, classesInMonth, goalCounts, studentAlerts, el portal individual...) sigue
+   funcionando sin tocarlo. "Editar/cancelar esta ocurrencia" de un horario recurrente grupal es
+   siempre a nivel de TODO el grupo (nunca por integrante) — si uno solo falta un día puntual, eso
+   se resuelve como asistencia al registrar la clase (session.ausente), no como una excepción de
+   horario; así la recurrencia no necesita excepciones por-integrante. */
+function gruposClaseAll(){ return state.catalog.gruposClase||[]; }
+function gruposClaseFor(subjectId){ return gruposClaseAll().filter(g=>!subjectId || g.subjectId===subjectId); }
+function grupoClaseById(id){ return gruposClaseAll().find(g=>g.id===id) || null; }
+function crearGrupoClase(nombre, subjectId, studentIds){
+  const g = {id:uid(), nombre:(nombre||"").trim(), subjectId, studentIds:[...studentIds], createdAt:Date.now()};
+  state.catalog.gruposClase = [...gruposClaseAll(), g];
+  touchCatalog();
+  return g;
+}
+function renombrarGrupoClase(grupoId, nombre){
+  state.catalog.gruposClase = gruposClaseAll().map(g=>g.id===grupoId?{...g,nombre:(nombre||"").trim()}:g);
+  touchCatalog();
+}
+function actualizarMiembrosGrupoClase(grupoId, studentIds){
+  state.catalog.gruposClase = gruposClaseAll().map(g=>g.id===grupoId?{...g,studentIds:[...studentIds]}:g);
+  touchCatalog();
+}
+// Borra el grupo (roster) y también cualquier horario/clase puntual todavía agendada de ese
+// grupoId — pero nunca toca s.sessions ya registradas (quedan con su grupoClaseNombre/Miembros
+// como quedaron, historial intacto).
+function borrarGrupoClase(grupoId){
+  state.catalog.gruposClase = gruposClaseAll().filter(g=>g.id!==grupoId);
+  delHorarioGrupal(grupoId);
+  delPuntualClaseGrupal(grupoId);
+  touchCatalog();
+}
+// Aplica varios patches de estudiante de una — un solo save()/render() en vez de N (mismo
+// criterio que applyTarifaAjuste), para las escrituras "mirror" que tocan a todo un grupo a la vez.
+function updateMany(patches){
+  const byId = new Map(patches.filter(Boolean).map(p=>[p.id,p.patch]));
+  if(byId.size===0) return;
+  state.students = state.students.map(s=>{
+    const patch = byId.get(s.id); if(!patch) return s;
+    return {...s, ...patch, updatedAt:Date.now()};
+  });
+  save(); render();
+}
+// horario recurrente grupal: una fila en s.horarios de cada integrante, todas con el mismo
+// grupoId (cada una con su propio h.id — ver applyHorarioEdit/agendaRangeEvents, que ya operan
+// por alumno+sourceId; membersOfGrupoId() abajo es lo que las vuelve a encontrar juntas).
+function addHorarioGrupal(grupoId, studentIds, day, time, duration, link){
+  updateMany(studentIds.map(sid=>{
+    const s = state.students.find(x=>x.id===sid); if(!s) return null;
+    const h = {id:uid(), day, time, duration:Number(duration)||60, link:link||"", grupoId};
+    return {id:sid, patch:{horarios:[...(s.horarios||[]), h]}};
+  }));
+}
+// clase puntual grupal (agendada, futura, única): idem addPuntualClase() pero para N alumnos de
+// una — cada uno arrastra su propia seña si la tiene activa (opt-in por alumno, no por grupo).
+function addPuntualClaseGrupal(grupoId, studentIds, date, time, duration, link, topic){
+  const warnings=[];
+  updateMany(studentIds.map(sid=>{
+    const s = state.students.find(x=>x.id===sid); if(!s) return null;
+    const nueva = {id:uid(), date, time, duration:Number(duration)||60, link:link||"", topic:topic||"", grupoId};
+    if(hasSenia(s)){
+      nueva.seniaEstado="pendiente"; nueva.seniaMonto=seniaMontoFor(s);
+      const prev = previousPendingSenia(s, date);
+      if(prev) warnings.push(`${s.name}: no le cobraste la seña de la clase del ${fmtDate(prev.date)}.`);
+    }
+    return {id:sid, patch:{clasesPuntuales:[...(s.clasesPuntuales||[]), nueva]}};
+  }));
+  return {warnings};
+}
+// filas mirror (horario o clase puntual) de todos los alumnos que tienen esa grupoId cargada
+// ahora mismo — no depende del roster actual del grupo (que puede haber cambiado), sino de
+// quién quedó efectivamente etiquetado en su propio horario/clase puntual.
+function membersOfGrupoId(grupoId, kind){
+  const out=[];
+  state.students.forEach(s=>{
+    const arr = kind==="horario" ? (s.horarios||[]) : (s.clasesPuntuales||[]);
+    (arr||[]).forEach(x=>{ if(x.grupoId===grupoId) out.push({studentId:s.id, sourceId:x.id}); });
+  });
+  return out;
+}
+function applyHorarioEditGrupal(grupoId, origDate, patch, scope){
+  membersOfGrupoId(grupoId,"horario").forEach(({studentId,sourceId})=>applyHorarioEdit(studentId, sourceId, origDate, patch, scope));
+}
+function cancelHorarioOccurrenceGrupal(grupoId, origDate){
+  membersOfGrupoId(grupoId,"horario").forEach(({studentId,sourceId})=>cancelHorarioOccurrence(studentId, sourceId, origDate));
+}
+function delHorarioGrupal(grupoId){
+  updateMany(membersOfGrupoId(grupoId,"horario").map(({studentId})=>{
+    const s = state.students.find(x=>x.id===studentId); if(!s) return null;
+    return {id:studentId, patch:{horarios:(s.horarios||[]).filter(h=>h.grupoId!==grupoId)}};
+  }));
+}
+function editPuntualClaseGrupal(grupoId, patch){
+  membersOfGrupoId(grupoId,"puntual").forEach(({studentId,sourceId})=>editPuntualClase(studentId, sourceId, patch));
+}
+function applyCancelacionGrupal(grupoId){
+  return membersOfGrupoId(grupoId,"puntual")
+    .map(({studentId,sourceId})=>applyCancelacion(studentId, sourceId))
+    .filter(Boolean);
+}
+function delPuntualClaseGrupal(grupoId){
+  updateMany(membersOfGrupoId(grupoId,"puntual").map(({studentId})=>{
+    const s = state.students.find(x=>x.id===studentId); if(!s) return null;
+    return {id:studentId, patch:{clasesPuntuales:(s.clasesPuntuales||[]).filter(p=>p.grupoId!==grupoId)}};
+  }));
+}
+// Registra la clase grupal (dada, ya pasó): una fila nueva en s.sessions de cada alumno de
+// asistencias (asistencias: [{studentId,ausente:null|{motivo,cobra},tarea,monto}]), todas con el
+// mismo grupoClaseId recién generado y el mismo snapshot de miembros/nombre — igual criterio que
+// save-session con un solo alumno, sólo que en loop. Igual que el registro individual, no toca la
+// fila de horario/clase puntual de origen (si vino de una) — queda como "Ya registrada" en la
+// agenda, se borra a mano si hace falta, mismo criterio que siempre.
+function registrarClaseGrupal({topic, date, duration, note, grupoNombre, asistencias}){
+  const grupoClaseId = uid();
+  const miembros = asistencias.map(a=>{
+    const s = state.students.find(x=>x.id===a.studentId);
+    return {id:a.studentId, name: s?s.name:""};
+  });
+  const patches = asistencias.map(a=>{
+    const s = state.students.find(x=>x.id===a.studentId); if(!s) return null;
+    const session = a.ausente
+      ? {id:uid(), date, note:note||"", ausente:{motivo:a.ausente.motivo, cobra:a.ausente.cobra}, grupoClaseId, grupoClaseNombre:grupoNombre||"", grupoClaseMiembros:miembros}
+      : {id:uid(), date, topic:topic||"", tarea:a.tarea||"sd", note:note||"", duration, monto:a.monto!=null?a.monto:null,
+         objetivo:"", objetivoResult:null, cobrada:false, grupoClaseId, grupoClaseNombre:grupoNombre||"", grupoClaseMiembros:miembros};
+    return {id:a.studentId, patch:{sessions:[...(s.sessions||[]), session]}};
+  });
+  updateMany(patches);
+  return grupoClaseId;
+}
+
 // señas cobradas de este mes en cualquier alumno, sin cruzarse con clases/mensualidades
 // (ver hasPagos/pagoResumen más arriba) — rubro propio en la vista "Pagos".
 function pagosSeniaResumen(mk){
@@ -1548,8 +1751,18 @@ function rentabilidadMes(mk){
   const costosTotal = costoFijoTotal+costoVarTotal;
   const ganancia = ingresos-costosTotal;
 
+  // "horas trabajadas" no duplica una clase grupal por cada alumno (paso 157): el profesor dio
+  // esa clase UNA vez, sin importar con cuántos alumnos — se deduplica por grupoClaseId antes de
+  // sumar. Los desgloses por materia/alumno (rentabilidadPorMateria/PorAlumno más abajo) NO
+  // deduplican a propósito: ahí la pregunta es cuántas horas de clase recibió cada alumno/materia,
+  // y eso sí es una hora por cada uno.
   let horas=0, sinDuracion=0;
-  clases.forEach(({c})=>{ if(c.duration==null || c.duration==="") sinDuracion++; horas+=classDurationHours(c); });
+  const gruposContados = new Set();
+  clases.forEach(({c})=>{
+    if(c.duration==null || c.duration==="") sinDuracion++;
+    if(c.grupoClaseId){ if(gruposContados.has(c.grupoClaseId)) return; gruposContados.add(c.grupoClaseId); }
+    horas+=classDurationHours(c);
+  });
   const netoPorHora = horas>0 ? ganancia/horas : null;
 
   return { mk, ingresos, costoFijoTotal, costoVarTotal, costosTotal, ganancia, horas, clasesCount:clases.length, sinDuracion, netoPorHora };
@@ -2281,6 +2494,39 @@ function buildDemoData(){
       sess(4,"Ecuaciones e inecuaciones","hecha",true),
     ],
   }));
+
+  // 33-35) Trío grupal — Álgebra, un intensivo de tres alumnos con horario semanal compartido e
+  // historial de clase en común (paso 157, "clases grupales"): mismo grupoClaseId en cada clase
+  // ya dada (con su snapshot de miembros) y mismo grupoId en el horario recurrente — ver "Grupos
+  // de clase" en Cuenta. Máximo faltó una clase (avisó con tiempo, no se le cobra) mientras las
+  // otras dos sí la dieron, para mostrar asistencia mixta dentro de una misma clase grupal.
+  const grupoTrioId = uid();
+  const grupoTrioNombre = "Álgebra — Trío Lunes 18hs";
+  const trioNombres = ["Julieta Paz","Máximo Rey","Agustín Bravo"];
+  const trioIds = trioNombres.map(()=>uid());
+  const trioMiembros = trioIds.map((id,i)=>({id, name:trioNombres[i]}));
+  const grupoClaseIdPorFecha = [uid(), uid(), uid(), uid()]; // una por clase ya dada (28/21/14/7 días)
+  const trioSesionDada = (idx, daysAgo, topic) => ({id:uid(), date:addDays(today(),-daysAgo), topic, tarea:"hecha", note:"",
+    duration:60, cobrada:daysAgo>7, objetivo:"", objetivoResult:null,
+    grupoClaseId:grupoClaseIdPorFecha[idx], grupoClaseNombre:grupoTrioNombre, grupoClaseMiembros:trioMiembros});
+  const trioSesionAusente = (idx, daysAgo) => ({id:uid(), date:addDays(today(),-daysAgo), note:"Avisó por WhatsApp a la mañana",
+    ausente:{motivo:"aviso_tiempo", cobra:false},
+    grupoClaseId:grupoClaseIdPorFecha[idx], grupoClaseNombre:grupoTrioNombre, grupoClaseMiembros:trioMiembros});
+  const trioDiaHorario = weekdayIdx(addDays(today(),2));
+  trioNombres.forEach((nombre,i)=>{
+    students.push(mk({
+      id:trioIds[i], name:nombre, subject:"Álgebra y Geometría Analítica", subjectId:"demo-alg", career:"Ingeniería",
+      semaforo:"verde", tarifa:8500, modalidad:"clase",
+      horarios:[{id:uid(), day:trioDiaHorario, time:"18:00", duration:60, grupoId:grupoTrioId}],
+      sessions:[
+        trioSesionDada(0,28,"Vectores en el plano y el espacio"),
+        trioSesionDada(1,21,"Rectas y planos"),
+        i===1 ? trioSesionAusente(2,14) : trioSesionDada(2,14,"Matrices y determinantes"),
+        trioSesionDada(3,7,"Matrices y determinantes"),
+      ],
+    }));
+  });
+  catalog.gruposClase = [{id:grupoTrioId, nombre:grupoTrioNombre, subjectId:"demo-alg", studentIds:[...trioIds], createdAt:Date.now()}];
 
   // Portal ya activado (paso 95): llave general habilitada, llave individual para Lucía y
   // Valentina (ver portalShare de cada una más arriba) y una llave grupal para Análisis

@@ -538,27 +538,37 @@ function hoyCard(title, num, body, action){
     ${action?`<button class="btn btn-ghost btn-block hoy-card-action" data-a="${action.a}">${esc(action.label)}</button>`:""}
   </div>`;
 }
+// Fila de "Clases de hoy"/"Mañana" en el tablero — común a un evento individual o ya colapsado en
+// grupal (ver collapseGrupalEvents en helpers.js); un evento grupal no tiene un único alumno al
+// que registrarle/recordarle por WhatsApp, así que ese click abre el mismo popover que la agenda
+// (ver agenda-event-grupal-open en events.js) en vez del atajo directo de registrar.
+function vHoyRow(e, dia){
+  const quien = e.kind==="grupal"
+    ? `<span class="hoy-row-name">${e.studentIds.length} alumnos</span> <span class="hint">${esc(e.studentNames.join(", "))}</span>`
+    : `<span class="hoy-row-name">${esc(e.studentName)}</span>${e.subject?` <span class="hint">· ${esc(e.subject)}</span>`:""}`;
+  let acciones;
+  if(e.kind==="grupal"){
+    const done = grupalOccurrenceRegistered(e);
+    acciones = `${done ? `<span class="badge badge-green">Registrada</span>`
+        : `<button class="chip" data-a="agenda-event-grupal-open" data-grupo-id="${e.grupoId}" data-kind="${e.sourceKind}" data-orig-date="${e.origDate||e.date}">Registrar</button>`}
+      ${e.link?`<a class="chip" target="_blank" rel="noopener" href="${esc(e.link)}">Entrar a la clase</a>`:""}`;
+  }else{
+    const done = studentHasSessionOnDate(e.studentId, e.date);
+    acciones = `${done ? `<span class="badge badge-green">Registrada</span>`
+        : `<button class="chip" data-a="agenda-log" data-id="${e.studentId}" data-date="${e.date}">Registrar</button>`}
+      ${e.link?`<a class="chip" target="_blank" rel="noopener" href="${esc(e.link)}">Entrar a la clase</a>`:""}
+      ${vWaRecordarClaseBtn(e,dia)}`;
+  }
+  return `<div class="hoy-row">
+    <div class="hoy-row-main"><span class="hoy-row-time">${esc(e.time)}</span>${e.subjectId?subjectDot(e.subjectId):""}${quien}</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${acciones}</div>
+  </div>`;
+}
 function vHoyClasesHoy(){
-  const events = agendaRangeEvents(today(), today()).sort((a,b)=>a.time.localeCompare(b.time));
+  const events = collapseGrupalEvents(agendaRangeEvents(today(), today())).sort((a,b)=>a.time.localeCompare(b.time));
   const body = events.length===0
     ? emptyState(ICON_CALENDAR, "Sin clases hoy", "No tenés clases agendadas para hoy.")
-    : events.map(e=>{
-        const done = studentHasSessionOnDate(e.studentId, today());
-        return `<div class="hoy-row">
-          <div class="hoy-row-main">
-            <span class="hoy-row-time">${esc(e.time)}</span>
-            ${e.subjectId?subjectDot(e.subjectId):""}
-            <span class="hoy-row-name">${esc(e.studentName)}</span>
-            ${e.subject?`<span class="hint">· ${esc(e.subject)}</span>`:""}
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            ${done ? `<span class="badge badge-green">Registrada</span>`
-              : `<button class="chip" data-a="agenda-log" data-id="${e.studentId}" data-date="${today()}">Registrar</button>`}
-            ${e.link?`<a class="chip" target="_blank" rel="noopener" href="${esc(e.link)}">Entrar a la clase</a>`:""}
-            ${vWaRecordarClaseBtn(e,"hoy")}
-          </div>
-        </div>`;
-      }).join("");
+    : events.map(e=>vHoyRow(e,"hoy")).join("");
   return hoyCard("Clases de hoy", events.length, body, {a:"nav-agenda", label:"Ver agenda completa"});
 }
 function vHoyCobrar(){
@@ -582,7 +592,7 @@ function vHoyProximo(){
     .sort((a,b)=>a.examDate.localeCompare(b.examDate)).slice(0,3);
   const goals = activos.map(s=>({s,c:pendingGoalClosure(s)})).filter(x=>x.c).slice(0,3);
   const tomorrow = addDays(today(),1);
-  const manana = agendaRangeEvents(tomorrow,tomorrow).sort((a,b)=>a.time.localeCompare(b.time));
+  const manana = collapseGrupalEvents(agendaRangeEvents(tomorrow,tomorrow)).sort((a,b)=>a.time.localeCompare(b.time));
   const total = exams.length + goals.length + manana.length;
   let body;
   if(total===0){
@@ -607,10 +617,7 @@ function vHoyProximo(){
         </button>`).join("");
     }
     if(manana.length){
-      body += `<div class="hoy-subhead">Mañana</div>` + manana.map(e=>
-        `<div class="hoy-row"><div class="hoy-row-main"><span class="hoy-row-time">${esc(e.time)}</span>${e.subjectId?subjectDot(e.subjectId):""}<span class="hoy-row-name">${esc(e.studentName)}</span></div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${e.link?`<a class="chip" target="_blank" rel="noopener" href="${esc(e.link)}">Entrar a la clase</a>`:""}${vWaRecordarClaseBtn(e,"mañana")}</div></div>`
-      ).join("");
+      body += `<div class="hoy-subhead">Mañana</div>` + manana.map(e=>vHoyRow(e,"mañana")).join("");
     }
   }
   return hoyCard("Próximo", total, body, {a:"nav-agenda", label:"Ver agenda"});
@@ -1137,6 +1144,11 @@ function vRegistrarClaseCard(s){
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" data-a="set-registrar-clase-tipo" data-f="pasada">Clase pasada</button>
         <button class="btn btn-ghost" data-a="set-registrar-clase-tipo" data-f="proxima">Próxima clase</button>
+      </div>
+      <div style="margin-top:8px">
+        ${alive().some(x=>x.status==="activo" && x.id!==s.id && s.subjectId && x.subjectId===s.subjectId)
+          ? `<button class="chip" data-a="grupal-form-open-ficha">+ Es una clase grupal</button>`
+          : `<span class="hint">Para una clase grupal hace falta otro alumno activo en la misma materia.</span>`}
       </div></div>`;
   }
   if(tipo==="proxima") return vProximaClaseForm(s);
@@ -1199,6 +1211,121 @@ function vProximaClaseForm(s){
     </div></div>`;
 }
 
+/* ============ formulario de clase grupal (paso 157) ============
+   Un único formulario, gobernado por state.grupalForm, reusado desde tres entradas: "+ Es una
+   clase grupal" en la ficha (arranca con ese alumno ya puesto, f.pinnedId), "+ Clase grupal" en
+   Agenda (arranca vacío, primero pide materia) y "Registrar esta clase" sobre una ocurrencia
+   grupal ya agendada (f.origin, salta directo a la asistencia). Shape de state.grupalForm:
+   {subjectId, studentIds, pinnedId, tipo:"pasada"|"proxima"|null, date, time, duration, topic,
+   link, note, recurrente, nombre, asistencias:{studentId:{ausente,tarea,monto}}, origin:null|
+   {grupoId,kind,date,time,duration,topic,link}}. */
+function vGrupalForm(){
+  const f = state.grupalForm; if(!f) return "";
+  return `<div class="overlay" data-a="grupal-form-noop-close">
+    <div class="modal" data-a="grupal-form-noop" style="max-width:460px">${vGrupalFormBody(f)}</div>
+  </div>`;
+}
+function vGrupalFormBody(f){
+  let h = `<div class="ftitle" style="font-size:16px">Clase grupal</div>`;
+  if(!f.subjectId){
+    const subjects = state.catalog.subjects.filter(m=>alive().filter(x=>x.status==="activo").some(x=>x.subjectId===m.id));
+    h += `<div class="hint" style="margin-bottom:8px">Elegí la materia — se listan sus alumnos activos para armar el grupo.</div>`;
+    h += subjects.length===0 ? `<div class="hint">No hay materias con alumnos activos.</div>`
+      : `<div style="display:flex;gap:6px;flex-wrap:wrap">${subjects.map(m=>`<button class="chip" data-a="grupal-form-set-subject" data-id="${m.id}">${esc(m.name)}</button>`).join("")}</div>`;
+    return h + `<div style="margin-top:10px"><button class="chip" data-a="grupal-form-cancel">Cancelar</button></div>`;
+  }
+  const materia = subjById(f.subjectId);
+  if(!f.origin){
+    const candidatos = alive().filter(x=>x.status==="activo" && x.subjectId===f.subjectId);
+    h += `<div class="hint" style="margin-bottom:6px">Alumnos de ${esc(materia?materia.name:"")} — tildá quiénes van:</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      ${candidatos.map(x=>`<button class="chip ${f.studentIds.includes(x.id)?"on":""}" ${f.pinnedId===x.id?"disabled":""} data-a="grupal-form-toggle-alumno" data-id="${x.id}">${esc(x.name)}</button>`).join("")}
+    </div>`;
+    if(candidatos.length<2) h += `<div class="hint" style="margin-bottom:8px">Hace falta al menos otro alumno activo en esta materia.</div>`;
+    if(gruposClaseFor(f.subjectId).length>0){
+      h += `<div class="hint" style="margin-bottom:6px">O elegí un grupo ya armado:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        ${gruposClaseFor(f.subjectId).map(g=>`<button class="chip" data-a="grupal-form-usar-grupo" data-id="${g.id}">${esc(g.nombre)} (${g.studentIds.length})</button>`).join("")}
+      </div>`;
+    }
+  } else {
+    h += `<div class="hint" style="margin-bottom:6px">${esc(materia?materia.name:"")} · ${f.studentIds.map(id=>(state.students.find(x=>x.id===id)||{}).name).join(", ")}</div>`;
+  }
+  if(f.studentIds.length<2){
+    return h + `<div style="margin-top:6px"><button class="chip" data-a="grupal-form-cancel">Cancelar</button></div>`;
+  }
+  if(!f.origin && !f.tipo){
+    h += `<div class="hint" style="margin:6px 0 8px">¿Ya la dieron, o la están agendando para más adelante?</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" data-a="grupal-form-set-tipo" data-f="pasada">Clase pasada</button>
+      <button class="btn btn-ghost" data-a="grupal-form-set-tipo" data-f="proxima">Próxima clase</button>
+    </div>
+    <div style="margin-top:8px"><button class="chip" data-a="grupal-form-back">‹ Volver</button></div>`;
+    return h;
+  }
+  const tipo = f.origin ? "pasada" : f.tipo;
+  if(tipo==="proxima"){
+    h += `<div class="frow" style="margin-top:8px">
+      <div class="field"><div class="flabel">Fecha</div><input type="date" min="${today()}" value="${esc(f.date||today())}" data-cf="grupal-form-date"></div>
+      <div class="field"><div class="flabel">Hora</div><input type="time" value="${esc(f.time||"18:00")}" data-cf="grupal-form-time"></div>
+      <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div><input type="number" value="${f.duration||60}" min="15" step="15" data-cf="grupal-form-duration"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><div class="flabel">Tema previsto (opcional)</div><input value="${esc(f.topic||"")}" data-cf="grupal-form-topic"></div>
+      <div class="field"><div class="flabel">Link de videollamada (opcional)</div><input value="${esc(f.link||"")}" data-cf="grupal-form-link"></div>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:13.5px">
+      <input type="checkbox" ${f.recurrente?"checked":""} data-cf="grupal-form-recurrente"> Repetir cada semana (crea un grupo permanente, gestionable desde Cuenta → Grupos de clase)
+    </label>
+    ${f.recurrente?`<div class="field" style="margin-top:6px"><div class="flabel">Nombre del grupo</div><input placeholder="Ej: Álgebra — Lunes 18hs" value="${esc(f.nombre||"")}" data-cf="grupal-form-nombre"></div>`:""}
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="primary" style="margin-left:0" data-a="grupal-form-save-proxima">Agendar</button>
+      <button class="chip" data-a="grupal-form-back">‹ Volver</button>
+    </div>`;
+  }else{
+    h += `<div class="frow" style="margin-top:8px">
+      <div class="field"><div class="flabel">Fecha</div><input type="date" max="${today()}" value="${esc(f.date||today())}" data-cf="grupal-form-date"></div>
+      <div class="field"><div class="flabel">Tema principal</div><input value="${esc(f.topic||"")}" placeholder="Común a todo el grupo" data-cf="grupal-form-topic"></div>
+      <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div><input type="number" value="${f.duration||60}" min="1" data-cf="grupal-form-duration"></div>
+    </div>
+    <div class="field"><div class="flabel">Nota rápida (opcional, común al grupo)</div><input value="${esc(f.note||"")}" data-cf="grupal-form-note"></div>
+    <div style="margin-top:10px">${f.studentIds.map(id=>vGrupalAsistenciaRow(id,f)).join("")}</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="primary" style="margin-left:0" data-a="grupal-form-save-pasada">Guardar</button>
+      ${!f.origin?`<button class="chip" data-a="grupal-form-back">‹ Volver</button>`:`<button class="chip" data-a="grupal-form-cancel">Cancelar</button>`}
+    </div>`;
+  }
+  return h;
+}
+function vGrupalAsistenciaRow(studentId, f){
+  const s = state.students.find(x=>x.id===studentId); if(!s) return "";
+  const a = (f.asistencias&&f.asistencias[studentId]) || {};
+  const ausente = !!a.ausente;
+  return `<div class="log" style="align-items:center;flex-wrap:wrap">
+    <div class="body"><b>${esc(s.name)}</b></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <button class="chip ${!ausente?"on":""}" data-a="grupal-asistencia-presente" data-id="${studentId}">Vino</button>
+      <button class="chip ${ausente?"on":""}" data-a="grupal-asistencia-ausente" data-id="${studentId}">Ausente</button>
+      ${!ausente ? `<select data-cf="grupal-asistencia-tarea" data-id="${studentId}">
+          <option value="sd" ${(!a.tarea||a.tarea==="sd")?"selected":""}>Tarea: —</option>
+          <option value="hecha" ${a.tarea==="hecha"?"selected":""}>Tarea: hecha</option>
+          <option value="intentada" ${a.tarea==="intentada"?"selected":""}>Tarea: intentada</option>
+          <option value="no" ${a.tarea==="no"?"selected":""}>Tarea: no hecha</option>
+        </select>` : ""}
+      ${!ausente && s.modalidad==="hora" ? `<input type="number" min="0" style="max-width:110px" data-cf="grupal-asistencia-monto" data-id="${studentId}" placeholder="Monto (auto)" value="${a.monto!=null?a.monto:""}">` : ""}
+    </div>
+    ${ausente ? `<div class="frow" style="margin-top:6px;flex-basis:100%">
+        <div class="field"><div class="flabel">Motivo</div><select data-cf="grupal-asistencia-motivo" data-id="${studentId}">
+          ${Object.entries(AUSENCIA_MOTIVO_META).map(([k,m])=>`<option value="${k}" ${(a.ausente&&a.ausente.motivo)===k?"selected":""}>${esc(m.label)}</option>`).join("")}
+        </select></div>
+        <div class="field"><div class="flabel">¿Se cobra?</div><div style="display:flex;gap:8px">
+          <button class="chip ${!(a.ausente&&a.ausente.cobra)?"on":""}" data-a="grupal-asistencia-cobra" data-id="${studentId}" data-f="no">No</button>
+          <button class="chip ${(a.ausente&&a.ausente.cobra)?"on":""}" data-a="grupal-asistencia-cobra" data-id="${studentId}" data-f="si">Sí</button>
+        </div></div>
+      </div>` : ""}
+  </div>`;
+}
+
 /* ============ ficha → Clases: registrar/revisar clases dictadas, horarios habituales, clases
    puntuales y simulacros — todo lo que es "actividad" con el alumno ============ */
 function vFichaClases(s){
@@ -1213,6 +1340,7 @@ function vFichaClases(s){
             <div class="body"><span class="badge badge-red">Ausente</span>
             <span class="tareatag">${esc(m.label)}</span>
             <span class="tareatag">${c.ausente.cobra?"se cobra":"no se cobra"}</span>
+            ${c.grupoClaseId?`<span class="tareatag" title="${esc((c.grupoClaseMiembros||[]).map(x=>x.name).join(", "))}">Clase grupal (${(c.grupoClaseMiembros||[]).length})</span>`:""}
             ${c.note?`<div class="note">${esc(c.note)}</div>`:""}</div>
             <button class="del" data-a="del-session" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button></div>`;
         }
@@ -1229,6 +1357,7 @@ function vFichaClases(s){
       <span class="tareatag">${c.duration!=null&&c.duration!==""?Math.round(c.duration)+" min":"60 min (asumido)"}</span>
       ${s.modalidad==="hora"?`<span class="tareatag">${fmtMoney(montoSesion(s,c))}${c.monto!=null&&c.monto!==""?" (manual)":""}</span>`:""}
       ${c.tarea&&c.tarea!=="sd"?`<span class="tareatag" style="color:${TAREA_META[c.tarea].fg}">tarea: ${TAREA_META[c.tarea].label}</span>`:""}
+      ${c.grupoClaseId?`<span class="tareatag" title="${esc((c.grupoClaseMiembros||[]).map(x=>x.name).join(", "))}">Clase grupal (${(c.grupoClaseMiembros||[]).length})</span>`:""}
       ${c.note?`<div class="note">${esc(c.note)}</div>`:""}
       ${c.objetivo?`<div class="note goaltag"><span class="icon-inline">${ICON_TARGET}</span> ${esc(c.objetivo)}${c.objetivoResult
         ? ` <span style="color:${OBJETIVO_META[c.objetivoResult.estado].fg}">· <span class="icon-inline">${OBJETIVO_ICONS[c.objetivoResult.estado]}</span> ${OBJETIVO_META[c.objetivoResult.estado].label}${c.objetivoResult.pct!=null?` (${c.objetivoResult.pct}%)`:""}</span>`
@@ -1585,6 +1714,7 @@ function vAgendaSemana(){
       ${offset!==0?`<button class="chip" data-a="agenda-today">Esta semana</button>`:""}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="chip" data-a="grupal-form-open-agenda">+ Clase grupal</button>
       <button class="chip" data-a="open-agenda-imprimir">Imprimir semana</button>
       ${vExportIcsButton()}
     </div>
@@ -1597,7 +1727,7 @@ function vAgendaSemana(){
     return h;
   }
 
-  const events = markOverlaps(agendaWeekEvents(weekStart));
+  const events = markOverlaps(collapseGrupalEvents(agendaWeekEvents(weekStart)));
   if(events.length===0){
     h += `<div class="hint" style="margin-bottom:10px">Sin clases agendadas esta semana — clickeá un bloque de la grilla para programar una.</div>`;
   }else{
@@ -1643,7 +1773,7 @@ function vAgendaWeekGrid(weekStart, events){
       if(list.length===0){
         return `<div class="week-cell empty ${isToday?"today":""}" data-a="agenda-grid-add" data-date="${d}" data-hour="${label}">${nowLine}</div>`;
       }
-      return `<div class="week-cell ${isToday?"today":""}">${nowLine}${list.map(e=>vAgendaEvent(e,d)).join("")}</div>`;
+      return `<div class="week-cell ${isToday?"today":""}">${nowLine}${list.map(e=>e.kind==="grupal"?vAgendaEventGrupal(e,d):vAgendaEvent(e,d)).join("")}</div>`;
     }).join("");
   }
   h += `</div></div>`;
@@ -1674,7 +1804,7 @@ function vAgendaGridQuickForm(){
 function vAgendaMes(){
   const mk = monthKeyOffset(state.agendaMonthOffset||0);
   const days = monthGridDays(mk);
-  const events = agendaRangeEvents(days[0], days[days.length-1]);
+  const events = collapseGrupalEvents(agendaRangeEvents(days[0], days[days.length-1]));
   const byDate = {};
   events.forEach(e=>{ (byDate[e.date]=byDate[e.date]||[]).push(e); });
 
@@ -1685,7 +1815,10 @@ function vAgendaMes(){
       <button class="chip" data-a="agenda-month-next">Mes siguiente →</button>
       ${(state.agendaMonthOffset||0)!==0?`<button class="chip" data-a="agenda-month-today">Este mes</button>`:""}
     </div>
-    ${vExportIcsButton()}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="chip" data-a="grupal-form-open-agenda">+ Clase grupal</button>
+      ${vExportIcsButton()}
+    </div>
   </div>`;
   h += vExportIcsHint();
 
@@ -1704,7 +1837,7 @@ function vAgendaMes(){
   return h;
 }
 function vAgendaDayDetail(date){
-  const events = markOverlaps(agendaRangeEvents(date,date)).sort((a,b)=>a.time.localeCompare(b.time));
+  const events = markOverlaps(collapseGrupalEvents(agendaRangeEvents(date,date))).sort((a,b)=>a.time.localeCompare(b.time));
   let h = `<div class="formcard">
     <div class="ftitle">${esc(fmtDate(date))}${date===today()?" · hoy":""}</div>`;
   h += events.length===0 ? `<div class="empty">Sin clases este día.</div>`
@@ -1740,7 +1873,7 @@ function vAgendaDayHours(events, date){
     const list = events.filter(e=>Math.floor(e.startMin/60)===hr);
     h += `<div class="agenda-hour-row">
       <div class="agenda-hour-label">${label}</div>
-      <div class="agenda-hour-slot">${list.map(e=>vAgendaEvent(e,date)).join("")}</div>
+      <div class="agenda-hour-slot">${list.map(e=>e.kind==="grupal"?vAgendaEventGrupal(e,date):vAgendaEvent(e,date)).join("")}</div>
     </div>`;
   }
   return h + `</div>`;
@@ -1760,6 +1893,24 @@ function vAgendaEvent(e, date){
     ${past && !already ? `<button class="chip" style="margin-top:6px" data-a="agenda-log" data-id="${e.studentId}" data-date="${e.date}">Registrar esta clase</button>` : ""}
     ${!past && e.link ? `<a class="chip" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(e.link)}">Entrar a la clase</a>` : ""}
     ${waBtn ? `<div style="margin-top:6px">${waBtn}</div>` : ""}
+  </div>`;
+}
+// Tarjeta de una clase grupal ya colapsada (paso 157, ver collapseGrupalEvents en helpers.js) —
+// mismo look que vAgendaEvent pero con los N integrantes en vez de un solo alumno, y sin botón de
+// WhatsApp (no hay un único destinatario). Abre el popover grupal (agenda-event-grupal-open).
+function vAgendaEventGrupal(e, date){
+  const past = date<today();
+  const already = past && grupalOccurrenceRegistered(e);
+  const borderColor = e.subjectId ? `var(--subj-${subjectColorKey(e.subjectId)}-fg)` : "transparent";
+  return `<div class="agenda-event ${e.overlap?"overlap":""}" style="border-left:3px solid ${borderColor};cursor:pointer"
+    data-a="agenda-event-grupal-open" data-grupo-id="${e.grupoId}" data-kind="${e.sourceKind}" data-orig-date="${e.origDate||e.date}">
+    <div class="agenda-time">${esc(e.time)} <span class="hint">${e.duration}min</span></div>
+    <div class="agenda-who" style="display:flex;align-items:center;gap:5px">${e.subjectId?subjectDot(e.subjectId):""} <b>${e.studentIds.length} alumnos</b>${e.subject?` <span class="hint">· ${esc(e.subject)}</span>`:""}</div>
+    <div class="hint">${esc(e.studentNames.join(", "))}</div>
+    ${e.overlap?`<div class="hint" style="color:var(--status-desaprobo-fg);display:flex;align-items:center;gap:4px"><span class="icon-inline" style="width:12px;height:12px">${ICON_WARNING}</span> se superpone con otra clase</div>`:""}
+    ${past && already ? `<div class="hint" style="color:var(--status-activo-fg)">Ya registrada</div>` : ""}
+    ${past && !already ? `<button class="chip" style="margin-top:6px" data-a="agenda-event-grupal-open" data-grupo-id="${e.grupoId}" data-kind="${e.sourceKind}" data-orig-date="${e.origDate||e.date}">Registrar esta clase</button>` : ""}
+    ${!past && e.link ? `<a class="chip" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(e.link)}">Entrar a la clase</a>` : ""}
   </div>`;
 }
 
@@ -1836,6 +1987,74 @@ function vAgendaEditOverlay(){
   </div>`;
   return h;
 }
+// Popover de edición de una clase GRUPAL desde la agenda (paso 157) — mismos campos que
+// vAgendaEditOverlay, pero el cambio siempre aplica a TODO el grupo (no hay alcance por
+// integrante: un alumno faltando un día puntual es asistencia al registrar, no una excepción de
+// horario, ver el comentario grande de "clases grupales" en helpers.js). "Registrar esta clase"
+// no navega a ninguna ficha — abre el formulario grupal de asistencia (state.grupalForm).
+function vAgendaEditOverlayGrupal(){
+  const edit = state.agendaEditGrupal; if(!edit) return "";
+  const ev = findAgendaEditEventGrupal(edit);
+  if(!ev){ state.agendaEditGrupal=null; state.agendaEditGrupalPending=null; return ""; }
+  const past = ev.date<today();
+  const already = past && grupalOccurrenceRegistered({members: membersOfGrupoId(ev.grupoId, ev.kind).map(m=>({studentId:m.studentId})), date:ev.date});
+  const pending = ev.kind==="horario" ? state.agendaEditGrupalPending : null;
+  const dateVal = pending && pending.date!=null ? pending.date : ev.date;
+  const timeVal = pending && pending.time!=null ? pending.time : ev.time;
+  const durVal = pending && pending.duration!=null ? pending.duration : ev.duration;
+  const linkVal = pending && pending.link!=null ? pending.link : (ev.link||"");
+
+  let h = `<div class="overlay" data-a="agenda-edit-grupal-close">
+    <div class="modal" data-a="agenda-edit-grupal-noop" style="max-width:400px">
+      <div class="ftitle" style="font-size:16px">Editar clase grupal</div>
+      <div class="hint" style="margin-bottom:10px">
+        <b>${ev.studentNames.length} alumnos</b>: ${esc(ev.studentNames.join(", "))}
+        ${ev.subject?` · ${esc(ev.subject)}`:""}${ev.kind==="horario"?` · clase recurrente los ${esc(DIAS_SEMANA[ev.day])}`:""}
+      </div>
+      <div class="frow">
+        <div class="field"><div class="flabel">Fecha</div><input type="date" data-cf="agenda-edit-grupal-date" value="${esc(dateVal)}"></div>
+        <div class="field"><div class="flabel">Hora</div><input type="time" data-cf="agenda-edit-grupal-time" value="${esc(timeVal)}"></div>
+        <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" min="15" step="15" data-cf="agenda-edit-grupal-duration" value="${esc(String(durVal))}"></div>
+      </div>
+      <div class="field" style="margin-top:8px"><div class="flabel">Tema previsto</div><input type="text" data-cf="agenda-edit-grupal-topic" value="${esc(ev.topic||"")}" placeholder="Opcional"></div>
+      <div class="field" style="margin-top:8px"><div class="flabel">Link de videollamada</div><input type="text" data-cf="agenda-edit-grupal-link" value="${esc(linkVal)}" placeholder="Opcional"></div>`;
+
+  if(pending){
+    h += `<div class="formcard" style="margin-top:10px">
+      <div class="hint" style="margin-bottom:8px">Esta clase es parte de un horario recurrente grupal. ¿El cambio aplica a...?</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="chip" data-a="agenda-edit-grupal-scope-solo">Sólo a esta clase</button>
+        <button class="chip" data-a="agenda-edit-grupal-scope-todas">Todas las de este horario</button>
+        <button class="chip" data-a="agenda-edit-grupal-scope-cancel">Deshacer cambio</button>
+      </div>
+    </div>`;
+  }
+
+  h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+    ${past && !already ? `<button class="chip" data-a="agenda-edit-grupal-register">Registrar esta clase</button>` : ""}
+    ${!past && ev.link ? `<a class="chip" target="_blank" rel="noopener" href="${esc(ev.link)}">Entrar a la clase</a>` : ""}
+    ${!state.agendaEditGrupalCancelConfirm ? `<button class="chip" data-a="agenda-edit-grupal-cancel-ask">Cancelar / ausencia (todo el grupo)</button>` : ""}
+    ${!state.agendaEditGrupalDeleteConfirm ? `<button class="chip" data-a="agenda-edit-grupal-delete-ask">${ev.kind==="puntual"?"Borrar esta clase":"Eliminar este horario"}</button>` : ""}
+  </div>`;
+
+  if(state.agendaEditGrupalCancelConfirm){
+    h += `<div class="hint" style="margin-top:8px">¿Seguro? Se marca cancelada/ausente para los ${ev.studentNames.length} alumnos del grupo — si sólo uno faltó, mejor registrá la clase y marcalo ausente a él solo.
+      <button class="chip" data-a="agenda-edit-grupal-cancel-confirm">Sí, cancelar</button>
+      <button class="chip" data-a="agenda-edit-grupal-cancel-cancel">No</button></div>`;
+  }
+  if(state.agendaEditGrupalDeleteConfirm){
+    h += `<div class="hint" style="margin-top:8px">¿Seguro? ${ev.kind==="puntual"?"Se borra esta clase puntual para los "+ev.studentNames.length+" alumnos.":"Se elimina TODO el horario recurrente grupal, no sólo esta clase."}
+      <button class="chip" data-a="agenda-edit-grupal-delete-confirm">Sí, eliminar</button>
+      <button class="chip" data-a="agenda-edit-grupal-delete-cancel">No</button></div>`;
+  }
+
+  h += `<div style="display:flex;justify-content:flex-end;margin-top:14px">
+    <button class="chip" data-a="agenda-edit-grupal-close">Cerrar</button>
+  </div>
+    </div>
+  </div>`;
+  return h;
+}
 
 /* ============ agenda semanal imprimible (paso 118) ============
    Mismo patrón de "documento" que informe/contrato/recibo (.informe-bar sin imprimir + .informe-doc
@@ -1896,7 +2115,8 @@ function buildAgendaIcs(events){
     lines.push("DTSTAMP:"+stamp);
     lines.push("DTSTART:"+icsDateTime(e.date,e.time));
     lines.push("DTEND:"+icsDateTime(e.date,addMinutesToTime(e.time,e.duration)));
-    lines.push("SUMMARY:"+icsEscape(`Clase: ${e.studentName}${e.subject?" — "+e.subject:""}`));
+    const quien = e.kind==="grupal" ? `Clase grupal (${e.studentNames.join(", ")})` : `Clase: ${e.studentName}`;
+    lines.push("SUMMARY:"+icsEscape(`${quien}${e.subject?" — "+e.subject:""}`));
     lines.push("END:VEVENT");
   });
   lines.push("END:VCALENDAR");
@@ -2944,8 +3164,8 @@ function vCobrosCard(){
 // cortos) — el título y la descripción largos de cada grupo van directo en su vCuentaGroup().
 const CUENTA_GROUPS_META = [
   {id:"perfil", label:"Perfil"}, {id:"cobros", label:"Cobros"}, {id:"preferencias", label:"Preferencias"},
-  {id:"mensajes", label:"Mensajes"}, {id:"portal", label:"Portal"}, {id:"datos", label:"Datos"},
-  {id:"aplicacion", label:"Aplicación"}, {id:"sesion", label:"Sesión"},
+  {id:"mensajes", label:"Mensajes"}, {id:"portal", label:"Portal"}, {id:"gruposclase", label:"Grupos"},
+  {id:"datos", label:"Datos"}, {id:"aplicacion", label:"Aplicación"}, {id:"sesion", label:"Sesión"},
 ];
 function vCuentaIndice(){
   return `<div class="cuenta-indice">${CUENTA_GROUPS_META.map(g=>
@@ -3037,6 +3257,7 @@ function vCuenta(){
   ${vCuentaGroup("mensajes","Mensajes y plantillas","Los textos que la app arma para WhatsApp y el recibo — todos editables desde acá.", vMensajesCard())}
   ${vCuentaGroup("portal","Portal y llaves","La página pública para tus alumnos: activarla, la llave general, avisos y llaves grupales por materia.",
     vPortalCard()+vPortalAvisosCard()+vPortalGruposCard())}
+  ${vCuentaGroup("gruposclase","Grupos de clase","Quiénes integran cada clase grupal (intensivos, grupitos de 2-3) — para no re-elegirlos cada vez. Distinto de las llaves grupales de portal, de arriba.", vGruposClaseCard())}
   ${vCuentaGroup("datos","Datos y respaldos","Copias automáticas, retención y la papelera de alumnos/materias borrados.", `
     <div class="formcard"><div class="ftitle">Respaldos automáticos</div>
       <div class="hint" style="margin-bottom:10px">Se guarda una copia completa una vez por día, en la primera sincronización. Se conservan las últimas ${MAX_BACKUPS}. Esto no reemplaza la copia manual (.json), que se descarga desde Estudiantes — conviven.</div>
@@ -3262,6 +3483,52 @@ function vPortalGrupoRow(m){
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="primary" data-a="${token?"portal-grupo-guardar":"portal-grupo-crear"}" data-materia="${esc(m.id)}" ${busy?"disabled":""}>${busy?"Guardando…":(token?"Guardar":"Generar llave")}</button>
       <button class="chip" data-a="portal-grupo-editar-cancelar">Cancelar</button>
+    </div>`;
+  }
+  return h + `</div>`;
+}
+
+/* ============ Cuenta → "Grupos de clase" (paso 157) ============
+   El roster de cada clase grupal — quiénes la integran ahora — para no re-elegirlos cada semana.
+   Distinto de "Llaves grupales" de arriba (portal, tokensGrupos): esto es sólo interno, nunca se
+   comparte con nadie. Borrar un grupo también da de baja sus horarios/clases puntuales todavía
+   agendadas (borrarGrupoClase en helpers.js), pero nunca toca clases ya dadas (su
+   grupoClaseNombre/Miembros queda como snapshot histórico). */
+function vGruposClaseCard(){
+  const grupos = gruposClaseAll();
+  let h = `<div class="formcard"><div class="ftitle">Grupos de clase</div>`;
+  if(grupos.length===0){
+    h += `<div class="empty">Todavía no armaste ningún grupo — se crean al agendar una "Clase grupal" desde la Agenda o desde "Registrar clase" en la ficha de un alumno.</div>`;
+    return h + `</div>`;
+  }
+  h += grupos.map(vGrupoClaseRow).join("");
+  return h + `</div>`;
+}
+function vGrupoClaseRow(g){
+  const materia = subjById(g.subjectId);
+  const editing = state.gruposClaseEditing===g.id;
+  const confirmDel = state.gruposClaseDelConfirm===g.id;
+  let h = `<div style="padding:10px 0;border-top:1px solid var(--soft)">
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">${materia?subjectDot(materia.id):""}<b>${esc(g.nombre)}</b>${materia?` <span class="hint">· ${esc(materia.name)}</span>`:""}</div>`;
+  if(!editing){
+    h += `<div class="hint" style="margin-bottom:8px">${g.studentIds.map(id=>(state.students.find(x=>x.id===id)||{}).name||"—").join(", ")}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="chip" data-a="grupoclase-editar-abrir" data-id="${g.id}">Agregar/sacar alumnos</button>
+      ${!confirmDel?`<button class="danger" data-a="grupoclase-del-ask" data-id="${g.id}">Borrar grupo</button>`
+        :`<span style="font-size:13px;color:var(--status-desaprobo-fg)">Se borra el grupo y sus clases todavía agendadas (no las ya dadas). ¿Seguro?</span>
+          <button class="danger" data-a="grupoclase-del-confirm" data-id="${g.id}">Sí, borrar</button>
+          <button class="chip" data-a="grupoclase-del-cancel">Cancelar</button>`}
+    </div>`;
+  }else{
+    const draft = state.gruposClaseDraftAlumnos||[];
+    const candidatos = alive().filter(x=>x.status==="activo" && x.subjectId===g.subjectId);
+    h += `<div class="hint" style="margin-bottom:6px">Marcá quiénes integran el grupo:</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${candidatos.map(x=>`<button class="chip ${draft.includes(x.id)?"on":""}" data-a="grupoclase-toggle-alumno" data-id="${x.id}">${esc(x.name)}</button>`).join("")}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="primary" data-a="grupoclase-guardar" data-id="${g.id}">Guardar</button>
+      <button class="chip" data-a="grupoclase-editar-cancelar">Cancelar</button>
     </div>`;
   }
   return h + `</div>`;
@@ -4766,6 +5033,8 @@ function render(){
   if(state.envioOverlay) m += vEnvioOverlay();
   if(state.feedbackOpen) m += vFeedbackOverlay();
   if(state.agendaEdit) m += vAgendaEditOverlay();
+  if(state.agendaEditGrupal) m += vAgendaEditOverlayGrupal();
+  if(state.grupalForm) m += vGrupalForm();
   m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
   const viewKey = state.view;
   const viewChanged = viewKey!==_prevViewKey;
