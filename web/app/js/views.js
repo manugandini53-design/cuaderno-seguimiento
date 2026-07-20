@@ -673,9 +673,11 @@ function vTablero(){
   </div>`;
 
   const examPrompts = pendingExamResults();
-  if(examPrompts.length){
+  const examCel = state.examCelebrate;
+  if(examPrompts.length || examCel){
     h += `<div class="stitle">¿Cómo les fue?</div>`;
-    h += examPrompts.map(vExamResultPrompt).join("");
+    if(examCel) h += vExamCelebrate(examCel);
+    h += examPrompts.filter(s=>!examCel||s.id!==examCel.sid).map(vExamResultPrompt).join("");
   }
 
   h += `<div class="stitle">Alertas</div>`;
@@ -1418,6 +1420,17 @@ function vFichaClases(s){
       <div class="body"><span style="font-weight:700;font-family:var(--mono)">${esc(c.grade||"s/nota")}</span>
       ${c.note?`<div class="note">${esc(c.note)}</div>`:""}</div>
       <button class="del" data-a="del-sim" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button></div>`).join("");
+
+  h += `<div class="stitle" style="margin-top:20px">Historial de exámenes</div>`;
+  const sortedExams=[...(s.examResults||[])].sort((a,b)=>b.date.localeCompare(a.date));
+  h += sortedExams.length===0 ? `<div class="empty">Sin resultados de examen cargados todavía.</div>`
+    : sortedExams.map(r=>{
+        const m = EXAM_RESULT_META[r.result] || EXAM_RESULT_META.norindio;
+        return `<div class="log"><div class="d">${fmtDate(r.date)}</div>
+      <div class="body"><span style="font-weight:700;color:${m.fg}">${esc(m.label)}</span>
+      ${r.grade?` <span style="font-family:var(--mono)">· ${esc(r.grade)}</span>`:""}</div>
+      <button class="del" data-a="del-examresult" data-id="${r.id}" title="Borrar" aria-label="Borrar">×</button></div>`;
+      }).join("");
   return h;
 }
 
@@ -1549,6 +1562,22 @@ function vExamResultPrompt(s){
         <button class="chip" style="background:var(--redbg);color:var(--status-desaprobo-fg)" data-a="exam-result" data-id="${s.id}" data-r="desaprobo">No aprobó</button>
         <button class="chip" data-a="exam-result" data-id="${s.id}" data-r="norindio">No rindió</button>
       </div>
+    </div>
+  </div>`;
+}
+// Festejo transitorio al marcar "Aprobó" (paso 162) — mismo patrón que vGoalClosure/goalCelebrate,
+// pero sin auto-cierre por timeout: se queda hasta que el profesor toca "Listo", para dar tiempo a
+// usar "Felicitar por WhatsApp" sin apuro. Ver state.examCelebrate en events.js.
+function vExamCelebrate(cel){
+  const st = state.students.find(x=>x.id===cel.sid); if(!st) return "";
+  const msg = waMsgFelicitar(st, cel.grade);
+  return `<div class="examresult" style="background:var(--greenbg);border-color:var(--status-activo-fg)">
+    <div><b>${esc(st.name)}</b> <span class="hint">· ¡aprobó! 🎉</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
+      ${hasPhone(st)
+        ? `<a class="chip" style="background:var(--status-activo-bg);color:var(--status-activo-fg)" target="_blank" rel="noopener" href="${waLink(st,msg)}">${ICON_CHAT} Felicitar por WhatsApp</a>`
+        : `<span class="hint">Cargá el teléfono en la ficha para felicitar por WhatsApp</span>`}
+      <button class="chip" data-a="dismiss-exam-celebrate">Listo</button>
     </div>
   </div>`;
 }
@@ -2264,6 +2293,12 @@ function waQuickMessage(s){
   const d=daysTo(s.examDate);
   return (d!==null && d>=0 && d<=14) ? waMsgExamen(s) : waMsgProximaClase(s);
 }
+// Felicitación por aprobar (paso 162) — se ofrece apenas se marca "Aprobó" un resultado de
+// examen (ver state.examCelebrate en events.js/vExamCelebrate acá abajo).
+function waMsgFelicitar(s, grade){
+  return mensajeTexto("felicitarAprobo", {alumno:studentFirstName(s),
+    materia:s.subject?` ${s.subject}`:"", nota:grade?` (nota: ${grade})`:"", mail:s.email||""});
+}
 // Aviso de pack de clases agotado (paso 158, alerta "pack" de studentAlerts en helpers.js) — usa
 // el último pack vendido (ya en 0) para completar {clases} con la cantidad que tenía, aunque para
 // entonces ya no cuente como "activo".
@@ -2856,6 +2891,60 @@ async function buildInformeImageBlob(s){
   ctx.fillStyle="#9AA3BE";
   ctx.font="500 12px ui-monospace, Consolas, monospace";
   ctx.fillText(`Generado con Entreclases — ${fmtDate(today())}`, 40, H-32);
+
+  return canvasToPngBlob(canvas);
+}
+
+/* ============ "Compartir mi tasa" (paso 162): PNG con la tasa de aprobación general, mismo
+   patrón de dibujo a mano en <canvas> que buildInformeImageBlob — pensado para que el docente lo
+   suba a sus redes/estados como argumento de marketing propio y de la app. Ver "share-tasa-image"
+   en events.js. ============ */
+async function buildTasaImageBlob(){
+  const general = examResultCounts(alive());
+  const pct = general.total>0 ? Math.round(general.aprobo/general.total*100) : 0;
+  const doc = docenteFor();
+
+  const W=900, H=680, SC=2;
+  const canvas=document.createElement("canvas");
+  canvas.width=W*SC; canvas.height=H*SC;
+  const ctx=canvas.getContext("2d");
+  ctx.scale(SC,SC);
+  if(document.fonts && document.fonts.ready) await document.fonts.ready;
+
+  const grad=ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,"#1E2B4D"); grad.addColorStop(1,"#2F4272");
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle="#fff";
+  roundedRectPath(ctx,40,40,48,48,14); ctx.fill();
+  ctx.strokeStyle="#1E2B4D"; ctx.lineWidth=3; ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.beginPath(); ctx.moveTo(52,65); ctx.lineTo(61,75); ctx.lineTo(76,55); ctx.stroke();
+  ctx.fillStyle="#fff";
+  ctx.font="700 21px Poppins, sans-serif";
+  ctx.fillText("Entreclases", 100, 71);
+
+  ctx.fillStyle="#B8C2E8";
+  ctx.font="700 13px ui-monospace, Consolas, monospace";
+  ctx.fillText("TASA DE APROBACIÓN", 40, 150);
+
+  ctx.fillStyle="#fff";
+  ctx.font="800 150px Poppins, sans-serif";
+  ctx.fillText(pct+"%", 40, 340);
+
+  ctx.fillStyle="#D7DEF7";
+  ctx.font="600 22px Inter, sans-serif";
+  ctx.fillText(`de ${doc.nombre?doc.nombre+" — ":""}${general.total} examen${general.total===1?"":"es"} rendido${general.total===1?"":"s"}`, 40, 390);
+
+  ctx.strokeStyle="rgba(255,255,255,.25)"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(40,430); ctx.lineTo(W-40,430); ctx.stroke();
+
+  ctx.fillStyle="#fff";
+  ctx.font="700 26px Poppins, sans-serif";
+  wrapCanvasText(ctx, "¡Gracias a todos los que confiaron este cuatrimestre!", 40, 480, W-80, 34, 2);
+
+  ctx.fillStyle="#9AA3BE";
+  ctx.font="500 13px ui-monospace, Consolas, monospace";
+  ctx.fillText(`Hecho con Entreclases — ${fmtDate(today())}`, 40, H-32);
 
   return canvasToPngBlob(canvas);
 }
@@ -4125,6 +4214,25 @@ function compareObjetivosRow(a, b, labelA, labelB){
   }
   return h;
 }
+// % de aprobados (paso 162) — mismo criterio de puntos porcentuales que compareObjetivosRow.
+function compareExamResultRow(a, b, labelA, labelB){
+  let h = `<div class="stitle">% de aprobados</div>`;
+  if(a.examResultsTotal===0 && b.examResultsTotal===0)
+    return h + `<div class="empty">Sin resultados de examen registrados en ninguno de los dos períodos.</div>`;
+  const fmtPct = (v,total) => v===null ? "sin datos" : `${v.toFixed(0)}% (${total})`;
+  h += compareBarRow(labelA, a.examResultsPct||0, 100, v=>fmtPct(a.examResultsPct,a.examResultsTotal), "var(--accent)");
+  h += compareBarRow(labelB, b.examResultsPct||0, 100, v=>fmtPct(b.examResultsPct,b.examResultsTotal), "var(--gray2)");
+  if(a.examResultsPct===null || b.examResultsPct===null){
+    h += `<div class="hint" style="margin-bottom:6px">Sin resultados en uno de los dos períodos — no se puede comparar la diferencia.</div>`;
+  }else{
+    const diff = a.examResultsPct-b.examResultsPct;
+    const flat = Math.round(diff)===0;
+    const color = flat?"var(--muted)":(diff>0?"var(--green)":"var(--red)");
+    const arrow = flat?"→":(diff>0?"↑":"↓");
+    h += `<div class="hint" style="margin-bottom:6px"><span style="color:${color};font-weight:700;font-family:var(--mono)">${arrow} ${Math.abs(diff).toFixed(0)} pto${Math.abs(diff)>=2?"s":""}</span> vs. ${esc(labelB)}</div>`;
+  }
+  return h;
+}
 function vEstadisticasComparar(){
   const keys = recentMonthKeys(24);
   const mkA = keys.includes(state.compareA) ? state.compareA : monthKeyOffset(0);
@@ -4154,6 +4262,7 @@ function vEstadisticasComparar(){
   h += compareMetricRow("Horas dictadas", labelA, labelB, a.horas, b.horas, v=>v.toFixed(1));
   h += compareMetricRow("Alumnos con clase", labelA, labelB, a.alumnosConClase, b.alumnosConClase, v=>String(v));
   h += compareObjetivosRow(a, b, labelA, labelB);
+  h += compareExamResultRow(a, b, labelA, labelB);
 
   return h;
 }
@@ -4348,9 +4457,10 @@ function vTasaAprobacionGeneral(){
   const pct = general.aprobo/general.total*100;
   h += `<div class="stats" style="margin-bottom:8px"><div class="stat"><b>${countSpan(pct,{suffix:"%"})}</b><span>aprobados sobre ${general.total} examen${general.total===1?"":"es"} rendido${general.total===1?"":"s"}</span></div></div>
   <div role="progressbar" aria-label="Tasa de aprobación general" aria-valuenow="${pct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100"
-    style="background:var(--soft);border-radius:99px;height:14px;overflow:hidden;max-width:320px;margin-bottom:16px">
+    style="background:var(--soft);border-radius:99px;height:14px;overflow:hidden;max-width:320px;margin-bottom:12px">
     <div class="grow-h" style="height:100%;width:${pct.toFixed(1)}%;background:var(--green);border-radius:99px"></div>
-  </div>`;
+  </div>
+  <button class="chip" style="margin-bottom:16px" data-a="share-tasa-image" ${state.tasaImgBusy?"disabled":""}>${state.tasaImgBusy?"Generando…":"Compartir mi tasa"}</button>`;
 
   const bySubject = state.catalog.subjects
     .map(m=>({label:m.name, subjectId:m.id, c:examResultCounts(students.filter(s=>s.subjectId===m.id))}))

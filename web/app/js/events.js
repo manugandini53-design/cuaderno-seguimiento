@@ -1188,7 +1188,44 @@ document.addEventListener("click", (e)=>{
     const entry={id:uid(), date:st.examDate, result, grade};
     const newStatus = result==="aprobo" ? "aprobo" : result==="desaprobo" ? "desaprobo" : st.status;
     update(id,{examResults:[...(st.examResults||[]), entry], status:newStatus});
-    toast("Resultado guardado");
+    if(result==="aprobo"){
+      state.examCelebrate={sid:id, grade};
+      render();
+      fireConfetti(); soundClase();
+    }else{
+      toast("Resultado guardado");
+    }
+    return;
+  }
+  else if(a==="dismiss-exam-celebrate"){ state.examCelebrate=null; }
+  else if(a==="del-examresult" && s){
+    const removed=(s.examResults||[]).find(x=>x.id===el.dataset.id);
+    update(s.id,{examResults:(s.examResults||[]).filter(x=>x.id!==el.dataset.id)});
+    toast("Resultado eliminado", "ok", ()=>{
+      const st=state.students.find(x=>x.id===s.id); if(!st || !removed) return;
+      update(s.id,{examResults:[...(st.examResults||[]), removed]});
+    });
+    return;
+  }
+  else if(a==="share-tasa-image"){
+    state.tasaImgBusy=true; render();
+    buildTasaImageBlob().then(async blob=>{
+      const fileName="tasa-aprobacion.png";
+      const file=new File([blob], fileName, {type:"image/png"});
+      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+        try{ await navigator.share({files:[file], title:"Tasa de aprobación"}); }
+        catch(err){ /* cancelado por el usuario o falló el share nativo — no hace falta avisar */ }
+      }else{
+        const url=URL.createObjectURL(blob);
+        const link=document.createElement("a"); link.href=url; link.download=fileName; link.click();
+        URL.revokeObjectURL(url);
+        toast("Imagen descargada");
+      }
+      state.tasaImgBusy=false; render();
+    }).catch(()=>{
+      state.tasaImgBusy=false;
+      toast("No se pudo generar la imagen.","error");
+    });
     return;
   }
   else if(a==="wa-free-send" && s){

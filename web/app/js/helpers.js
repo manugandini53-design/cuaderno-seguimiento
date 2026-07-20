@@ -723,6 +723,17 @@ function examResultCounts(students){
   }));
   return { aprobo, desaprobo, total:aprobo+desaprobo };
 }
+// mismo criterio que goalCountsInMonth: filtra por la fecha del RESULTADO (no la fecha de examen
+// actual del alumno, que puede ya haber cambiado a un recuperatorio), para "Comparar períodos".
+function examResultCountsInMonth(mk){
+  let aprobo=0, desaprobo=0;
+  alive().forEach(s=>(s.examResults||[]).forEach(r=>{
+    if(monthKeyOf(r.date)!==mk) return;
+    if(r.result==="aprobo") aprobo++;
+    else if(r.result==="desaprobo") desaprobo++;
+  }));
+  return { aprobo, desaprobo, total:aprobo+desaprobo };
+}
 
 /* ============ objetivo de clase: cierre, racha y estadísticas ============
    s.sessions[].objetivo (string, opcional) se carga al registrar la clase; s.sessions[].objetivoResult
@@ -1900,11 +1911,14 @@ function statsPeriodSummary(mk){
   const clases = classesInMonth(mk);
   const alumnosConClase = new Set(clases.map(({s})=>s.id)).size;
   const goals = goalCountsInMonth(mk);
+  const exams = examResultCountsInMonth(mk);
   return {
     mk, ingresos:r.ingresos, clases:r.clasesCount, horas:r.horas,
     alumnosConClase,
     objetivosPct: goals.total>0 ? (goals.si/goals.total*100) : null,
     objetivosTotal: goals.total,
+    examResultsPct: exams.total>0 ? (exams.aprobo/exams.total*100) : null,
+    examResultsTotal: exams.total,
   };
 }
 // desglose por materia: ingresos/costos/horas atribuibles a cada una — los costos generales
@@ -2337,6 +2351,7 @@ function buildDemoData(){
       sess(8,"Integrales definidas y aplicaciones","hecha",true,"Calcular áreas entre curvas",{estado:"si",pct:100}),
       sess(0,"Aplicaciones de integrales","hecha",true,"Repasar áreas entre curvas para el parcial"),
     ],
+    examResults:[{id:uid(), date:addDays(today(),-15), result:"aprobo", grade:"7/10"}],
   }));
 
   // 8) Agustín — dejó hace más de un mes, para altas/bajas de Retención
@@ -2354,6 +2369,7 @@ function buildDemoData(){
     topics:{[unitsOf("tpl-algebra")[0]]:"parcial",[unitsOf("tpl-algebra")[1]]:"parcial",[unitsOf("tpl-algebra")[2]]:"practica"},
     sessions: weekly(13,"Matrices y determinantes",5),
     simulacros:[ simu(40,"6/10","Le costaron los sistemas de ecuaciones"), simu(12,"8/10","Mucho mejor con matrices") ],
+    examResults:[{id:uid(), date:addDays(today(),-40), result:"aprobo", grade:"8/10"}],
   });
   bruno.recibos=[recibo("clase","Clase del "+fmtDate(addDays(today(),-5)),8500,5)];
   students.push(bruno);

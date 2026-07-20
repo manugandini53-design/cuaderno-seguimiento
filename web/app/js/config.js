@@ -249,6 +249,14 @@ const TAREA_META = {hecha:{label:"hecha",fg:"var(--tarea-hecha-fg)"},intentada:{
 // sugiere no cobrar, "aviso_tarde"/"no_aviso" sugieren cobrar (mismo criterio de fondo que la
 // política de cancelación de señas: avisar con tiempo no tiene costo, avisar tarde o no avisar
 // sí), aunque siempre modificable a mano al registrar. Ver ausenciaCobraSugerida() en helpers.js.
+// Resultado de examen (paso 162, s.examResults[] = {id,date,result,grade}) — "aprobo"/"desaprobo"
+// cuentan para la tasa de aprobación (ver examResultCounts en helpers.js); "norindio" no cuenta
+// como examen rendido, sólo queda en el historial de la ficha.
+const EXAM_RESULT_META = {
+  aprobo:{label:"Aprobó",fg:"var(--status-activo-fg)"},
+  desaprobo:{label:"No aprobó",fg:"var(--status-desaprobo-fg)"},
+  norindio:{label:"No rindió",fg:"var(--muted)"},
+};
 const AUSENCIA_MOTIVO_META = {
   aviso_tiempo:{label:"Avisó con tiempo"},
   aviso_tarde:{label:"Avisó tarde"},
@@ -353,6 +361,8 @@ const MENSAJES_META = [
     default:"¡Hola {alumno}! Te paso el acceso grupal de {materia}, donde vas a encontrar material y las próximas clases: {link}" },
   { key:"packAgotado", label:"Pack de clases terminado (paso 158)", vars:"{alumno}, {clases}, {mail}",
     default:"¡Hola {alumno}! Se terminó tu pack de {clases} clases — ¿te armo uno nuevo para seguir?" },
+  { key:"felicitarAprobo", label:"Felicitar por aprobar un examen (paso 162)", vars:"{alumno}, {materia}, {nota}, {mail}",
+    default:"¡Felicitaciones {alumno}! 🎉 Aprobaste{materia}{nota}. ¡Muy bien merecido, seguimos así!" },
 ];
 function defaultMensajes(){ const o={}; MENSAJES_META.forEach(m=>{ o[m.key]=m.default; }); return o; }
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
