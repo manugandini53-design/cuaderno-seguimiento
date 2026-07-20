@@ -278,7 +278,10 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; state.editPackId=null; state.catConfirmDelId=null; state.editUnitId=null; state.editSubunitId=null; state.editCareerId=null; }
   else if(a==="nav-pagos"){ state.view="pagos"; state.selId=null; if(!state.pagosMonth) state.pagosMonth=currentMonthKey(); }
-  else if(a==="nav-agenda"){ state.view="agenda"; state.selId=null; }
+  else if(a==="nav-agenda"){
+    state.view="agenda"; state.selId=null;
+    if(el.dataset.offset!==undefined) state.agendaWeekOffset=parseInt(el.dataset.offset,10);
+  }
   else if(a==="nav-logout"){
     if(!confirm("¿Cerrar sesión?")) return;
     setSes(null); state.view="tablero"; _navSnapshot=null; render(); return;
@@ -326,6 +329,10 @@ document.addEventListener("click", (e)=>{
   else if(a==="agenda-disp-edit-toggle"){ state.agendaDispEdit=!state.agendaDispEdit; state.agendaGridQuick=null; }
   else if(a==="agenda-disp-toggle"){
     toggleDisponibilidadCelda(parseInt(el.dataset.day,10), el.dataset.hour);
+    return;
+  }
+  else if(a==="agenda-semana-toggle"){
+    toggleSemanaCompleta(el.dataset.week);
     return;
   }
   else if(a==="agenda-grid-quick-add"){

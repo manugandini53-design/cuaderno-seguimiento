@@ -1292,8 +1292,8 @@ function pendingTasksToday(){
         kind:"examen", studentId:s.id});
   });
   const proxLunes = addDays(mondayOfWeek(t),7), proxDomingo = addDays(proxLunes,6);
-  if(alive().some(s=>s.status==="activo") && agendaRangeEvents(proxLunes,proxDomingo).length===0)
-    tasks.push({id:"semana", text:"La semana que viene no tiene ninguna clase agendada todavía", a:"nav-agenda", data:{}});
+  if(alive().some(s=>s.status==="activo") && agendaRangeEvents(proxLunes,proxDomingo).length===0 && !esSemanaCompleta(proxLunes))
+    tasks.push({id:"semana", text:"¿Cerraste la semana que viene? Todavía no tiene ninguna clase agendada", a:"nav-agenda", data:{offset:1}});
   if(shouldShowBackupReminder())
     tasks.push({id:"respaldo", text:`Hace más de ${BACKUP_REMINDER_DAYS} días que no hacés un respaldo`, a:"export", data:{}});
   return tasks;
@@ -1657,6 +1657,23 @@ function toggleDisponibilidadCelda(day, hourLabel){
   touchCatalog();
 }
 
+/* ============ "Semana completa" (paso 170) ============
+   Semanas que el docente marcó como cerradas desde la agenda (chip "Semana completa" en
+   vAgendaSemana, ver agenda-semana-toggle en events.js) — state.catalog.semanasCompletas, lista de
+   claves "YYYY-MM-DD" (el lunes de esa semana, mondayOfWeek()). Ausente/vacía = todas las semanas
+   abiertas (retrocompatible con catálogos viejos). Sólo afecta lo que el portal ofrece para pedir
+   clase (huecosLibresProximos14Dias() más abajo salta esas semanas al armar los huecos) — no bloquea
+   agendar una clase a mano desde la agenda, igual que la disponibilidad declarada. */
+function semanasCompletasFor(){ return state.catalog.semanasCompletas || []; }
+function esSemanaCompleta(weekStart){ return semanasCompletasFor().includes(weekStart); }
+function toggleSemanaCompleta(weekStart){
+  const list = semanasCompletasFor();
+  state.catalog.semanasCompletas = list.includes(weekStart)
+    ? list.filter(w=>w!==weekStart)
+    : [...list, weekStart];
+  touchCatalog();
+}
+
 /* ============ "Pedir una clase" desde el portal (paso 160) ============
    huecosLibresProximos14Dias() cruza la disponibilidad declarada (arriba) con la agenda real de
    los próximos 14 días — mismo criterio de bucket horario que usa la grilla semanal
@@ -1673,6 +1690,7 @@ function huecosLibresProximos14Dias(){
   const nowHourLabel = String(new Date().getHours()).padStart(2,"0")+":00";
   const out = [];
   for(let d=start; d<=end; d=addDays(d,1)){
+    if(esSemanaCompleta(mondayOfWeek(d))) continue; // paso 170: semana cerrada, no ofrecer nada de ella
     const dow = weekdayIdx(d);
     disp.filter(c=>c.day===dow).forEach(c=>{
       if(ocupado.has(d+" "+c.hour)) return;

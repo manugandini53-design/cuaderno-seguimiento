@@ -428,6 +428,18 @@
   .goalcard-emoji{width:34px;height:34px;flex-shrink:0;animation:goalPop .5s cubic-bezier(.34,1.56,.64,1)}
   .goalcard-msg{font-weight:700;font-size:14.5px}
   @media (prefers-reduced-motion:reduce){.goalcard,.goalcard-emoji{animation:none}}
+
+  /* ============ "Próxima clase": tarjeta destacada de agendar (paso 170) ============ */
+  .next-class-cta{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;
+    border:1px solid var(--accent);border-radius:12px;background:var(--accent-soft);
+    padding:12px 14px;font-family:inherit;animation:goalIn .3s ease-out}
+  .next-class-cta:hover{filter:brightness(1.04)}
+  .next-class-cta-icon{flex-shrink:0;width:34px;height:34px;border-radius:99px;background:var(--accent);
+    color:var(--on-accent);display:flex;align-items:center;justify-content:center}
+  .next-class-cta-icon svg{width:18px;height:18px}
+  .next-class-cta-text{display:flex;flex-direction:column;gap:2px}
+  .next-class-cta-text b{color:var(--accent-dark);font-size:14.5px}
+  @media (prefers-reduced-motion:reduce){.next-class-cta{animation:none}}
   .aula-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint);margin-bottom:14px;align-items:center}
   .aula-legend .sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle}
   .aula-wrap{overflow-x:auto;padding-bottom:8px}

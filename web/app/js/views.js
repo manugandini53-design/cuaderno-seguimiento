@@ -1263,9 +1263,12 @@ function vRegistrarClaseCard(s){
   if(!tipo){
     return `<div class="formcard"><div class="ftitle">Registrar clase</div>
       <div class="hint" style="margin-bottom:10px">¿Ya la diste, o la estás agendando para más adelante?</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" data-a="set-registrar-clase-tipo" data-f="pasada">Clase pasada</button>
-        <button class="btn btn-ghost" data-a="set-registrar-clase-tipo" data-f="proxima">Próxima clase</button>
+      <button class="next-class-cta" data-a="set-registrar-clase-tipo" data-f="proxima">
+        <span class="next-class-cta-icon">${ICON_CALENDAR}</span>
+        <span class="next-class-cta-text"><b>Próxima clase</b><span class="hint">Agendala y queda lista en la agenda</span></span>
+      </button>
+      <div style="margin-top:8px">
+        <button class="btn btn-ghost" data-a="set-registrar-clase-tipo" data-f="pasada">Clase pasada</button>
       </div>
       <div style="margin-top:8px">
         ${alive().some(x=>x.status==="activo" && x.id!==s.id && s.subjectId && x.subjectId===s.subjectId)
@@ -1887,20 +1890,27 @@ function vAgendaSemana(){
   const offset = state.agendaWeekOffset||0;
   const weekStart = addDays(mondayOfWeek(today()), offset*7);
   const weekEnd = addDays(weekStart,6);
+  const cerrada = esSemanaCompleta(weekStart);
   let h = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="chip" data-a="agenda-prev">← Semana anterior</button>
       <b style="font-size:14px">${esc(fmtDate(weekStart))} – ${esc(fmtDate(weekEnd))}</b>
+      ${cerrada?`<span class="badge badge-neutral">Semana cerrada</span>`:""}
       <button class="chip" data-a="agenda-next">Semana siguiente →</button>
       ${offset!==0?`<button class="chip" data-a="agenda-today">Esta semana</button>`:""}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="chip ${cerrada?"on":""}" data-a="agenda-semana-toggle" data-week="${weekStart}">${cerrada?"Reabrir semana":"Semana completa"}</button>
       <button class="chip ${state.agendaDispEdit?"on":""}" data-a="agenda-disp-edit-toggle">${state.agendaDispEdit?"Listo, guardar disponibilidad":"Mi disponibilidad"}</button>
       <button class="chip" data-a="grupal-form-open-agenda">+ Clase grupal</button>
       <button class="chip" data-a="open-agenda-imprimir">Imprimir semana</button>
       ${vExportIcsButton()}
     </div>
   </div>`;
+
+  if(cerrada){
+    h += `<div class="hint" style="margin-bottom:10px">Esta semana está marcada como completa: el portal no va a ofrecer horarios libres de estos días para pedir clase, aunque tengas disponibilidad declarada. Tocá "Reabrir semana" para volver a ofrecerlos.</div>`;
+  }
 
   if(state.agendaDispEdit){
     h += `<div class="hint" style="margin-bottom:10px">Tocá las celdas de la grilla para marcarlas como disponibles (o volver a tocarlas para sacarlas) — se guarda solo, celda por celda. Esto es sólo tu disponibilidad declarada, no bloquea agendar clases fuera de ella.</div>`;
