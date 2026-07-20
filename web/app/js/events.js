@@ -823,6 +823,9 @@ document.addEventListener("click", (e)=>{
     return;
   }
   else if(a==="portal-publicar"){ publicarPortal(); return; }
+  else if(a==="pedir-clase-toggle"){ togglePedirClase(el.dataset.f==="si"); return; }
+  else if(a==="solicitud-aceptar"){ aceptarSolicitudClase(el.dataset.id); return; }
+  else if(a==="solicitud-rechazar"){ rechazarSolicitudClase(el.dataset.id); return; }
   else if(a==="aviso-add"){
     const texto=(document.getElementById("aviso-texto").value||"").trim(); if(!texto) return;
     const target=parseAvisoTarget(document.getElementById("aviso-target").value);

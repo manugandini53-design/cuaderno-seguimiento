@@ -106,6 +106,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               pendingConfirmEmail:null, confirmStatus:"idle", confirmError:"",
               reportMsg:"", reportStatus:"idle", reportError:"",
               reportes:[], reportFilter:"pendiente", reportesLoaded:false, reportesError:"",
+              solicitudesClase:[],
               panelTab:"reportes", users:[], usersLoaded:false, usersError:"",
               metricas:[], altas:[], actividadLoaded:false, actividadError:"", actividadMode:"dia",
               metricasHorarias:[], metricasHorariasLoaded:false, metricasHorariasError:"",
@@ -1571,6 +1572,33 @@ function toggleDisponibilidadCelda(day, hourLabel){
     ? list.filter(d=>!(d.day===day && d.hour===hourLabel))
     : [...list, {day, hour:hourLabel}];
   touchCatalog();
+}
+
+/* ============ "Pedir una clase" desde el portal (paso 160) ============
+   huecosLibresProximos14Dias() cruza la disponibilidad declarada (arriba) con la agenda real de
+   los próximos 14 días — mismo criterio de bucket horario que usa la grilla semanal
+   (horaCeldaDe(): una clase larga sólo ocupa la hora en la que arranca, misma simplificación que
+   ya tiene vAgendaWeekGrid/esCeldaDisponible). El resultado se publica tal cual en
+   publicado.huecos (ver publicarPortal()/maybeSyncHuecosPortal() en sync.js) para que el portal
+   público (sin acceso a la agenda real) pueda ofrecerlos sin exponer nada más. Si el docente nunca
+   declaró disponibilidad, da lista vacía — nunca "todo libre" por default. */
+function huecosLibresProximos14Dias(){
+  const disp = disponibilidadFor();
+  if(disp.length===0) return [];
+  const start = today(), end = addDays(start, 13);
+  const ocupado = new Set(agendaRangeEvents(start, end).map(e=>e.date+" "+horaCeldaDe(e.time)));
+  const nowHourLabel = String(new Date().getHours()).padStart(2,"0")+":00";
+  const out = [];
+  for(let d=start; d<=end; d=addDays(d,1)){
+    const dow = weekdayIdx(d);
+    disp.filter(c=>c.day===dow).forEach(c=>{
+      if(ocupado.has(d+" "+c.hour)) return;
+      if(d===start && c.hour<=nowHourLabel) return; // no ofrecer horas de hoy que ya pasaron
+      out.push({date:d, time:c.hour});
+    });
+  }
+  out.sort((a,b)=>(a.date+" "+a.time).localeCompare(b.date+" "+b.time));
+  return out;
 }
 
 /* ============ señas y política de cancelación (dentro de clasesPuntuales, opcional por alumno) ============

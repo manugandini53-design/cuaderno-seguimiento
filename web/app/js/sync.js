@@ -58,6 +58,7 @@ async function syncNow(force){
           pendingSyncs++;
           maybeSnapshotBackup(uid_, s);
           maybeRenewPortalLibrary(uid_, s);
+          maybeSyncHuecosPortal(uid_, s);
           return;
         }
       }
@@ -105,6 +106,7 @@ async function syncNow(force){
     if(JSON.stringify({a:state.students,b:state.catalog})!==before && state.view!=="cuenta" && state.view!=="catalog") render();
     maybeSnapshotBackup(uid_, s);
     maybeRenewPortalLibrary(uid_, s);
+    maybeSyncHuecosPortal(uid_, s);
   }catch(e){
     // offline se chequea primero: una falla de red (incluido el refresh del token) mientras
     // no hay internet nunca debe cerrar la sesión ni bloquear la app — solo degrada el estado.
@@ -152,6 +154,7 @@ async function maybeHeartbeat(uid_, s){
     }catch(e){ /* silencioso */ }
   }
   refreshReportesBadge();
+  refreshSolicitudesClase();
 }
 
 // Registra la aceptación de términos y privacidad (perfiles.terminos_aceptados_at — ver
@@ -673,6 +676,97 @@ async function togglePortalHabilitado(next){
     render();
   }
 }
+// "Permitir que pidan clases" (paso 160): apagado por defecto, instantáneo (mismo patrón
+// optimista que togglePortalHabilitado) — al prender, recalcula y publica los huecos ya mismo
+// (no hace falta esperar al próximo "Publicar cambios"); al apagar, los vacía para que el portal
+// deje de ofrecerlos al toque.
+async function togglePedirClase(next){
+  if(!state.portal) return;
+  const prevPublicado=state.portal.publicado;
+  const huecos=next?huecosLibresProximos14Dias():[];
+  const publicado={...state.portal.publicado, pedirClaseHabilitado:next, huecos};
+  state.portal.publicado=publicado; render();
+  if(IS_DEMO) return;
+  try{
+    const {uid_, h}=await fetchPortalRow("publicado");
+    await patchPortalRow(uid_, h, {publicado});
+  }catch(e){
+    state.portal.publicado=prevPublicado;
+    state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo actualizar. Probá de nuevo.";
+    render();
+  }
+}
+// Recalcula publicado.huecos en cada sync real (colgado del mismo ciclo que
+// maybeRenewPortalLibrary, ver syncNow()) — la disponibilidad libre cambia todo el tiempo (clases
+// que se agendan/cancelan), así que a diferencia de la biblioteca (que sólo vence una vez cada
+// tantos días) conviene recalcularla seguido; sólo escribe si de verdad cambió, para no gastar
+// PATCH de más. Trabaja sobre la fila igual que maybeRenewPortalLibrary (no depende de que Cuenta
+// haya estado abierta ni de state.portal).
+async function maybeSyncHuecosPortal(uid_, s){
+  if(IS_DEMO) return;
+  try{
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
+    const r=await fetch(SUPA_URL+"/rest/v1/portales?select=habilitado,publicado", {headers:h});
+    if(!r.ok) return;
+    const row=(await r.json())[0];
+    if(!row || !row.habilitado) return;
+    const habilitado=!!(row.publicado&&row.publicado.pedirClaseHabilitado);
+    const huecos=habilitado?huecosLibresProximos14Dias():[];
+    const prevHuecos=(row.publicado&&row.publicado.huecos)||[];
+    if(stableStringify(huecos)===stableStringify(prevHuecos)) return;
+    const publicado={...row.publicado, huecos};
+    await patchPortalRow(uid_, h, {publicado});
+    if(state.portal) state.portal.publicado=publicado;
+  }catch(e){ /* silencioso: se reintenta en el próximo sync */ }
+}
+// Solicitudes de clase pedidas desde el portal (tabla solicitudes_clase, migración 022): cada
+// docente ve sólo las propias (RLS por user_id) — se refresca en cada heartbeat (~5min con la
+// pestaña visible, ver maybeHeartbeat) y al resolver una a mano, mismo criterio que
+// refreshReportesBadge() pero acá sí trae las filas enteras (no sólo un conteo) porque el
+// Tablero necesita mostrarlas, no sólo avisar que hay algo pendiente.
+async function refreshSolicitudesClase(){
+  if(IS_DEMO || !getSes()) return;
+  try{
+    const s=await ensureToken();
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
+    const r=await fetch(SUPA_URL+"/rest/v1/solicitudes_clase?select=id,student_id,fecha,hora,nota,created_at&estado=eq.pedida&order=created_at.asc", {headers:h});
+    if(!r.ok) return;
+    const rows=await r.json();
+    state.solicitudesClase=rows.map(x=>({id:x.id, studentId:x.student_id, fecha:x.fecha, hora:x.hora, nota:x.nota||"", createdAt:x.created_at}));
+    render();
+  }catch(e){ /* silencioso, se reintenta en el próximo heartbeat */ }
+}
+async function patchSolicitudClase(id, patch){
+  const s=await ensureToken();
+  const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+  await fetch(SUPA_URL+"/rest/v1/solicitudes_clase?id=eq."+encodeURIComponent(id), {method:"PATCH", headers:h,
+    body:JSON.stringify({...patch, resuelta_at:new Date().toISOString()})});
+}
+// Aceptar agenda la clase como una clasePuntual de siempre (addPuntualClase, 60 min por
+// defecto — editable después en la ficha, el pedido del portal no incluye duración) y marca la
+// solicitud confirmada; el hueco queda ocupado solo en el próximo recálculo (maybeSyncHuecosPortal
+// en el siguiente sync, o al tocar "Publicar cambios").
+async function aceptarSolicitudClase(id){
+  const sol=(state.solicitudesClase||[]).find(x=>String(x.id)===String(id)); if(!sol) return;
+  const s=state.students.find(x=>x.id===sol.studentId);
+  if(!s){ toast("Ese alumno ya no existe.", "error"); return; }
+  const {warning}=addPuntualClase(s.id, sol.fecha, sol.hora, 60, "", sol.nota||"");
+  state.solicitudesClase=(state.solicitudesClase||[]).filter(x=>String(x.id)!==String(id));
+  render();
+  toast(warning?"Clase agendada — "+warning:"Clase agendada con "+s.name+".", "ok");
+  try{
+    await patchSolicitudClase(id, {estado:"confirmada"});
+    const sess=await ensureToken();
+    maybeSyncHuecosPortal(jwtSub(sess.access), sess);
+  }catch(e){ /* silencioso: la clase ya quedó agendada localmente y sincroniza igual */ }
+}
+async function rechazarSolicitudClase(id){
+  const sol=(state.solicitudesClase||[]).find(x=>String(x.id)===String(id)); if(!sol) return;
+  const motivo=(prompt("Motivo (opcional):")||"").trim();
+  state.solicitudesClase=(state.solicitudesClase||[]).filter(x=>String(x.id)!==String(id));
+  render();
+  try{ await patchSolicitudClase(id, {estado:"rechazada", motivo}); }catch(e){ /* silencioso */ }
+}
 // Avisos del portal (paso 105): mensajes cortos con fecha y destino ("todos"/una materia/un
 // alumno puntual) que el docente publica desde Cuenta → Portal, guardados en
 // publicado.avisos (mismo objeto jsonb "publicado" que biblioteca/alumnos/grupos) — no hace
@@ -840,7 +934,12 @@ async function publicarPortal(){
       alias: cobrosCfg.alias||"", linkMP: cobrosCfg.linkMP||"", linkOtro: cobrosCfg.linkOtro||"",
       qr: cobrosCfg.qr ? {url:await signMaterialUrl(s, cobrosCfg.qr.path, PORTAL_LINK_TTL_DAYS*86400), firmadoAt:Date.now()} : null,
     } : null;
-    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros};
+    // Huecos para "Pedir una clase" (paso 160): sólo si el docente lo activó (pedirClaseHabilitado,
+    // ver togglePedirClase() más abajo) — si está apagado se publica una lista vacía para no dejar
+    // colgado un hueco viejo si lo desactivó justo después de haberlos publicado.
+    const pedirClaseHabilitado=!!(state.portal.publicado&&state.portal.publicado.pedirClaseHabilitado);
+    const huecos=pedirClaseHabilitado?huecosLibresProximos14Dias():[];
+    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros, pedirClaseHabilitado, huecos};
     const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
     await patchPortalRow(uid_, h, {publicado});
     state.portal.publicado=publicado;

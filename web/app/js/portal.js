@@ -217,7 +217,76 @@ function avisosHtml(list){
     <div class="avisofecha">${fmtDiaLocal(a.fecha)}</div>
   </div>`).join("");
 }
-function showPortal(res){
+// "Pedir una clase" (paso 160): sólo existe con llave individual y sólo si el docente activó
+// "Permitir que pidan clases" en Cuenta → Portal — en ese caso res.huecos es un array (posiblemente
+// vacío); si el docente lo tiene apagado, portal_publico() ni siquiera manda la clave "huecos"
+// (queda undefined), así que esta sección no se muestra. res.alumno.solicitudes trae los últimos
+// pedidos de ESTE alumno (más recientes primero) para mostrar su estado al refrescar la página —
+// no hay actualización en vivo, es la misma limitación que ya tiene el resto del portal (sin
+// sesión ni websockets, sólo lo que trajo portal_publico() al cargar).
+function solicitudEstadoLabel(estado){
+  if(estado==="confirmada") return {texto:"Confirmada", color:"var(--subj-green-fg)"};
+  if(estado==="rechazada") return {texto:"Rechazada", color:"var(--red-fg)"};
+  return {texto:"Pedida", color:"var(--muted)"};
+}
+function pedirClaseHtml(alumno, huecos){
+  if(!Array.isArray(huecos)) return "";
+  let h = `<div class="card"><div class="ctitle">Pedir una clase</div>`;
+  const solicitudes = (alumno && alumno.solicitudes) || [];
+  if(solicitudes.length){
+    h += `<div class="prow"><div class="plabel">Tus pedidos</div>` + solicitudes.map(s=>{
+      const est = solicitudEstadoLabel(s.estado);
+      return `<div class="pvalue">${fmtDiaLocal(s.fecha)} ${esc(s.hora)} — <b style="color:${est.color}">${est.texto}</b>${s.motivo?` <span class="pmeta">(${esc(s.motivo)})</span>`:""}</div>`;
+    }).join("") + `</div>`;
+  }
+  if(huecos.length===0){
+    return h + `<div class="pempty">No hay horarios libres por ahora — probá más tarde.</div></div>`;
+  }
+  h += `<div class="prow"><div class="plabel">Elegí un horario</div>
+    <select id="pedir-clase-select" class="pinput">
+      ${huecos.map(hu=>`<option value="${esc(hu.date)}|${esc(hu.time)}">${fmtDiaLocal(hu.date)} — ${esc(hu.time)}</option>`).join("")}
+    </select></div>
+    <div class="prow"><div class="plabel">¿Qué querés ver? (opcional)</div>
+      <textarea id="pedir-clase-nota" class="pinput" maxlength="300" placeholder="Ej: derivadas, repaso del parcial…" rows="2"></textarea></div>
+    <button type="button" class="dl" id="pedir-clase-btn">Pedir esta clase</button>
+    <div id="pedir-clase-msg" class="pmeta" style="margin-top:6px"></div>
+  </div>`;
+  return h;
+}
+function pedirClaseErrorMsg(err){
+  if(err==="rate_limit") return "Ya pediste el máximo de clases por hoy — probá de nuevo mañana.";
+  if(err==="disabled") return "Tu profesor desactivó los pedidos de clase por ahora.";
+  if(err==="slot_unavailable") return "Ese horario ya no está libre — elegí otro.";
+  return "No se pudo enviar el pedido — probá de nuevo.";
+}
+function wirePedirClase(llave){
+  const btn = document.getElementById("pedir-clase-btn");
+  if(!btn) return;
+  btn.addEventListener("click", async ()=>{
+    const sel = document.getElementById("pedir-clase-select");
+    const nota = document.getElementById("pedir-clase-nota");
+    const msg = document.getElementById("pedir-clase-msg");
+    const [fecha, hora] = (sel.value||"").split("|");
+    if(!fecha || !hora) return;
+    btn.disabled = true; msg.textContent = "Enviando…";
+    try{
+      const r = await fetch(SUPA_URL+"/rest/v1/rpc/pedir_clase", {
+        method:"POST",
+        headers:{apikey:SUPA_ANON_KEY, Authorization:"Bearer "+SUPA_ANON_KEY, "Content-Type":"application/json"},
+        body: JSON.stringify({llave, p_fecha:fecha, p_hora:hora, p_nota:(nota.value||"").trim()}),
+      });
+      if(!r.ok) throw new Error("error "+r.status);
+      const res = await r.json();
+      if(!res || !res.ok){ msg.textContent = pedirClaseErrorMsg(res&&res.error); btn.disabled=false; return; }
+      msg.textContent = "¡Pedido enviado! Tu profesor te va a confirmar pronto.";
+      setTimeout(()=>init(), 1200); // recarga el portal para mostrar el pedido en "Tus pedidos"
+    }catch(e){
+      msg.textContent = "No se pudo enviar el pedido — probá de nuevo.";
+      btn.disabled = false;
+    }
+  });
+}
+function showPortal(res, llave){
   const nombre = (res.data && res.data.nombre) ? res.data.nombre.trim() : "";
   const esGrupo = res.tipo==="grupo" && res.grupo;
   // Llave grupal: biblioteca acotada a la materia del grupo (res.grupo.biblioteca), nunca la
@@ -240,7 +309,7 @@ function showPortal(res){
   // es lo que más le importa a él en particular. Pagos (paso 141) va justo después: res.cobros
   // sólo debería venir presente cuando res.tipo==="alumno" (portal_publico() del lado del
   // backend es quien lo decide) — acá sólo se pinta si está.
-  if(res.tipo==="alumno" && res.alumno) h += personalHtml(res.alumno) + pagosHtml(res.alumno, res.cobros||null, nombre);
+  if(res.tipo==="alumno" && res.alumno) h += personalHtml(res.alumno) + pagosHtml(res.alumno, res.cobros||null, nombre) + pedirClaseHtml(res.alumno, res.huecos);
   // Llave grupal: próximas clases/exámenes del grupo, antes de la biblioteca — mismo criterio
   // que el bloque personal, es lo más "de esta llave puntual" frente a lo genérico de abajo.
   if(esGrupo) h += grupoHtml(res.grupo);
@@ -269,6 +338,7 @@ function showPortal(res){
       }).catch(()=>{});
     });
   }
+  wirePedirClase(llave);
 }
 
 async function init(){
@@ -297,7 +367,7 @@ async function init(){
       showMsg("Este portal no está disponible.", "El link puede estar desactivado o haber cambiado.");
       return;
     }
-    showPortal(res);
+    showPortal(res, llave);
   }catch(e){
     showMsg("No se pudo cargar el portal.", "Probá de nuevo en un momento.");
   }

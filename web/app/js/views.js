@@ -520,6 +520,33 @@ function vTuDia(){
       : `<div style="display:flex;flex-direction:column;gap:6px">${tareas.map(vTuDiaRow).join("")}</div>`}
   </div>`;
 }
+/* ============ solicitudes de clase pedidas desde el portal (paso 160) ============
+   state.solicitudesClase se refresca en cada heartbeat (~5min con la pestaña visible, ver
+   refreshSolicitudesClase() en sync.js) y al resolver una a mano — siempre las "pedida" nada
+   más (ya resueltas no vuelven a aparecer acá). Aceptar agenda una clasePuntual de 60 min (editable
+   después en la ficha); rechazar pide un motivo opcional con prompt() nativo, mismo criterio ya
+   usado en la app para textos cortos puntuales (ver "+ nueva carrera"). */
+function vSolicitudesClaseCard(){
+  const list = state.solicitudesClase||[];
+  if(list.length===0) return "";
+  return `<div class="formcard">
+    <div class="ftitle">Solicitudes de clase (portal)</div>
+    <div class="hint" style="margin-bottom:10px">Pedidas por alumnos desde su portal — aceptá para agendarla (60 min por defecto, editable después en la ficha) o rechazá con un motivo opcional.</div>
+    ${list.map(vSolicitudClaseRow).join("")}
+  </div>`;
+}
+function vSolicitudClaseRow(sol){
+  const s = state.students.find(x=>x.id===sol.studentId);
+  return `<div class="log" style="align-items:flex-start">
+    <div class="body"><b>${esc(s?s.name:"Alumno eliminado")}</b> pidió ${fmtDate(sol.fecha)} a las ${esc(sol.hora)}
+      ${sol.nota?`<div class="note">«${esc(sol.nota)}»</div>`:""}
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${s?`<button class="chip" data-a="solicitud-aceptar" data-id="${sol.id}">Aceptar</button>`:""}
+      <button class="chip" data-a="solicitud-rechazar" data-id="${sol.id}">Rechazar</button>
+    </div>
+  </div>`;
+}
 /* ============ panel "Hoy": lo importante del día de un vistazo, arriba del tablero ============
    Tres bloques con la misma tarjeta (.ds-card.hoy-card): "Clases de hoy" (agenda del día,
    con botón registrar/ver), "Para cobrar" (reusa cobrosAtrasadosSummary/vCobrosBanner, el
@@ -635,6 +662,7 @@ function vTablero(){
   h += vBackupReminder();
   h += vCumpleanosBanner();
   h += vTuDia();
+  h += vSolicitudesClaseCard();
 
   h += `<div class="hoy-grid">${vHoyClasesHoy()}${vHoyCobrar()}${vHoyProximo()}</div>`;
 
@@ -3325,7 +3353,7 @@ function vCuenta(){
     </div>`)}
   ${vCuentaGroup("mensajes","Mensajes y plantillas","Los textos que la app arma para WhatsApp y el recibo — todos editables desde acá.", vMensajesCard())}
   ${vCuentaGroup("portal","Portal y llaves","La página pública para tus alumnos: activarla, la llave general, avisos y llaves grupales por materia.",
-    vPortalCard()+vPortalAvisosCard()+vPortalGruposCard())}
+    vPortalCard()+vPedirClaseCard()+vPortalAvisosCard()+vPortalGruposCard())}
   ${vCuentaGroup("gruposclase","Grupos de clase","Quiénes integran cada clase grupal (intensivos, grupitos de 2-3) — para no re-elegirlos cada vez. Distinto de las llaves grupales de portal, de arriba.", vGruposClaseCard())}
   ${vCuentaGroup("datos","Datos y respaldos","Copias automáticas, retención y la papelera de alumnos/materias borrados.", `
     <div class="formcard"><div class="ftitle">Respaldos automáticos</div>
@@ -3455,6 +3483,27 @@ function vPortalCard(){
     ${state.portalSaveMsg?`<div class="hint" style="margin-top:8px">${esc(state.portalSaveMsg)}</div>`:""}
   </div>`;
   if(state.portalError) h += `<div class="saveerr" style="margin-top:10px">${esc(state.portalError)}</div>`;
+  return h + `</div>`;
+}
+
+// "Pedir una clase" (paso 160): apagado por defecto — sólo tiene sentido con disponibilidad
+// declarada (ver "Mi disponibilidad" en Agenda, paso 159); si no hay ninguna, huecosLibresProximos14Dias()
+// siempre da vacío, así que se lo advierte acá antes de que el docente lo active sin haber
+// cargado nada. El toggle es instantáneo (togglePedirClase en sync.js), no depende de "Publicar
+// cambios" de la tarjeta de arriba.
+function vPedirClaseCard(){
+  if(!state.portalLoaded || !state.portal) return "";
+  const on = !!(state.portal.publicado && state.portal.publicado.pedirClaseHabilitado);
+  const disp = disponibilidadFor();
+  let h = `<div class="formcard"><div class="ftitle">Pedir una clase (portal)</div>
+    <div class="hint" style="margin-bottom:10px">Con su llave individual, un alumno ve tus huecos libres de los próximos 14 días (según tu disponibilidad declarada en Agenda) y puede pedir uno con una nota opcional — vos lo aceptás (se agenda solo) o lo rechazás con un motivo, desde las solicitudes del Tablero.</div>`;
+  if(disp.length===0){
+    h += `<div class="hint" style="margin-bottom:10px">Todavía no declaraste tu disponibilidad — andá a Agenda → "Mi disponibilidad" para marcar tus huecos semanales antes de activar esto (si no, no hay ningún hueco para ofrecer).</div>`;
+  }
+  h += `<div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="chip ${!on?"on":""}" data-a="pedir-clase-toggle" data-f="no">Desactivado</button>
+    <button class="chip ${on?"on":""}" data-a="pedir-clase-toggle" data-f="si">Activado</button>
+  </div>`;
   return h + `</div>`;
 }
 
