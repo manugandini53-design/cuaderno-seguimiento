@@ -271,7 +271,15 @@ function fileRowHtml(it){
 // portal es standalone y no tiene acceso a catalog.subjects para resolver un unitId en vivo.
 // "General" (materiales sin unidad enlazada) va primero, después cada unidad en el orden del
 // catálogo (unitOrden) — mismo orden que ve el docente en Materias.
-function unitGroupsHtml(files){
+// Acordeón (paso 174): cada unidad (y "General") arranca cerrada, sólo título + contador, y se
+// abre de a una — <details name="unitacc-<materia>"> agrupa por materia así el navegador ya
+// fuerza "una por vez" solo (soporte nativo moderno, sin JS extra para eso). openUnitKey guarda
+// cuál quedó abierta por materia para que sobreviva a los re-render de bibliotecaHtml() al
+// tipear en el buscador (que si no, reconstruye el HTML de cero y las cerraría todas de nuevo);
+// se actualiza con el listener "toggle" delegado en init() (evento que no burbujea, por eso va
+// con capture:true en el document).
+const openUnitKey = {};
+function unitGroupsHtml(files, subjectKey){
   const generales = files.filter(it=>!it.unitNombre);
   const porUnidad = new Map();
   files.forEach(it=>{
@@ -280,13 +288,26 @@ function unitGroupsHtml(files){
     porUnidad.get(it.unitNombre).files.push(it);
   });
   const grupos=[...porUnidad.entries()].sort((a,b)=>a[1].orden-b[1].orden);
+  const openKey = openUnitKey[subjectKey];
+  const block=(key,label,items)=>`<details class="unitgroup" name="unitacc-${esc(subjectKey)}" data-key="${esc(key)}" data-subject="${esc(subjectKey)}" ${openKey===key?"open":""}>
+    <summary class="unitgroupname">${esc(label)} <span class="unitgroupcount">${items.length} archivo${items.length===1?"":"s"}</span></summary>
+    ${items.map(fileRowHtml).join("")}
+  </details>`;
   let h="";
-  if(generales.length) h += `<div class="unitgroup"><div class="unitgroupname">General</div>${generales.map(fileRowHtml).join("")}</div>`;
-  grupos.forEach(([nombre,g])=>{
-    h += `<div class="unitgroup"><div class="unitgroupname">${esc(nombre)}</div>${g.files.map(fileRowHtml).join("")}</div>`;
-  });
+  if(generales.length) h += block("__general__","General",generales);
+  grupos.forEach(([nombre,g])=>{ h += block(nombre,nombre,g.files); });
   return h;
 }
+// El evento "toggle" de <details> no burbujea, así que este listener va en el document con
+// capture:true (ahí sí lo intercepta camino al target) — se declara una sola vez al cargar el
+// script, no adentro de showPortal()/init() (que sí se re-ejecutan), para no duplicarlo.
+document.addEventListener("toggle", (e)=>{
+  const d=e.target;
+  if(!d || !d.classList || !d.classList.contains("unitgroup")) return;
+  const subjectKey=d.dataset.subject||"", key=d.dataset.key||"";
+  if(d.open) openUnitKey[subjectKey]=key;
+  else if(openUnitKey[subjectKey]===key) openUnitKey[subjectKey]=null;
+}, true);
 // Agrupa por materia y arma la sección de Biblioteca (primera y bien visible: es la sección
 // principal del portal). filtro filtra por materia+nombre de archivo, case-insensitive. Dentro
 // de cada materia, si hay al menos un archivo con unidad denormalizada se sub-agrupa por unidad
@@ -308,7 +329,7 @@ function bibliotecaHtml(items, filtro){
   });
   return [...bySubject.entries()].map(([materia, group])=>{
     const hasUnits = group.files.some(it=>it.unitNombre);
-    const filesHtml = hasUnits ? unitGroupsHtml(group.files) : group.files.map(fileRowHtml).join("");
+    const filesHtml = hasUnits ? unitGroupsHtml(group.files, materia) : group.files.map(fileRowHtml).join("");
     return `
     <div class="subject">
       <div class="subjectname"><span class="subj-dot" style="background:var(--subj-${group.color}-fg)"></span>${esc(materia)}</div>

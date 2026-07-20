@@ -1608,7 +1608,7 @@ function setMaterialUnit(subjectId, fileName, unitId){
 
 async function loadMateriales(subjectId){
   state.materialesSubjectId=subjectId; state.materialesLoaded=false; state.materialesError="";
-  state.materialesConfirmDelName=null;
+  state.materialesConfirmDelName=null; state.materialesUnitOpenId=null;
   // Demo: no hay Storage real — la lista sale directo de catalog.subjects[].materiales, que ya
   // trae todo lo que necesita esta vista (name/bytes/at), sin pegarle a la red.
   if(IS_DEMO){

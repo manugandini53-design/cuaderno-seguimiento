@@ -3738,8 +3738,13 @@ function vCuenta(){
         <input type="number" min="1" max="48" data-cf="recordatorio-horas-antes" value="${ses&&ses.recordatorioClasesHorasAntes||14}"></div>
     </div>`)}
   ${vCuentaGroup("mensajes","Mensajes y plantillas","Los textos que la app arma para WhatsApp y el recibo — todos editables desde acá.", vMensajesCard())}
-  ${vCuentaGroup("portal","Portal y llaves","La página pública para tus alumnos: activarla, la llave general, avisos y llaves grupales por materia.",
-    vPortalCard()+vReservaModoCard()+vCancelarClaseCard()+vPortalAvisosCard()+vPortalGruposCard())}
+  ${vCuentaGroup("portal","Portal — el centro de todo","La página pública para tus alumnos y todo lo que la controla: llave general, llaves por alumno y grupales, reservas, cancelaciones, avisos, cobros y una vista previa.",
+    vPortalCard()+
+    `<div class="formcard"><div class="ftitle">Cobros del portal</div>
+      <div class="hint" style="margin-bottom:10px">Alias, links de pago y QR — lo que cada alumno ve en su portal individual, junto a su saldo pendiente.</div>
+      <button class="chip" data-a="cuenta-group-jump" data-id="cobros">Ir a Cobros</button>
+    </div>`+
+    vReservaModoCard()+vCancelarClaseCard()+vPortalAvisosCard()+vPortalLlavesAlumnosCard()+vPortalGruposCard()+vPortalPreviewCard())}
   ${vCuentaGroup("gruposclase","Grupos de clase","Quiénes integran cada clase grupal (intensivos, grupitos de 2-3) — para no re-elegirlos cada vez. Distinto de las llaves grupales de portal, de arriba.", vGruposClaseCard())}
   ${vCuentaGroup("datos","Datos y respaldos","Copias automáticas, retención y la papelera de alumnos/materias borrados.", `
     <div class="formcard"><div class="ftitle">Respaldos automáticos</div>
@@ -4011,6 +4016,84 @@ function vPortalGrupoRow(m){
     </div>`;
   }
   return h + `</div>`;
+}
+
+// Llaves por alumno, todas juntas (paso 174): mismo generar/copiar/renovar/revocar que ya vive
+// en la ficha (vPortalAlumnoCard) pero sin tener que entrar alumno por alumno — para eso las
+// acciones acá abajo llevan el id en data-id en vez de depender de sel()/la ficha abierta
+// (portal-hub-alumno-*, mismas funciones de sync.js que ya usaba vPortalAlumnoCard).
+function vPortalLlavesAlumnosCard(){
+  if(!state.portalLoaded || !state.portal) return "";
+  const studs = alive();
+  if(studs.length===0) return "";
+  let h = `<div class="formcard"><div class="ftitle">Llaves por alumno</div>
+    <div class="hint" style="margin-bottom:10px">Generá, compartí o revocá el acceso individual de cada alumno, sin entrar a su ficha.</div>`;
+  h += studs.map(vPortalLlaveAlumnoRow).join("");
+  if(state.portalAlumnoError) h += `<div class="saveerr" style="margin-top:10px">${esc(state.portalAlumnoError)}</div>`;
+  return h + `</div>`;
+}
+function vPortalLlaveAlumnoRow(s){
+  const token = tokenForStudent(s.id);
+  const busy = state.portalAlumnoBusy===s.id;
+  const dias = token ? llaveAlumnoVenceDias(s.id) : null;
+  const vencida = dias!==null && dias<=0;
+  const estado = !token ? `<span class="hint">Sin llave</span>`
+    : `<span class="pill" style="${vencida?"color:var(--status-desaprobo-fg);background:var(--redbg)":"background:var(--soft)"}">${vencida?"Vencida":dias===null?"Activa":`Vence en ${dias} día${dias===1?"":"s"}`}</span>`;
+  return `<div class="log" style="align-items:center;flex-wrap:wrap">
+    <div class="body" style="display:flex;align-items:center;gap:8px;flex:1;min-width:140px">${esc(s.name)}${estado}</div>
+    ${!token
+      ? `<button class="chip" data-a="portal-hub-alumno-generar" data-id="${s.id}" ${busy?"disabled":""}>${busy?"Generando…":"Generar llave"}</button>`
+      : `<button class="chip" data-a="portal-hub-alumno-copy" data-id="${s.id}">Copiar link</button>
+      <button class="chip" data-a="portal-hub-alumno-regen" data-id="${s.id}" ${busy?"disabled":""}>Renovar</button>
+      <button class="danger" data-a="portal-hub-alumno-revoke" data-id="${s.id}" ${busy?"disabled":""}>Revocar</button>`}
+    <button class="chip" data-a="open" data-id="${s.id}" data-tab="portal">Ver ficha</button>
+  </div>`;
+}
+
+// "Ver como alumno" (paso 174): previsualiza el portal público tal cual lo ve un alumno (o una
+// llave grupal, o la llave general) sin salir de la app — mismo portal.html/js/portal.js de
+// siempre, en un iframe con la llave real (nada de lógica duplicada). El iframe no se carga hasta
+// tocar "Cargar vista previa" a propósito, para no pegarle a la red cada vez que se abre Cuenta.
+function portalPreviewUrl(sel){
+  const p=state.portal;
+  if(!p) return "";
+  if(sel==="general") return portalUrl(p.token);
+  if(sel.startsWith("alumno:")){
+    const token=tokenForStudent(sel.slice(7));
+    return token?portalUrl(token):"";
+  }
+  if(sel.startsWith("grupo:")){
+    const token=tokenForGrupo(sel.slice(6));
+    return token?portalUrl(token):"";
+  }
+  return "";
+}
+function vPortalPreviewCard(){
+  if(!state.portalLoaded || !state.portal) return "";
+  const p=state.portal;
+  if(!p.habilitado) return `<div class="formcard"><div class="ftitle">Ver como alumno</div>
+    <div class="hint">Activá el portal arriba para poder previsualizarlo.</div></div>`;
+  const studs = alive().filter(s=>tokenForStudent(s.id));
+  const subjects = state.catalog.subjects.filter(m=>tokenForGrupo(m.id));
+  let sel = state.portalPreviewSel||"general";
+  if(sel!=="general" && !portalPreviewUrl(sel)) sel="general";
+  let options = `<option value="general" ${sel==="general"?"selected":""}>Llave general</option>`;
+  if(studs.length) options += `<optgroup label="Por alumno">${studs.map(s=>
+    `<option value="alumno:${s.id}" ${sel==="alumno:"+s.id?"selected":""}>${esc(s.name)}</option>`).join("")}</optgroup>`;
+  if(subjects.length) options += `<optgroup label="Llave grupal">${subjects.map(m=>
+    `<option value="grupo:${m.id}" ${sel==="grupo:"+m.id?"selected":""}>${esc(m.name)}</option>`).join("")}</optgroup>`;
+  const url = portalPreviewUrl(sel);
+  return `<div class="formcard"><div class="ftitle">Ver como alumno</div>
+    <div class="hint" style="margin-bottom:10px">Previsualizá el portal con datos reales, tal cual lo va a ver esa llave.</div>
+    <div class="frow">
+      <div class="field"><div class="flabel">Vista</div><select data-cf="portal-preview-sel">${options}</select></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
+      <button class="chip" data-a="portal-preview-load">${state.portalPreviewOpen?"Recargar vista previa":"Cargar vista previa"}</button>
+      ${url?`<a class="chip" href="${esc(url)}" target="_blank" rel="noopener">Abrir en pestaña nueva</a>`:""}
+    </div>
+    ${state.portalPreviewOpen && url ? `<iframe src="${esc(url)}" title="Vista previa del portal" style="width:100%;height:560px;border:1px solid var(--soft);border-radius:10px;background:var(--card)"></iframe>` : ""}
+  </div>`;
 }
 
 /* ============ Cuenta → "Grupos de clase" (paso 157) ============
@@ -4370,6 +4453,23 @@ function vMaterialUploadRow(subjectId, unitId, inputId, blocked, uploading){
     <button class="chip" data-a="mat-upload" data-id="${subjectId}" data-unit="${unitId||""}" data-input="${inputId}" style="margin-bottom:2px" ${blocked||uploading?"disabled":""}>${uploading?"Subiendo…":"+ Subir"}</button>
   </div>`;
 }
+// Biblioteca desplegable (paso 174): "General" y cada unidad arrancan cerradas (sólo título +
+// contador) y se abre de a una — mismo patrón visual que vCuentaGroup(), pero con su propio
+// estado (materialesUnitOpenId) porque acá sólo tiene sentido una abierta por vez, no varias
+// independientes. "Ver materiales de esta unidad" (mat-jump-unit, arriba en vUnitRow) sigue
+// forzando la apertura de su unidad como antes, ahora también contra este estado.
+function vMatUnitBlock(subjectId, unitId, label, items, bodyHtml, uploadHtml){
+  const jumping = state.materialesJumpUnitId===unitId;
+  const open = jumping || state.materialesUnitOpenId===unitId;
+  return `<div class="cuenta-group" style="margin:10px 0${jumping?";border-color:var(--accent);border-width:2px":""}" id="mat-unit-${unitId||"general"}">
+    <button class="cuenta-group-head" data-a="mat-unit-toggle" data-unit="${unitId}" aria-expanded="${open}">
+      <div><div class="ftitle" style="margin-bottom:2px">${esc(label)}</div>
+        <div class="hint">${items.length} archivo${items.length===1?"":"s"}</div></div>
+      <span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
+    </button>
+    ${open?`<div class="cuenta-group-body">${bodyHtml}${uploadHtml}</div>`:""}
+  </div>`;
+}
 function vMateriales(subjectId){
   let h = `<div class="formcard" id="materiales-block"><div class="ftitle" style="display:flex;align-items:center;gap:8px">${subjectDot(subjectId)}Materiales</div>`;
   if(!navigator.onLine || state.materialesError==="offline"){
@@ -4421,19 +4521,14 @@ function vMateriales(subjectId){
   } else {
     const enUnidad=(f)=>{ const e=materialIndexEntry(subjectId,f.name); return (e&&e.unitId)||""; };
     const generales = list.filter(f=>!enUnidad(f));
-    h += `<div class="formcard" style="margin:10px 0" id="mat-unit-general">
-      <div class="ftitle" style="font-size:14px">General</div>
-      ${generales.length ? generales.map(f=>vMaterialRow(subjectId, f, unitOptions)).join("") : `<div class="empty" style="font-size:13px">Sin materiales generales.</div>`}
-      ${vMaterialUploadRow(subjectId, "", "mat-file-general", blocked, state.materialesUploading)}
-    </div>`;
+    h += vMatUnitBlock(subjectId, "", "General", generales,
+      generales.length ? generales.map(f=>vMaterialRow(subjectId, f, unitOptions)).join("") : `<div class="empty" style="font-size:13px">Sin materiales generales.</div>`,
+      vMaterialUploadRow(subjectId, "", "mat-file-general", blocked, state.materialesUploading));
     units.forEach(u=>{
       const items=list.filter(f=>enUnidad(f)===u.id);
-      const highlighted = state.materialesJumpUnitId===u.id;
-      h += `<div class="formcard" style="margin:10px 0${highlighted?";border-color:var(--accent);border-width:2px":""}" id="mat-unit-${u.id}">
-        <div class="ftitle" style="font-size:14px">${esc(u.nombre)}</div>
-        ${items.length ? items.map(f=>vMaterialRow(subjectId, f, unitOptions)).join("") : `<div class="empty" style="font-size:13px">Sin materiales en esta unidad.</div>`}
-        ${vMaterialUploadRow(subjectId, u.id, "mat-file-"+u.id, blocked, state.materialesUploading)}
-      </div>`;
+      h += vMatUnitBlock(subjectId, u.id, u.nombre, items,
+        items.length ? items.map(f=>vMaterialRow(subjectId, f, unitOptions)).join("") : `<div class="empty" style="font-size:13px">Sin materiales en esta unidad.</div>`,
+        vMaterialUploadRow(subjectId, u.id, "mat-file-"+u.id, blocked, state.materialesUploading));
     });
   }
   h += `${full?`<div class="hint" style="margin-top:6px">Llegaste al máximo de ${MATERIAL_MAX_COUNT} archivos para esta materia.</div>`:""}

@@ -756,6 +756,12 @@ document.addEventListener("click", (e)=>{
   else if(a==="mat-jump-unit"){
     state.materialesMode="unidad";
     state.materialesJumpUnitId=el.dataset.unit;
+    state.materialesUnitOpenId=el.dataset.unit;
+  }
+  else if(a==="mat-unit-toggle"){
+    const unitId=el.dataset.unit;
+    state.materialesUnitOpenId = state.materialesUnitOpenId===unitId ? null : unitId;
+    state.materialesJumpUnitId=null;
   }
   else if(a==="mat-toggle-share"){
     const entry=materialIndexEntry(el.dataset.id, el.dataset.name); if(!entry) return;
@@ -879,6 +885,17 @@ document.addEventListener("click", (e)=>{
       .catch(()=>toast("No se pudo copiar — seleccioná el texto manualmente.","error"));
     return;
   }
+  else if(a==="portal-hub-alumno-generar"){ generarLlaveAlumno(el.dataset.id); return; }
+  else if(a==="portal-hub-alumno-regen"){ regenerarLlaveAlumno(el.dataset.id); return; }
+  else if(a==="portal-hub-alumno-revoke"){ revocarLlaveAlumno(el.dataset.id); return; }
+  else if(a==="portal-hub-alumno-copy"){
+    const token=tokenForStudent(el.dataset.id); if(!token) return;
+    copyToClipboard(portalUrl(token))
+      .then(()=>toast("Link copiado"))
+      .catch(()=>toast("No se pudo copiar — seleccioná el texto manualmente.","error"));
+    return;
+  }
+  else if(a==="portal-preview-load"){ state.portalPreviewOpen=true; }
   else if(a==="toggle-recordatorio-mail" && s){
     update(s.id,{recordatorioMail: !s.recordatorioMail});
     return;
@@ -1079,7 +1096,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="feedback-banner-dismiss"){ dismissFeedbackBanner(); }
   else if(a==="auth-logout"){ setSes(null); state.view="tablero"; _navSnapshot=null; render(); return; }
   else if(a==="open"){
-    state.view="detalle"; state.selId=el.dataset.id; state.tab="resumen"; state.confirmDel=false;
+    state.view="detalle"; state.selId=el.dataset.id; state.tab=el.dataset.tab||"resumen"; state.confirmDel=false;
     state.simTimer=null; state.simPrefillNote=""; state.fichaError=""; state.sessionPrefillDate="";
     state.registrarClaseTipo=null;
     // Llave a mano (paso 139): carga el portal en segundo plano al abrir la ficha (si no estaba
@@ -2258,6 +2275,7 @@ function handleFormChange(e){
     touchCatalog(); return;
   }
   if(cf && cf.dataset.cf==="portal-nombre"){ if(state.portal) state.portal.draftNombre=cf.value; return; }
+  if(cf && cf.dataset.cf==="portal-preview-sel"){ state.portalPreviewSel=cf.value; state.portalPreviewOpen=false; render(); return; }
   if(cf && cf.dataset.cf==="rec-dias"){
     state.catalog.recordatorios = {...recordatoriosFor(), diasAtraso:Math.max(0, parseInt(cf.value,10)||0)};
     touchCatalog(); return;
