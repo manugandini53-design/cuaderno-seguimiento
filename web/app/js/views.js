@@ -606,29 +606,33 @@ function vTuDia(){
       : `<div style="display:flex;flex-direction:column;gap:6px">${tareas.map(vTuDiaRow).join("")}</div>`}
   </div>`;
 }
-/* ============ solicitudes de clase pedidas desde el portal (paso 160) ============
+/* ============ solicitudes de clase pedidas o canceladas desde el portal (pasos 160 y 172) ============
    state.solicitudesClase se refresca en cada heartbeat (~5min con la pestaña visible, ver
    refreshSolicitudesClase() en sync.js) y al resolver una a mano — siempre las "pedida" nada
-   más (ya resueltas no vuelven a aparecer acá). Aceptar agenda una clasePuntual de 60 min (editable
-   después en la ficha); rechazar pide un motivo opcional con prompt() nativo, mismo criterio ya
-   usado en la app para textos cortos puntuales (ver "+ nueva carrera"). */
+   más (ya resueltas no vuelven a aparecer acá). Dos tipos mezclados en la misma lista, distinguidos
+   por sol.tipo: "pedido" (aceptar agenda una clasePuntual de 60 min, editable después en la
+   ficha) o "cancelacion" (aceptar cancela esa ocurrencia puntual/recurrente de siempre, ver
+   aceptarSolicitudClase en sync.js); rechazar pide un motivo opcional con prompt() nativo, mismo
+   criterio ya usado en la app para textos cortos puntuales (ver "+ nueva carrera"). */
 function vSolicitudesClaseCard(){
   const list = state.solicitudesClase||[];
   if(list.length===0) return "";
   return `<div class="formcard">
     <div class="ftitle">Solicitudes de clase (portal)</div>
-    <div class="hint" style="margin-bottom:10px">Pedidas por alumnos desde su portal — aceptá para agendarla (60 min por defecto, editable después en la ficha) o rechazá con un motivo opcional.</div>
+    <div class="hint" style="margin-bottom:10px">Pedidos y avisos de cancelación mandados por alumnos desde su portal — aceptá o rechazá con un motivo opcional.</div>
     ${list.map(vSolicitudClaseRow).join("")}
   </div>`;
 }
 function vSolicitudClaseRow(sol){
   const s = state.students.find(x=>x.id===sol.studentId);
+  const esCancel = sol.tipo==="cancelacion";
   return `<div class="log" style="align-items:flex-start">
-    <div class="body"><b>${esc(s?s.name:"Alumno eliminado")}</b> pidió ${fmtDate(sol.fecha)} a las ${esc(sol.hora)}
+    <div class="body"><b>${esc(s?s.name:"Alumno eliminado")}</b> ${esCancel?"avisó que no puede ir a la clase del":"pidió"} ${fmtDate(sol.fecha)}${esCancel?"":" a las "+esc(sol.hora)}
+      ${esCancel?` <span class="pill" style="color:var(--status-desaprobo-fg);background:var(--redbg)">Cancelación</span>`:""}
       ${sol.nota?`<div class="note">«${esc(sol.nota)}»</div>`:""}
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${s?`<button class="chip" data-a="solicitud-aceptar" data-id="${sol.id}">Aceptar</button>`:""}
+      ${s?`<button class="chip" data-a="solicitud-aceptar" data-id="${sol.id}">${esCancel?"Aceptar (cancelar clase)":"Aceptar"}</button>`:""}
       <button class="chip" data-a="solicitud-rechazar" data-id="${sol.id}">Rechazar</button>
     </div>
   </div>`;
@@ -3712,7 +3716,7 @@ function vCuenta(){
     </div>`)}
   ${vCuentaGroup("mensajes","Mensajes y plantillas","Los textos que la app arma para WhatsApp y el recibo — todos editables desde acá.", vMensajesCard())}
   ${vCuentaGroup("portal","Portal y llaves","La página pública para tus alumnos: activarla, la llave general, avisos y llaves grupales por materia.",
-    vPortalCard()+vPedirClaseCard()+vPortalAvisosCard()+vPortalGruposCard())}
+    vPortalCard()+vPedirClaseCard()+vCancelarClaseCard()+vPortalAvisosCard()+vPortalGruposCard())}
   ${vCuentaGroup("gruposclase","Grupos de clase","Quiénes integran cada clase grupal (intensivos, grupitos de 2-3) — para no re-elegirlos cada vez. Distinto de las llaves grupales de portal, de arriba.", vGruposClaseCard())}
   ${vCuentaGroup("datos","Datos y respaldos","Copias automáticas, retención y la papelera de alumnos/materias borrados.", `
     <div class="formcard"><div class="ftitle">Respaldos automáticos</div>
@@ -3864,6 +3868,22 @@ function vPedirClaseCard(){
     <button class="chip ${on?"on":""}" data-a="pedir-clase-toggle" data-f="si">Activado</button>
   </div>`;
   return h + `</div>`;
+}
+
+// "Cancelar desde el portal" (paso 172): ENCENDIDO por defecto, a diferencia de "Pedir una
+// clase" — es de las cosas que más ping-pong de WhatsApp ahorran, así que arranca activo salvo
+// que el docente lo apague a mano. Toggle instantáneo, mismo patrón que el de arriba
+// (toggleCancelarClase en sync.js).
+function vCancelarClaseCard(){
+  if(!state.portalLoaded || !state.portal) return "";
+  const on = permitirCancelarPortalFor();
+  return `<div class="formcard"><div class="ftitle">Cancelar desde el portal</div>
+    <div class="hint" style="margin-bottom:10px">Con su llave individual, un alumno puede avisar que no va a una clase agendada (con un motivo opcional) desde "Próximas clases" — vos lo aceptás (la clase pasa a cancelada, y si es recurrente sólo esa fecha) o lo rechazás, desde las solicitudes del Tablero. Si tenés una política de cancelación cargada (más abajo), el portal se la muestra antes de que confirme.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="chip ${!on?"on":""}" data-a="cancelar-clase-toggle" data-f="no">Desactivado</button>
+      <button class="chip ${on?"on":""}" data-a="cancelar-clase-toggle" data-f="si">Activado</button>
+    </div>
+  </div>`;
 }
 
 // Avisos del portal (paso 105): mensajes cortos con fecha que el docente publica dirigidos a

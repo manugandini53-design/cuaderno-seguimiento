@@ -60,9 +60,109 @@ const TOPIC_BAR_META = {
 // Ícono de saludo, mismo set de línea que la app (ICON_WAVE en views.js) — duplicado acá
 // porque portal.js es standalone y no carga ese archivo (ver el comentario de SUPA_URL arriba).
 const ICON_WAVE=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V6a1.8 1.8 0 0 1 3.6 0v5"/><path d="M11.6 11V4.6a1.8 1.8 0 0 1 3.6 0V11"/><path d="M15.2 11V6.4a1.8 1.8 0 0 1 3.6 0V15c0 4-2.5 7-6.8 7-3 0-4.6-1-6-2.7L3 15.4c-.6-.9-.4-2 .5-2.6.8-.5 1.8-.3 2.4.4L8 15.5"/></svg>`;
-function personalHtml(alumno){
+// "No puedo ir" (paso 172): con llave individual, y sólo si el docente activó "Cancelar desde el
+// portal" (encendido por defecto — ver cancelarClaseHabilitado, que sí llega apagado en un
+// portal_publico() viejo sin el campo, por eso el default se resuelve acá, no en el backend), cada
+// clase de "Próximas clases" es tocable y abre un mini-formulario en el lugar (sin navegar a
+// ningún lado) con motivo opcional. Viaja por la RPC pública cancelar_clase_portal() (migración
+// 025_cancelacion_portal.sql en cuaderno-supabase, misma tabla solicitudes_clase del paso 160,
+// con tipo/kind/source_id nuevos) — mismo criterio de seguridad que el resto del portal (nunca
+// expone token/user_id) y con su propio rate limit de 3 avisos por llave por día. La clase NO se
+// cancela sola: queda "pedida" hasta que el docente la acepta o rechaza desde el Tablero.
+function solicitudCancelFor(solicitudes, c){
+  return (solicitudes||[]).find(s=>s.tipo==="cancelacion" && s.kind===c.kind && s.sourceId===c.sourceId && s.fecha===c.origDate) || null;
+}
+function cancelEstadoHtml(sol){
+  if(sol.estado==="confirmada") return `<div class="pmeta" style="color:var(--subj-green-fg);margin-top:4px">Cancelación aceptada por tu profesor.</div>`;
+  if(sol.estado==="rechazada") return `<div class="pmeta" style="color:var(--red-fg);margin-top:4px">Rechazada — seguí en contacto con tu docente.</div>`;
+  return `<div class="pmeta" style="margin-top:4px">Avisaste que no podés ir — esperando que tu profesor lo confirme.</div>`;
+}
+function proximasClasesHtml(alumno, cancelarHabilitado, politica){
+  const list = alumno.proximasClases||[];
+  if(list.length===0){
+    return `<div class="prow"><div class="plabel">Próximas clases</div><div class="pempty">Sin clases agendadas por ahora.</div></div>`;
+  }
+  const filas = list.map((c,i)=>{
+    const idx = "pc"+i;
+    const sol = solicitudCancelFor(alumno.solicitudes, c);
+    let acciones = "";
+    if(sol){
+      acciones = cancelEstadoHtml(sol);
+    }else if(cancelarHabilitado){
+      acciones = `<button type="button" class="dl" data-a="clase-cancel-open" data-idx="${idx}" style="margin-left:8px">No puedo ir</button>
+        <div class="cancel-panel" id="cancel-panel-${idx}" hidden data-kind="${esc(c.kind)}" data-sourceid="${esc(c.sourceId)}" data-fecha="${esc(c.origDate)}" data-hora="${esc(c.time)}">
+          ${politica?`<div class="pmeta" style="margin:6px 0">Ojo: ${esc(politica)}</div>`:""}
+          <textarea class="pinput" id="cancel-motivo-${idx}" maxlength="200" placeholder="Motivo (opcional)" rows="2"></textarea>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button type="button" class="dl" data-a="clase-cancel-confirm" data-idx="${idx}">Sí, no puedo ir</button>
+            <button type="button" class="dl" data-a="clase-cancel-back" data-idx="${idx}">Volver</button>
+          </div>
+          <div class="pmeta" id="cancel-msg-${idx}" style="margin-top:4px"></div>
+        </div>`;
+    }
+    return `<div class="pvalue"${i>0?' style="margin-top:10px"':''}>${fmtDiaLocal(c.date)} a las ${esc(c.time)} (${Number(c.duration)||60} min)${acciones}
+      ${c.link?`<div style="margin-top:4px"><a class="dl" target="_blank" rel="noopener" href="${esc(c.link)}">Entrar a la clase</a></div>`:""}
+    </div>`;
+  }).join("");
+  return `<div class="prow"><div class="plabel">Próximas clases</div>${filas}</div>`;
+}
+function cancelClaseErrorMsg(err){
+  if(err==="rate_limit") return "Ya avisaste el máximo de cancelaciones por hoy — probá de nuevo mañana.";
+  if(err==="disabled") return "Tu profesor desactivó los avisos de cancelación por ahora.";
+  if(err==="not_found") return "Esa clase ya no está disponible — refrescá la página.";
+  return "No se pudo enviar el aviso — probá de nuevo.";
+}
+function wireCancelUi(llave){
+  document.querySelectorAll('[data-a="clase-cancel-open"]').forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const panel=document.getElementById("cancel-panel-"+btn.dataset.idx);
+      if(panel) panel.hidden=false;
+      btn.hidden=true;
+    });
+  });
+  document.querySelectorAll('[data-a="clase-cancel-back"]').forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const idx=btn.dataset.idx;
+      const panel=document.getElementById("cancel-panel-"+idx);
+      if(panel) panel.hidden=true;
+      const openBtn=document.querySelector(`[data-a="clase-cancel-open"][data-idx="${idx}"]`);
+      if(openBtn) openBtn.hidden=false;
+    });
+  });
+  document.querySelectorAll('[data-a="clase-cancel-confirm"]').forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const idx=btn.dataset.idx;
+      const panel=document.getElementById("cancel-panel-"+idx);
+      const motivoEl=document.getElementById("cancel-motivo-"+idx);
+      const msg=document.getElementById("cancel-msg-"+idx);
+      btn.disabled=true; msg.textContent="Enviando…";
+      try{
+        const r=await fetch(SUPA_URL+"/rest/v1/rpc/cancelar_clase_portal", {
+          method:"POST",
+          headers:{apikey:SUPA_ANON_KEY, Authorization:"Bearer "+SUPA_ANON_KEY, "Content-Type":"application/json"},
+          body: JSON.stringify({llave, p_kind:panel.dataset.kind, p_source_id:panel.dataset.sourceid,
+            p_fecha:panel.dataset.fecha, p_hora:panel.dataset.hora, p_motivo:(motivoEl.value||"").trim()}),
+        });
+        if(!r.ok) throw new Error("error "+r.status);
+        const res=await r.json();
+        if(!res || !res.ok){ msg.textContent=cancelClaseErrorMsg(res&&res.error); btn.disabled=false; return; }
+        msg.textContent="¡Avisado! Tu profesor lo va a confirmar pronto.";
+        setTimeout(()=>init(), 1200); // recarga el portal para mostrar el estado en la clase
+      }catch(e){
+        msg.textContent="No se pudo enviar el aviso — probá de nuevo.";
+        btn.disabled=false;
+      }
+    });
+  });
+}
+function personalHtml(alumno, cancelarHabilitado, politica){
   let h = `<div class="card personal"><div class="hello">Hola, ${esc(alumno.nombre||"")} <span class="icon-inline">${ICON_WAVE}</span></div>`;
-  if("proximaClase" in alumno){
+  // proximasClases (paso 172, lista completa) reemplaza a proximaClase (singular) cuando está
+  // presente — cae al singular de siempre si el portal públicado todavía no la trae (cache
+  // vieja de antes de este paso, ver el comentario de proximasClasesFor en helpers.js).
+  if(Array.isArray(alumno.proximasClases)){
+    h += proximasClasesHtml(alumno, cancelarHabilitado, politica);
+  }else if("proximaClase" in alumno){
     const pc = alumno.proximaClase;
     h += `<div class="prow"><div class="plabel">Próxima clase</div>
       ${pc ? `<div class="pvalue">${fmtDiaLocal(pc.date)} a las ${esc(pc.time)} (${Number(pc.duration)||60} min)
@@ -258,7 +358,9 @@ function solicitudEstadoLabel(estado){
 function pedirClaseHtml(alumno, huecos){
   if(!Array.isArray(huecos)) return "";
   let h = `<div class="card"><div class="ctitle">Pedir una clase</div>`;
-  const solicitudes = (alumno && alumno.solicitudes) || [];
+  // sólo "pedido" acá — las de tipo "cancelacion" (paso 172) se muestran en su propia clase,
+  // dentro de "Próximas clases" (ver solicitudCancelFor), no mezcladas con "Tus pedidos".
+  const solicitudes = ((alumno && alumno.solicitudes) || []).filter(s=>(s.tipo||"pedido")==="pedido");
   if(solicitudes.length){
     h += `<div class="prow"><div class="plabel">Tus pedidos</div>` + solicitudes.map(s=>{
       const est = solicitudEstadoLabel(s.estado);
@@ -339,7 +441,12 @@ function showPortal(res, llave){
   if(res.tipo==="alumno" && res.alumno){
     const pagos = pagosHtml(res.alumno, res.cobros||null, nombre);
     const debe = Number(res.alumno.pendiente)>0;
-    h += (debe ? pagos + personalHtml(res.alumno) : personalHtml(res.alumno) + pagos) + pedirClaseHtml(res.alumno, res.huecos);
+    // cancelarClaseHabilitado (paso 172): default true si un portal_publico() viejo ni siquiera
+    // manda la clave (cache previa a este paso) — arranca encendido, a diferencia de pedirClaseHabilitado.
+    const cancelarHabilitado = res.cancelarClaseHabilitado!==false;
+    const politica = (res.data && res.data.cancelPolicyTexto) || "";
+    const personal = personalHtml(res.alumno, cancelarHabilitado, politica);
+    h += (debe ? pagos + personal : personal + pagos) + pedirClaseHtml(res.alumno, res.huecos);
   }
   // Llave grupal: próximas clases/exámenes del grupo, antes de la biblioteca — mismo criterio
   // que el bloque personal, es lo más "de esta llave puntual" frente a lo genérico de abajo.
@@ -370,6 +477,7 @@ function showPortal(res, llave){
     });
   }
   wirePedirClase(llave);
+  wireCancelUi(llave);
 }
 
 async function init(){

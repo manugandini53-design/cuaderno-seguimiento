@@ -855,6 +855,7 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="portal-publicar"){ publicarPortal(); return; }
   else if(a==="pedir-clase-toggle"){ togglePedirClase(el.dataset.f==="si"); return; }
+  else if(a==="cancelar-clase-toggle"){ toggleCancelarClase(el.dataset.f==="si"); return; }
   else if(a==="solicitud-aceptar"){ aceptarSolicitudClase(el.dataset.id); return; }
   else if(a==="solicitud-rechazar"){ rechazarSolicitudClase(el.dataset.id); return; }
   else if(a==="aviso-add"){

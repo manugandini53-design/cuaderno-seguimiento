@@ -1191,6 +1191,42 @@ function nextClaseForStudent(s){
   });
   return best;
 }
+// Próximas clases de un alumno puntual (paso 172), lista completa en vez de sólo la más próxima
+// (nextClaseForStudent arriba) — mismo criterio de no mirar el estado del alumno, pero acá sí
+// salta las ocurrencias de horario marcadas canceladas vía exceptions (nextClaseForStudent no lo
+// hacía porque nunca hacía falta distinguir una ocurrencia puntual de otra). sourceId/origDate
+// identifican la ocurrencia para poder pedir su cancelación desde el portal ("No puedo ir") —
+// origDate es SIEMPRE la fecha original del horario (nunca la movida), porque es la clave que usa
+// cancelHorarioOccurrence() para escribir la excepción.
+function proximasClasesFor(s, dias, max){
+  dias = dias||21; max = max||6;
+  const from = today(), to = addDays(from, dias);
+  const out = [];
+  (s.clasesPuntuales||[]).forEach(p=>{
+    if(p.cancelada || p.date<from || p.date>to) return;
+    out.push({date:p.date, time:p.time, duration:Number(p.duration)||60, kind:"puntual", sourceId:p.id, origDate:p.date, link:linkVideollamadaFor(s,p.link)});
+  });
+  (s.horarios||[]).forEach(hr=>{
+    const exceptions = hr.exceptions||{};
+    for(let d=from; d<=to; d=addDays(d,1)){
+      if(hr.day!==weekdayIdx(d)) continue;
+      const ex = exceptions[d];
+      if(ex && ex.cancelled) continue;
+      const date = (ex && ex.date) || d;
+      out.push({date, time:(ex&&ex.time)||hr.time, duration:Number((ex&&ex.duration)||hr.duration)||60,
+        kind:"horario", sourceId:hr.id, origDate:d, link:linkVideollamadaFor(s, ex&&ex.link!=null?ex.link:hr.link)});
+    }
+  });
+  out.sort((a,b)=>(a.date+" "+a.time).localeCompare(b.date+" "+b.time));
+  return out.slice(0,max);
+}
+// "Permitir cancelar desde el portal" (paso 172, state.portal.publicado.permitirCancelarPortal)
+// — a diferencia de "Pedir una clase" (pedirClaseHabilitado, arranca apagado), este arranca
+// ENCENDIDO por defecto: la ausencia del campo (portal nunca tocado, o publicado antes de este
+// paso) cuenta como activado, no como desactivado.
+function permitirCancelarPortalFor(){
+  return !(state.portal && state.portal.publicado && state.portal.publicado.permitirCancelarPortal===false);
+}
 // "m:<id>" / "s:<id>" (valor del <select> de alcance en Rentabilidad) → {subjectId,studentId}
 // (nunca ambos con valor); "" o cualquier otra cosa → costo general, sin alcance.
 function parseScopeValue(v){
@@ -1734,6 +1770,17 @@ function seniaMontoFor(s){
   return Number(s.seniaValor)||0;
 }
 function cancelPolicyFor(){ return state.catalog.cancelPolicy || defaultCancelPolicy(); }
+// Texto de la política de cancelación para mostrar en el portal antes de que un alumno confirme
+// "No puedo ir" (paso 172): el texto libre si el docente lo cargó, si no un resumen generado a
+// partir de horasMinimas/siATiempo (mismo dato de siempre, cancelPolicyFor() arriba) — vacío si
+// no hay ni texto ni horas mínimas cargadas (política nunca tocada).
+function cancelPolicyTextoPublico(){
+  const pol = cancelPolicyFor();
+  if(pol.texto && pol.texto.trim()) return pol.texto.trim();
+  if(!pol.horasMinimas) return "";
+  const consecuencia = pol.siATiempo==="acredita" ? "se acredita a tu próxima clase" : "se devuelve";
+  return `Avisá con al menos ${pol.horasMinimas} hs de anticipación — con menos aviso, la seña no ${consecuencia}.`;
+}
 // horas entre ahora y el momento exacto de la clase (puede dar negativo si ya pasó — eso
 // hace que la anticipación quede por debajo del mínimo y la seña se retenga, sin caso especial).
 function hoursUntilClase(p){ return (new Date(p.date+"T"+(p.time||"00:00")+":00") - new Date())/3600000; }
