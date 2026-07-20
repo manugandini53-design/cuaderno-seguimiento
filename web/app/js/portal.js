@@ -94,16 +94,41 @@ function personalHtml(alumno){
   }
   return h + `</div>`;
 }
+// Desglose de pendienteDesgloseFor() (sync.js) por origen — sólo lista los tipos que tienen algo
+// (paso 171), para que el alumno entienda de qué se compone el total sin ver ceros de más.
+function pendienteDesgloseHtml(d){
+  if(!d) return "";
+  const rows=[];
+  if(d.clase>0) rows.push(`Clases sin cobrar: ${fmtMoneyPortal(d.clase)}`);
+  if(d.mensual>0) rows.push(`Mensualidad: ${fmtMoneyPortal(d.mensual)}`);
+  if(d.senia>0) rows.push(`Señas: ${fmtMoneyPortal(d.senia)}`);
+  if(rows.length<2) return "";
+  return `<div class="pmeta" style="margin-top:2px">${rows.map(esc).join(" · ")}</div>`;
+}
+// Pie "pagada ✓ / pendiente" de las últimas clases (paso 171, historialClasesPortal() en
+// helpers.js): sólo llega con modalidad "clase"/"hora" (mensual no se cobra clase por clase, ver
+// esa función) — para que el alumno vea de dónde sale el saldo que muestra arriba.
+function historialClasesHtml(list){
+  if(!Array.isArray(list) || list.length===0) return "";
+  return `<div class="prow"><div class="plabel">Últimas clases</div>` +
+    list.map(c=>`<div class="pvalue">${fmtDiaLocal(c.date)} — <span style="color:${c.cobrada?"var(--subj-green-fg)":"var(--red-fg)"}">${c.cobrada?"Pagada ✓":"Pendiente"}</span></div>`).join("") +
+    `</div>`;
+}
 // Pagos (paso 141): sólo con llave individual — pendiente es SIEMPRE del propio alumno (nunca de
 // otro, ver buildAlumnoBlock en sync.js) y "cobros" es el bloque de medios de pago del docente
 // (alias/links/QR, ver publicarPortal en sync.js), que el backend (portal_publico()) sólo debe
 // entregar cuando res.tipo==="alumno" — con llave grupal o general esto no se muestra nunca.
+// Paso 171: cuando hay deuda, esta tarjeta se ubica arriba de todo (ver showPortal) y se destaca
+// con ".deuda" — antes el alumno podía no enterarse de que debía nada hasta abrir "Pagos".
 function pagosHtml(alumno, cobros, nombreDocente){
   if(typeof alumno.pendiente!=="number" && !cobros) return "";
-  let h = `<div class="card"><div class="ctitle">Pagos</div>`;
-  h += `<div class="prow"><div class="plabel">Pendiente</div>
-    ${alumno.pendiente>0 ? `<div class="pvalue" style="color:var(--red,#c0392b)">${fmtMoneyPortal(alumno.pendiente)}</div>` : `<div class="pempty">Estás al día.</div>`}
-  </div>`;
+  const debe = alumno.pendiente>0;
+  let h = `<div class="card${debe?" deuda":""}"><div class="ctitle">${debe?"Tenés pagos pendientes":"Pagos"}</div>`;
+  h += `<div class="prow"><div class="plabel">${debe?"Total pendiente":"Pendiente"}</div>`;
+  h += debe
+    ? `<div class="pvalue" style="color:var(--red-fg);font-size:19px;font-weight:700">${fmtMoneyPortal(alumno.pendiente)}</div>${pendienteDesgloseHtml(alumno.pendienteDesglose)}`
+    : `<div class="pempty">Estás al día ✓</div>`;
+  h += `</div>`;
   if(cobros){
     h += `<div class="prow"><div class="plabel">Formas de pagarle a ${esc(nombreDocente||"tu profesor")}</div>`;
     const btns=[];
@@ -115,6 +140,7 @@ function pagosHtml(alumno, cobros, nombreDocente){
     if(cobros.qr && cobros.qr.url) h += `<div style="margin-top:10px"><img src="${esc(cobros.qr.url)}" alt="Código QR para pagar" style="max-width:200px;border-radius:8px"></div>`;
     h += `</div>`;
   }
+  h += historialClasesHtml(alumno.historialClases);
   return h + `</div>`;
 }
 // Bloque de una llave GRUPAL (ver buildGrupoBlock en sync.js): próximas clases/exámenes del
@@ -306,10 +332,15 @@ function showPortal(res, llave){
   let h = `<h1 style="display:flex;align-items:center;gap:10px">${fotoDocente?`<img src="${esc(fotoDocente)}" alt="" class="docente-foto">`:""}<span>${esc(titulo)}</span></h1>`;
   h += avisosHtml(avisos);
   // Llave de alumno: su bloque personal va primero, arriba de lo general (biblioteca/links) —
-  // es lo que más le importa a él en particular. Pagos (paso 141) va justo después: res.cobros
-  // sólo debería venir presente cuando res.tipo==="alumno" (portal_publico() del lado del
-  // backend es quien lo decide) — acá sólo se pinta si está.
-  if(res.tipo==="alumno" && res.alumno) h += personalHtml(res.alumno) + pagosHtml(res.alumno, res.cobros||null, nombre) + pedirClaseHtml(res.alumno, res.huecos);
+  // es lo que más le importa a él en particular. Pagos (paso 141) va justo después, salvo que
+  // haya deuda: ahí pasa a ir PRIMERO (paso 171, decisión explícita: el alumno no puede no
+  // enterarse de que debe). res.cobros sólo debería venir presente cuando res.tipo==="alumno"
+  // (portal_publico() del lado del backend es quien lo decide) — acá sólo se pinta si está.
+  if(res.tipo==="alumno" && res.alumno){
+    const pagos = pagosHtml(res.alumno, res.cobros||null, nombre);
+    const debe = Number(res.alumno.pendiente)>0;
+    h += (debe ? pagos + personalHtml(res.alumno) : personalHtml(res.alumno) + pagos) + pedirClaseHtml(res.alumno, res.huecos);
+  }
   // Llave grupal: próximas clases/exámenes del grupo, antes de la biblioteca — mismo criterio
   // que el bloque personal, es lo más "de esta llave puntual" frente a lo genérico de abajo.
   if(esGrupo) h += grupoHtml(res.grupo);

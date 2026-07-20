@@ -1206,14 +1206,35 @@ function parseAvisoTarget(v){
   if(v && v.startsWith("s:")) return {tipo:"alumno", studentId:v.slice(2)};
   return {tipo:"todos"};
 }
-// todo lo pendiente de un alumno (mes actual + señas), sin filtrar por días de atraso — lo usa
-// el mensaje de WhatsApp de recordatorio de pago, que tiene sentido mandar apenas hay algo
-// pendiente y no recién cuando ya se hizo tarde.
+// todo lo pendiente de un alumno (mes actual + señas), sin filtrar por días de atraso, separado
+// por origen (paso 171: el portal necesita explicar de dónde sale el saldo, no sólo el total) —
+// lo usa también el mensaje de WhatsApp de recordatorio de pago, que tiene sentido mandar apenas
+// hay algo pendiente y no recién cuando ya se hizo tarde.
+function pendienteDesgloseFor(s){
+  let clase=0, mensual=0, senia=0;
+  if(hasPagos(s)){
+    const r=pagoResumen(s,currentMonthKey());
+    if(r){ if(s.modalidad==="mensual") mensual=r.pendiente; else clase=r.pendiente; }
+  }
+  (s.clasesPuntuales||[]).forEach(p=>{ if(!p.cancelada && p.seniaEstado==="pendiente") senia+=Number(p.seniaMonto)||0; });
+  return {clase, mensual, senia};
+}
 function pendienteTotalFor(s){
-  let total=0;
-  if(hasPagos(s)){ const r=pagoResumen(s,currentMonthKey()); if(r) total+=r.pendiente; }
-  (s.clasesPuntuales||[]).forEach(p=>{ if(!p.cancelada && p.seniaEstado==="pendiente") total+=Number(p.seniaMonto)||0; });
-  return total;
+  const d=pendienteDesgloseFor(s);
+  return d.clase+d.mensual+d.senia;
+}
+// Últimas clases dictadas, sólo modalidad "clase"/"hora" (mensual no se cobra clase por clase, no
+// tiene sentido un pie "pagada/pendiente" por clase ahí) — pie del historial del portal (paso
+// 171) para que el alumno vea de dónde sale el saldo que ve en pagosHtml. Mismo criterio que
+// pagoResumen(): nunca ausencias ni clases ya cubiertas por un pack prepago.
+function historialClasesPortal(s, n){
+  n = n||6;
+  if(!hasPagos(s) || s.modalidad==="mensual") return [];
+  return [...(s.sessions||[])]
+    .filter(c=>!isAusente(c) && !c.packClaseId)
+    .sort((a,b)=>b.date.localeCompare(a.date))
+    .slice(0,n)
+    .map(c=>({date:c.date, cobrada:!!c.cobrada}));
 }
 // items atrasados (clase sin cobrar / mensualidad vencida / seña pendiente) de todos los alumnos
 // activos, con al menos diasAtraso días de atraso cada uno — para el aviso del tablero.

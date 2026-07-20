@@ -860,16 +860,20 @@ async function signMaterialUrl(s, path, expiresInSec){
 // Arma lo que ve UN alumno puntual en su portal individual, a partir de lo que el docente tildó
 // en su ficha (s.portalShare, ver portalShareFor() en helpers.js) — proximaClase/tareas/avance,
 // cada uno opt-in por checkbox. ÚNICA función que lee datos de un alumno para el portal — sigue
-// sin haber forma de compartir notas, señas ni comentarios privados desde acá. "pendiente" es la
-// única excepción a "opt-in por checkbox" (paso 141, decisión explícita del docente al pedirlo):
-// siempre va, es sólo SU propia deuda (nunca la de otro alumno) y sólo llega a quien entra con SU
-// llave individual — nunca a la llave grupal/general (ver buildGrupoBlock, sin este campo, y la
-// migración de portal_publico() que tiene que exponer "pendiente"/"cobros" nada más que ahí). Si
-// se suma un dato nuevo compartible aparte de éste, tiene que sumarse como checkbox explícito en
-// la ficha (vPortalAlumnoCard, views.js).
+// sin haber forma de compartir notas, señas ni comentarios privados desde acá. "pendiente" (y su
+// desglose/historial, paso 171) es la única excepción a "opt-in por checkbox" (paso 141, decisión
+// explícita del docente al pedirlo): siempre va, es sólo SU propia deuda (nunca la de otro
+// alumno) y sólo llega a quien entra con SU llave individual — nunca a la llave grupal/general
+// (ver buildGrupoBlock, sin estos campos, y la migración de portal_publico() que tiene que
+// exponer "pendiente"/"cobros" nada más que ahí). Si se suma un dato nuevo compartible aparte de
+// éste, tiene que sumarse como checkbox explícito en la ficha (vPortalAlumnoCard, views.js).
 function buildAlumnoBlock(s){
   const share=portalShareFor(s);
-  const block={nombre:s.name, subjectId:s.subjectId||null, pendiente:pendienteTotalFor(s)};
+  const block={
+    nombre:s.name, subjectId:s.subjectId||null,
+    pendiente:pendienteTotalFor(s), pendienteDesglose:pendienteDesgloseFor(s),
+    historialClases:historialClasesPortal(s),
+  };
   // subjectId (paso 105): no se muestra en el portal — sólo la usa portal_publico() del lado del
   // backend para filtrar qué avisos dirigidos "a una materia" le corresponden a este alumno. Se
   // saca del JSON de vuelta antes de responder (ver la función), así que nunca llega al navegador.

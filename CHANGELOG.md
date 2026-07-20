@@ -24,6 +24,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/), adaptado
 a una sola sección de viñetas por versión (sin subcategorías Added/Fixed/etc.).
 
 ## [Sin publicar]
+- Paso 171 (cobros del portal cerrados): la tarjeta de pagos del portal individual pasa a mostrar el desglose de la deuda por origen (`pendienteDesgloseFor()` en `helpers.js`: clases sin cobrar / mensualidad / señas, sólo lista los que tienen algo) y, cuando hay saldo pendiente, esa tarjeta se ubica ARRIBA de todo (antes del bloque personal) y se destaca con borde rojo — antes el alumno podía no enterarse de que debía hasta bajar a "Pagos"; sin deuda muestra "Estás al día ✓" chiquito, sin cambios. Nuevo pie "Últimas clases" con "Pagada ✓ / Pendiente" por cada una (`historialClasesPortal()`, sólo modalidad por clase/hora — mensual no se cobra clase por clase) para que se entienda de dónde sale el saldo. Auditado el flujo completo contra `portal_publico()` (ya con el `022_solicitudes_clase.sql` del paso 166 aplicado): la función reenvía el bloque del alumno tal cual viene de `publicado.alumnos`, así que los campos nuevos (`pendienteDesglose`, `historialClases`) viajan solos, sin necesitar otra migración. Con llave grupal o general sigue sin mostrarse nada de cobros, como estaba decidido. (`web/app/js/helpers.js`, `web/app/js/sync.js`, `web/app/js/portal.js`, `web/app/portal.html`). Sube el caché del service worker.
 
 ## [2.4.2] - 2026-07-20
 - `APP_VERSION` a 2.4.2.

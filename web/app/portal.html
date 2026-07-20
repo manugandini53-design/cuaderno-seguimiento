@@ -104,6 +104,10 @@
     display:inline-flex;align-items:center;justify-content:center;min-height:44px}
   .dl:hover{background:var(--soft)}
   .personal,.grupo{border-color:var(--accent)}
+  /* ============ deuda destacada (paso 171): la tarjeta de pagos pasa a ir arriba de todo y con
+     borde rojo cuando hay saldo pendiente, para que no pase desapercibida ============ */
+  .deuda{border-color:var(--red)}
+  .deuda .ctitle{color:var(--red-fg)}
   /* ============ avisos (paso 105): tarjeta destacada arriba de todo, con fecha ============ */
   .aviso{border-left:3px solid var(--accent);background:var(--accent-soft)}
   .avisotxt{font-size:14.5px;font-weight:600}
