@@ -5,7 +5,7 @@
    uno que ya haya animado. Ambas respetan prefers-reduced-motion mostrando el valor/tamaño
    final directo, sin animar. */
 function prefersReducedMotion(){
-  return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  return !animsOn() || !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
 // Números que cuentan hasta su valor (tablero Hoy / Estadísticas) — el texto ya arranca en el
 // valor final (ver countSpan() en helpers.js), así que si esto no corre el número visible
@@ -1045,6 +1045,7 @@ document.addEventListener("click", (e)=>{
     return;
   }
   else if(a==="toggle-sonidos"){ setSoundsOn(el.dataset.f==="si"); }
+  else if(a==="toggle-animaciones"){ setAnimsOn(el.dataset.f==="si"); }
   else if(a==="toggle-tu-dia"){ state.catalog.mostrarTuDia=el.dataset.f==="si"; touchCatalog(); return; }
   else if(a==="marcar-recordatorio-examen"){ marcarExamRecordatorioEnviado(el.dataset.id); return; }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }
@@ -1662,6 +1663,33 @@ document.addEventListener("click", (e)=>{
     state.catalog.mensajes = {...mensajesFor(), [key]:def};
     touchCatalog(); toast("Plantilla restaurada"); return;
   }
+  // Mensajes por grupo de contexto (paso 175): cada grupo abre/cierra independiente; adentro,
+  // sólo una plantilla puntual (general o propia) queda abierta a la vez, ver vMensajesCard().
+  else if(a==="msg-ctx-toggle"){
+    const id=el.dataset.id;
+    const open={...(state.mensajesCtxOpen||{})};
+    open[id] = !open[id];
+    state.mensajesCtxOpen=open;
+  }
+  else if(a==="msg-tpl-toggle"){
+    const key=el.dataset.key;
+    state.mensajeAbierto = state.mensajeAbierto===key ? null : key;
+  }
+  else if(a==="propia-nueva"){
+    const p={id:uid(), nombre:"Nueva plantilla", texto:""};
+    state.catalog.mensajesPropios=[...mensajesPropiasFor(), p];
+    state.mensajeAbierto="propia:"+p.id;
+    touchCatalog(); return;
+  }
+  else if(a==="propia-del-ask"){ state.propiaDelConfirmId=el.dataset.id; }
+  else if(a==="propia-del-cancel"){ state.propiaDelConfirmId=null; }
+  else if(a==="propia-del-confirm"){
+    const id=el.dataset.id;
+    state.catalog.mensajesPropios=mensajesPropiasFor().filter(p=>p.id!==id);
+    state.propiaDelConfirmId=null;
+    if(state.mensajeAbierto==="propia:"+id) state.mensajeAbierto=null;
+    touchCatalog(); toast("Plantilla borrada"); return;
+  }
   else if(a==="toggle-recordatorios"){
     state.catalog.recordatorios = {...recordatoriosFor(), activo: el.dataset.f==="si"};
     touchCatalog(); return;
@@ -2272,6 +2300,16 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("mensaje-")){
     const key=cf.dataset.cf.slice("mensaje-".length);
     state.catalog.mensajes = {...mensajesFor(), [key]:cf.value};
+    touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("propia-nombre-")){
+    const id=cf.dataset.cf.slice("propia-nombre-".length);
+    state.catalog.mensajesPropios=mensajesPropiasFor().map(p=>p.id===id?{...p,nombre:cf.value}:p);
+    touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("propia-texto-")){
+    const id=cf.dataset.cf.slice("propia-texto-".length);
+    state.catalog.mensajesPropios=mensajesPropiasFor().map(p=>p.id===id?{...p,texto:cf.value}:p);
     touchCatalog(); return;
   }
   if(cf && cf.dataset.cf==="portal-nombre"){ if(state.portal) state.portal.draftNombre=cf.value; return; }

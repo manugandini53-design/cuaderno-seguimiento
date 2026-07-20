@@ -1147,6 +1147,9 @@ function fillTemplateLines(str, vars){
 // variable viene vacía, en vez de dejar un renglón en blanco — mismo criterio que ya usaba sólo
 // el recibo (saldo/docente) desde antes de este paso.
 function mensajeTexto(key, vars){ return fillTemplateLines(mensajesFor()[key], vars); }
+// Plantillas propias (paso 175): array de {id, nombre, texto} en state.catalog.mensajesPropios,
+// mismo criterio que mensajesFor() de arriba pero sin default (no hay "Restaurar" para éstas).
+function mensajesPropiasFor(){ return Array.isArray(state.catalog.mensajesPropios) ? state.catalog.mensajesPropios : []; }
 // Qué de este alumno se comparte en su portal individual (ver s.portalShare, ficha → "Portal
 // para este alumno"). Por diseño sólo puede llevar estos tres booleanos — nunca notas, pagos,
 // señas ni comentarios privados (ver buildAlumnoBlock() en sync.js, que es lo único que lee esto

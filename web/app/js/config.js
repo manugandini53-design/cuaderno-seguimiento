@@ -51,6 +51,12 @@ const PORTAL_RENEW_CHECK_KEY = "tutoria-portal-renew-check-date"; // fecha (YYYY
 const SOUNDS_KEY = "tutoria-sounds";
 function soundsOn(){ return localStorage.getItem(SOUNDS_KEY)!=="off"; }
 function setSoundsOn(on){ localStorage.setItem(SOUNDS_KEY, on?"on":"off"); }
+// Animaciones (paso 175): mismo criterio que SOUNDS_KEY — preferencia local, por dispositivo.
+// Apagarla desde acá se suma a (no reemplaza) prefers-reduced-motion del sistema: alcanza con
+// cualquiera de las dos para que prefersReducedMotion() (events.js) salte las animaciones.
+const ANIM_KEY = "tutoria-anim";
+function animsOn(){ return localStorage.getItem(ANIM_KEY)!=="off"; }
+function setAnimsOn(on){ localStorage.setItem(ANIM_KEY, on?"on":"off"); }
 const THEME_KEY = "tutoria-theme"; // "light" | "dark" | "system" (default)
 function getTheme(){ return localStorage.getItem(THEME_KEY) || "system"; }
 function applyTheme(theme){
@@ -385,6 +391,23 @@ const MENSAJES_META = [
     default:"¡Éxitos con la cursada, {alumno}! Fue un gusto acompañarte. Cualquier cosa, acá estoy." },
 ];
 function defaultMensajes(){ const o={}; MENSAJES_META.forEach(m=>{ o[m.key]=m.default; }); return o; }
+// Grupos acordeón de Cuenta → Mensajes (paso 175): sólo agrupan visualmente las MENSAJES_META de
+// arriba por contexto — no cambian storage ni claves. Cada plantilla arranca colapsada (sólo el
+// nombre) y se abre de a una para editar, ver vMensajesCard()/vMensajePlantillaRow() en views.js.
+const MENSAJES_GRUPOS = [
+  { id:"cobros", label:"Cobros", keys:["cobro","avisoDeuda","recibo"] },
+  { id:"clases", label:"Clases y recordatorios", keys:["proximaClase","recordatorioClase","tarea","examen"] },
+  { id:"llaves", label:"Llaves y portal", keys:["compartirLlave","compartirLlaveGrupal"] },
+  { id:"celebraciones", label:"Celebraciones", keys:["cumpleanos","felicitarAprobo","despedida"] },
+  { id:"otros", label:"Otros", keys:["packAgotado"] },
+];
+// Plantillas propias (paso 175, state.catalog.mensajesPropios): además de las MENSAJES_META fijas
+// de arriba, el docente puede crear las suyas con nombre + texto libre (mismas variables genéricas
+// que ya usan las plantillas de cobros/llaves — ver PLANTILLA_PROPIA_VARS). Aparecen junto a las
+// generales en todos los selectores de "mandar mensaje" (ficha, alertas, aviso de cobros) — ver
+// vPlantillasPropiasChips()/waMsgPropia() en views.js. Retrocompatible: un cuaderno sin ninguna
+// plantilla propia simplemente no tiene la clave (mensajesPropiasFor() en helpers.js devuelve []).
+const PLANTILLA_PROPIA_VARS = "{alumno}, {materia}, {monto}, {link_pago}, {alias}, {mail}";
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 // Duración de una clase, en minutos (paso 169): presets en horas para el selector de todos los

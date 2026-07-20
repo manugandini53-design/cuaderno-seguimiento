@@ -866,6 +866,7 @@ function vCobrosBanner(){
           <div style="text-align:right;flex-shrink:0">
             <div style="font-weight:600;font-family:var(--mono)">${fmtMoney(subtotal)}</div>
             ${hasPhone(s)?`<a class="wa-quick" style="margin-top:4px" title="WhatsApp: recordatorio de pago" target="_blank" rel="noopener" href="${waLink(s,waMsgCobro(s))}">${ICON_CHAT}</a>`:""}
+            ${hasPhone(s)?mensajesPropiasFor().map(p=>`<a class="wa-quick" style="margin-top:4px" title="WhatsApp: ${esc(p.nombre||"")}" target="_blank" rel="noopener" href="${waLink(s,waMsgPropia(s,p))}">${ICON_CHAT}</a>`).join(""):""}
           </div>
         </div>`;
       }).join("") + `</div>`;
@@ -2569,12 +2570,31 @@ function vWaRecordarClaseBtn(e, dia){
 // un recordatorio (próxima clase o, si el examen está cerca, el de examen — mismo criterio que
 // waQuickMessage), un aviso de pago (con o sin deuda, ver waMsgCobro) o el mensaje libre de la
 // ficha, sin importar si esta alerta en particular vino de un examen, una tarea o una ausencia.
+// Plantillas propias (paso 175): variables genéricas resueltas contra un alumno puntual, para
+// completar las mismas {alumno}/{materia}/{monto}/{link_pago}/{alias}/{mail} que ya usan las
+// plantillas generales de cobros/llaves — ver PLANTILLA_PROPIA_VARS en config.js.
+function waMsgPropia(s, p){
+  const cobros = cobrosDocenteFor();
+  const total = pendienteTotalFor(s);
+  return fillTemplateLines(p.texto, {
+    alumno:studentFirstName(s), materia:s.subject||"", monto:total>0?fmtMoney(total):"",
+    link_pago:cobros.linkMP||cobros.linkOtro||"", alias:cobros.alias||"", mail:s.email||"",
+  });
+}
+// Chips de plantillas propias para sumar a cualquier selector de "mandar mensaje" (ficha, alertas,
+// aviso de cobros) — nada si el docente no cargó ninguna.
+function vPlantillasPropiasChips(s){
+  const propias = mensajesPropiasFor();
+  if(!propias.length) return "";
+  return propias.map(p=>`<a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgPropia(s,p))}">${esc(p.nombre||"(sin nombre)")}</a>`).join("");
+}
 function vAlertMsgPicker(s){
   if(!hasPhone(s)) return `<div class="hint" style="margin:2px 0 8px 4px">Cargá el teléfono en la ficha para mandar WhatsApp.</div>`;
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px 4px">
     <a class="chip" target="_blank" rel="noopener" href="${waLink(s,waQuickMessage(s))}">Recordatorio</a>
     <a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgCobro(s))}">Aviso de pago</a>
     <button class="chip" data-a="open" data-id="${s.id}">Mensaje libre (en la ficha)</button>
+    ${vPlantillasPropiasChips(s)}
   </div>`;
 }
 function vWhatsApp(s){
@@ -2585,6 +2605,7 @@ function vWhatsApp(s){
       <a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgTareaHoy(s))}">Tarea de la última clase</a>
       ${s.examDate?`<a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgExamen(s))}">Recordatorio de examen</a>`:""}
       ${pendiente>0?`<a class="chip" target="_blank" rel="noopener" href="${waLink(s,waMsgCobro(s))}">Recordatorio de pago pendiente</a>`:""}
+      ${vPlantillasPropiasChips(s)}
     </div>
     <div class="field"><div class="flabel">Mensaje libre</div>
       <textarea id="wa-free-text">${esc(waMsgProximaClase(s))}</textarea></div>
@@ -3575,18 +3596,80 @@ function vEscalaObjetivoCard(){
 // texto del recibo, que se comparte por el mismo medio), en un solo lugar editable. Cada una
 // con su "Restaurar" propio — vuelve sólo esa plantilla al default de MENSAJES_META (config.js),
 // nunca toca las demás. Ver mensajesFor()/mensajeTexto() en helpers.js.
-function vMensajesCard(){
+// Una plantilla general colapsada (sólo el nombre) — se abre de a una para editar, mismo criterio
+// que vMatUnitBlock (biblioteca del portal): un único id abierto en toda la tarjeta de Mensajes.
+function vMensajePlantillaRow(m){
   const mensajes = mensajesFor();
-  return `<div class="formcard"><div class="ftitle">Mensajes</div>
-    <div class="hint" style="margin-bottom:10px">Los textos que la app arma para WhatsApp (y el recibo) — editá cada uno con las variables que se indican; "Restaurar" vuelve esa plantilla puntual a como venía.</div>
-    ${MENSAJES_META.map(m=>`<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--soft)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-        <div class="flabel" style="margin:0">${esc(m.label)}</div>
+  const open = state.mensajeAbierto==="meta:"+m.key;
+  return `<div class="cuenta-group" style="margin:8px 0">
+    <button class="cuenta-group-head" data-a="msg-tpl-toggle" data-key="meta:${m.key}" aria-expanded="${open}">
+      <div class="ftitle" style="margin:0">${esc(m.label)}</div>
+      <span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
+    </button>
+    ${open?`<div class="cuenta-group-body">
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:6px">
         <button class="chip" data-a="restaurar-mensaje" data-key="${m.key}">Restaurar</button>
       </div>
       <div class="hint" style="margin-bottom:6px">Variables: ${esc(m.vars)}</div>
       <textarea data-cf="mensaje-${m.key}" placeholder="${esc(m.default)}">${esc(mensajes[m.key]||"")}</textarea>
-    </div>`).join("")}
+    </div>`:""}
+  </div>`;
+}
+// Plantilla propia colapsada, mismo patrón — el nombre se edita en el header mismo (no hay
+// "Restaurar", tiene "Borrar" con confirmación inline en su lugar, ver events.js).
+function vPlantillaPropiaRow(p){
+  const open = state.mensajeAbierto==="propia:"+p.id;
+  const confirming = state.propiaDelConfirmId===p.id;
+  return `<div class="cuenta-group" style="margin:8px 0">
+    <button class="cuenta-group-head" data-a="msg-tpl-toggle" data-key="propia:${p.id}" aria-expanded="${open}">
+      <div class="ftitle" style="margin:0">${esc(p.nombre||"(sin nombre)")}</div>
+      <span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
+    </button>
+    ${open?`<div class="cuenta-group-body">
+      <div class="field"><div class="flabel">Nombre</div>
+        <input data-cf="propia-nombre-${p.id}" value="${esc(p.nombre||"")}" placeholder="Ej: Recordatorio de material"></div>
+      <div class="hint" style="margin:8px 0 6px">Variables: ${esc(PLANTILLA_PROPIA_VARS)}</div>
+      <textarea data-cf="propia-texto-${p.id}" placeholder="Escribí el mensaje…">${esc(p.texto||"")}</textarea>
+      <div style="margin-top:8px">
+        ${!confirming?`<button class="del" data-a="propia-del-ask" data-id="${p.id}">Borrar plantilla</button>`
+          :`<span style="font-size:12px;color:var(--status-desaprobo-fg)">¿Borrar «${esc(p.nombre||"esta plantilla")}»?</span>
+          <button class="danger" data-a="propia-del-confirm" data-id="${p.id}">Sí, borrar</button>
+          <button class="chip" data-a="propia-del-cancel">Cancelar</button>`}
+      </div>
+    </div>`:""}
+  </div>`;
+}
+// Un grupo de contexto (Cobros/Clases/Llaves/Celebraciones/Otros) — colapsado por defecto,
+// independiente de los demás (a diferencia de vMensajePlantillaRow, que sólo deja una plantilla
+// abierta a la vez adentro de cualquier grupo).
+function vMensajesGrupo(g){
+  const open = !!(state.mensajesCtxOpen && state.mensajesCtxOpen[g.id]);
+  const items = MENSAJES_META.filter(m=>g.keys.includes(m.key));
+  return `<div class="cuenta-group" style="margin:10px 0">
+    <button class="cuenta-group-head" data-a="msg-ctx-toggle" data-id="${g.id}" aria-expanded="${open}">
+      <div class="ftitle" style="margin:0">${esc(g.label)}</div>
+      <span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
+    </button>
+    ${open?`<div class="cuenta-group-body">${items.map(vMensajePlantillaRow).join("")}</div>`:""}
+  </div>`;
+}
+function vMensajesCard(){
+  const propias = mensajesPropiasFor();
+  const open = !!(state.mensajesCtxOpen && state.mensajesCtxOpen.propias);
+  return `<div class="formcard"><div class="ftitle">Mensajes</div>
+    <div class="hint" style="margin-bottom:10px">Los textos que la app arma para WhatsApp (y el recibo), agrupados por tema — tocá un grupo y después una plantilla para editarla. "Restaurar" vuelve esa plantilla puntual a como venía.</div>
+    ${MENSAJES_GRUPOS.map(vMensajesGrupo).join("")}
+    <div class="cuenta-group" style="margin:10px 0">
+      <button class="cuenta-group-head" data-a="msg-ctx-toggle" data-id="propias" aria-expanded="${open}">
+        <div><div class="ftitle" style="margin:0">Mis plantillas</div>
+          <div class="hint">${propias.length} plantilla${propias.length===1?"":"s"} propia${propias.length===1?"":"s"} — aparecen junto a las generales al mandar un mensaje.</div></div>
+        <span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
+      </button>
+      ${open?`<div class="cuenta-group-body">
+        ${propias.length?propias.map(vPlantillaPropiaRow).join(""):`<div class="empty" style="font-size:13px">Sin plantillas propias todavía.</div>`}
+        <button class="chip" style="margin-top:8px" data-a="propia-nueva">+ Nueva plantilla</button>
+      </div>`:""}
+    </div>
   </div>`;
 }
 // Cobros del docente (paso 141): alias/CVU + links de pago propios (sin API, sin comisiones,
@@ -3698,6 +3781,13 @@ function vCuenta(){
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="chip ${!soundsOn()?"on":""}" data-a="toggle-sonidos" data-f="no">Apagados</button>
         <button class="chip ${soundsOn()?"on":""}" data-a="toggle-sonidos" data-f="si">Activados</button>
+      </div>
+    </div>
+    <div class="formcard"><div class="ftitle">Animaciones</div>
+      <div class="hint" style="margin-bottom:8px">Números que cuentan, barras que crecen y el confetti al cumplir un objetivo. Se apagan solas si el sistema pide reducir animaciones, aunque acá esté en "Activadas".</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="chip ${!animsOn()?"on":""}" data-a="toggle-animaciones" data-f="no">Apagadas</button>
+        <button class="chip ${animsOn()?"on":""}" data-a="toggle-animaciones" data-f="si">Activadas</button>
       </div>
     </div>
     <div class="formcard"><div class="ftitle">Tu día y racha</div>
