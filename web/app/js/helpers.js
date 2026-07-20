@@ -663,6 +663,32 @@ function shouldShowBackupReminder(){
   return true;
 }
 
+/* ============ cierre de cuatrimestre (paso 163) ============
+   Se sugiere sola en meses de recambio típico (jul/ago, nov-dic-feb) cuando hay algún alumno
+   activo sin clases hace rato — mismo patrón de descartar/reaparecer que el respaldo de arriba.
+   Nunca borra ni fuerza nada: sólo junta en una lista a quién pausar (paso 114) o despedir, el
+   profesor decide caso por caso desde el overlay (ver vFinCuatrimestreOverlay en views.js). */
+function finCuatrimestreTemporada(){
+  const mes = Number(today().slice(5,7)); // 1=enero .. 12=diciembre
+  return [7,8,11,12,2].includes(mes);
+}
+function alumnosSinClasesFinCuatrimestre(days){
+  return alive().filter(s=>s.status==="activo").filter(s=>{
+    const ref = lastSessionDate(s) || s.startDate;
+    if(!ref) return false;
+    const ds = daysSince(ref);
+    return ds!==null && ds>=days;
+  }).sort((a,b)=>daysSince(lastSessionDate(b)||b.startDate)-daysSince(lastSessionDate(a)||a.startDate));
+}
+function dismissFinCuatrimestre(){ localStorage.setItem(FIN_CUATRIMESTRE_DISMISS_KEY, String(Date.now())); }
+function shouldSuggestFinCuatrimestre(){
+  if(!finCuatrimestreTemporada()) return false;
+  if(alumnosSinClasesFinCuatrimestre(FIN_CUATRIMESTRE_DIAS_SIN_CLASE).length===0) return false;
+  const dismissedAt = parseInt(localStorage.getItem(FIN_CUATRIMESTRE_DISMISS_KEY)||"0",10);
+  if(dismissedAt && (Date.now()-dismissedAt)/86400000 < FIN_CUATRIMESTRE_SNOOZE_DAYS) return false;
+  return true;
+}
+
 /* ============ banner de bienvenida post-registro (paso 147) ============
    Arranca al crear la cuenta (ver auth-signup en events.js) y se muestra en el tablero durante
    FEEDBACK_BANNER_DAYS — nunca en modo demo, que no pasa por auth-signup. Se apaga sola pasado
@@ -1920,6 +1946,23 @@ function statsPeriodSummary(mk){
     examResultsPct: exams.total>0 ? (exams.aprobo/exams.total*100) : null,
     examResultsTotal: exams.total,
   };
+}
+// Agrega varios meses de una — "Resumen del período" del paso 163 (fin de cuatrimestre) usa esto
+// con 4 meses (aprox. un cuatrimestre) en vez de mes a mes como statsPeriodSummary. "alumnos" es
+// la unión de alumnos con clase en cualquiera de los meses, no la suma (para no contar dos veces
+// al mismo alumno con clases en más de un mes del período).
+function periodSummaryRange(mks){
+  let ingresos=0, clases=0, horas=0, examAprobo=0, examTotal=0;
+  const alumnosSet = new Set();
+  mks.forEach(mk=>{
+    const r = rentabilidadMes(mk);
+    ingresos += r.ingresos; clases += r.clasesCount; horas += r.horas;
+    classesInMonth(mk).forEach(({s})=>alumnosSet.add(s.id));
+    const ex = examResultCountsInMonth(mk);
+    examAprobo += ex.aprobo; examTotal += ex.total;
+  });
+  return { ingresos, clases, horas, alumnos:alumnosSet.size,
+    examPct: examTotal>0 ? (examAprobo/examTotal*100) : null, examTotal };
 }
 // desglose por materia: ingresos/costos/horas atribuibles a cada una — los costos generales
 // (sin materia ni alumno asignado) no entran acá, sólo los que se asignaron a esa materia puntual.

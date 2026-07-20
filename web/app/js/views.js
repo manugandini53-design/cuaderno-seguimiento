@@ -470,6 +470,92 @@ function vBackupReminder(){
     </div>
   </div>`;
 }
+// Cierre de cuatrimestre (paso 163): sugerida sola en meses de recambio (jul/ago, nov-dic-feb,
+// ver shouldSuggestFinCuatrimestre en helpers.js) en Estudiantes, cuando hay algún alumno activo
+// sin clases hace rato. "Descartar" la posterga FIN_CUATRIMESTRE_SNOOZE_DAYS, mismo criterio que
+// vBackupReminder. El overlay (vFinCuatrimestreOverlay) queda accesible mientras dure la
+// temporada, aunque se haya descartado el aviso una vez.
+function vFinCuatrimestreBanner(){
+  if(!shouldSuggestFinCuatrimestre()) return "";
+  const n = alumnosSinClasesFinCuatrimestre(FIN_CUATRIMESTRE_DIAS_SIN_CLASE).length;
+  return `<div class="formcard" style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap">
+    <div style="font-size:13px;color:var(--muted)">Cambio de cuatrimestre — ${n} alumno${n===1?"":"s"} activo${n===1?"":"s"} sin clases hace rato. Buen momento para poner en pausa a quien no siga, o despedirse.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+      <button class="chip" data-a="fincuatri-open">Cierre de cuatrimestre</button>
+      <button class="del" style="font-size:20px" data-a="dismiss-fin-cuatrimestre" title="Descartar" aria-label="Descartar">×</button>
+    </div>
+  </div>`;
+}
+function vFinCuatrimestreRow(s){
+  const ref = lastSessionDate(s) || s.startDate;
+  const dias = daysSince(ref);
+  return `<div class="log">
+    <div class="body"><b>${esc(s.name)}</b>
+      <div class="note">${esc(s.subject||"materia s/d")} · ${lastSessionDate(s)?`última clase hace ${dias} días`:`sin clases desde que empezó (hace ${dias} días)`}</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="chip" data-a="fincuatri-pausar" data-id="${s.id}">Pausar</button>
+      <button class="chip" data-a="fincuatri-despedir" data-id="${s.id}">Despedir</button>
+      <button class="chip" data-a="fincuatri-skip" data-id="${s.id}">Dejar como está</button>
+    </div>
+  </div>`;
+}
+function vFinCuatrimestreOverlay(){
+  if(!state.finCuatrimestreOpen) return "";
+  const days = state.finCuatrimestreDays || FIN_CUATRIMESTRE_DIAS_SIN_CLASE;
+  const skipped = state.finCuatrimestreSkipped||[];
+  const candidatos = alumnosSinClasesFinCuatrimestre(days).filter(s=>!skipped.includes(s.id));
+
+  let h = `<div class="overlay no-print" data-a="fincuatri-close">
+    <div class="modal" data-a="fincuatri-modal-noop" style="max-width:520px;max-height:85vh;overflow:auto">
+      <div class="ftitle" style="font-size:16px">Cierre de cuatrimestre</div>
+      <div class="hint" style="margin-bottom:10px">Alumnos activos sin clases hace un tiempo — pausalos, despedite, o dejalos como están si siguen la próxima cursada.</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button class="chip ${days===30?"on":""}" data-a="fincuatri-days" data-f="30">30 días</button>
+        <button class="chip ${days===60?"on":""}" data-a="fincuatri-days" data-f="60">60 días</button>
+      </div>`;
+
+  if(candidatos.length===0){
+    h += `<div class="empty">Ningún alumno activo lleva ${days}+ días sin clases.</div>`;
+  }else{
+    h += `<button class="chip" style="margin-bottom:10px" data-a="fincuatri-pausar-todos">Pausar a los ${candidatos.length}</button>`;
+    h += candidatos.map(vFinCuatrimestreRow).join("");
+  }
+
+  h += `<div class="stitle" style="margin-top:20px">Resumen del período</div>`;
+  h += vResumenPeriodo();
+
+  h += `<div style="margin-top:14px;text-align:right"><button class="chip" data-a="fincuatri-close">Cerrar</button></div>
+    </div>
+  </div>`;
+  return h;
+}
+// "Resumen del período" (paso 163): último cuatrimestre (4 meses) vs. el anterior — mismo criterio
+// de comparación por puntos porcentuales que "Comparar períodos" (paso 104), pero agregando varios
+// meses de una con periodSummaryRange() en vez de mes a mes. Ver buildResumenPeriodoImageBlob más
+// abajo para la versión PNG imprimible.
+function vResumenPeriodo(){
+  const curKeys = recentMonthKeys(4), prevKeys = recentMonthKeys(8).slice(4,8);
+  const cur = periodSummaryRange(curKeys), prev = periodSummaryRange(prevKeys);
+  const labelA = monthLabel(curKeys[curKeys.length-1])+"–"+monthLabel(curKeys[0]);
+  const labelB = monthLabel(prevKeys[prevKeys.length-1])+"–"+monthLabel(prevKeys[0]);
+
+  let h = compareMetricRow("Ingresos cobrados", labelA, labelB, cur.ingresos, prev.ingresos, fmtMoney);
+  h += compareMetricRow("Clases dadas", labelA, labelB, cur.clases, prev.clases, v=>String(v));
+  h += compareMetricRow("Horas dictadas", labelA, labelB, cur.horas, prev.horas, v=>v.toFixed(1));
+  h += compareMetricRow("Alumnos con clase", labelA, labelB, cur.alumnos, prev.alumnos, v=>String(v));
+
+  h += `<div class="stitle">% de aprobados</div>`;
+  if(cur.examTotal===0 && prev.examTotal===0){
+    h += `<div class="empty">Sin resultados de examen registrados en ninguno de los dos períodos.</div>`;
+  }else{
+    const fmtPct = (v,total) => v===null ? "sin datos" : `${v.toFixed(0)}% (${total})`;
+    h += compareBarRow(labelA, cur.examPct||0, 100, v=>fmtPct(cur.examPct,cur.examTotal), "var(--accent)");
+    h += compareBarRow(labelB, prev.examPct||0, 100, v=>fmtPct(prev.examPct,prev.examTotal), "var(--gray2)");
+  }
+  h += `<button class="chip" style="margin-top:6px" data-a="share-periodo-image" ${state.periodoImgBusy?"disabled":""}>${state.periodoImgBusy?"Generando…":"Descargar/compartir resumen (PNG)"}</button>`;
+  return h;
+}
 // Cumpleaños de hoy/mañana (paso 115) — fecha de nacimiento opcional (s.birthDate, ficha →
 // Resumen); sólo compara mes-día (isBirthday en helpers.js), el año no importa. Arriba del todo
 // del tablero, con saludo pre-armado por WhatsApp si tiene teléfono cargado.
@@ -804,6 +890,7 @@ function vLista(){
     ${tabbtn("estudiantes-tab-interesados",estTab==="interesados",`Interesados${interesadosFor().length?` (${interesadosFor().length})`:""}`)}
   </div>`;
   if(estTab==="interesados") return h + vInteresados();
+  h += vFinCuatrimestreBanner();
   h += `<div class="field" style="margin-bottom:10px">
     <input id="lista-search" data-live="lista-search" type="text" placeholder="Buscar por nombre…" value="${esc(state.listSearch||"")}"></div>`;
 
@@ -2299,6 +2386,10 @@ function waMsgFelicitar(s, grade){
   return mensajeTexto("felicitarAprobo", {alumno:studentFirstName(s),
     materia:s.subject?` ${s.subject}`:"", nota:grade?` (nota: ${grade})`:"", mail:s.email||""});
 }
+// Despedida de fin de cuatrimestre (paso 163) — ver "fincuatri-despedir" en events.js.
+function waMsgDespedida(s){
+  return mensajeTexto("despedida", {alumno:studentFirstName(s), mail:s.email||""});
+}
 // Aviso de pack de clases agotado (paso 158, alerta "pack" de studentAlerts en helpers.js) — usa
 // el último pack vendido (ya en 0) para completar {clases} con la cantidad que tenía, aunque para
 // entonces ya no cuente como "activo".
@@ -2945,6 +3036,76 @@ async function buildTasaImageBlob(){
   ctx.fillStyle="#9AA3BE";
   ctx.font="500 13px ui-monospace, Consolas, monospace";
   ctx.fillText(`Hecho con Entreclases — ${fmtDate(today())}`, 40, H-32);
+
+  return canvasToPngBlob(canvas);
+}
+
+/* ============ "Resumen del período" (paso 163): PNG imprimible del cierre de cuatrimestre —
+   mismo estilo de documento claro que buildInformeImageBlob (a diferencia del PNG de "Compartir
+   mi tasa", pensado para redes con fondo oscuro). Ver "share-periodo-image" en events.js. ============ */
+async function buildResumenPeriodoImageBlob(){
+  const curKeys = recentMonthKeys(4), prevKeys = recentMonthKeys(8).slice(4,8);
+  const cur = periodSummaryRange(curKeys), prev = periodSummaryRange(prevKeys);
+  const doc = docenteFor();
+  const rangeLabel = monthLabel(curKeys[curKeys.length-1])+" – "+monthLabel(curKeys[0]);
+
+  const W=900, H=680, SC=2;
+  const canvas=document.createElement("canvas");
+  canvas.width=W*SC; canvas.height=H*SC;
+  const ctx=canvas.getContext("2d");
+  ctx.scale(SC,SC);
+  if(document.fonts && document.fonts.ready) await document.fonts.ready;
+
+  ctx.fillStyle="#F6F8FC"; ctx.fillRect(0,0,W,H);
+
+  const grad=ctx.createLinearGradient(40,40,88,88);
+  grad.addColorStop(0,"#1E2B4D"); grad.addColorStop(1,"#2F4272");
+  ctx.fillStyle=grad; roundedRectPath(ctx,40,40,48,48,14); ctx.fill();
+  ctx.strokeStyle="#fff"; ctx.lineWidth=3; ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.beginPath(); ctx.moveTo(52,65); ctx.lineTo(61,75); ctx.lineTo(76,55); ctx.stroke();
+
+  ctx.fillStyle="#12192E";
+  ctx.font="700 21px Poppins, sans-serif";
+  ctx.fillText("Entreclases", 100, 71);
+
+  ctx.fillStyle="#8B90A0";
+  ctx.font="700 12.5px ui-monospace, Consolas, monospace";
+  ctx.fillText("RESUMEN DEL PERÍODO", 40, 122);
+
+  ctx.fillStyle="#12192E";
+  ctx.font="800 32px Poppins, sans-serif";
+  ctx.fillText(rangeLabel, 40, 166);
+
+  ctx.fillStyle="#5C6480";
+  ctx.font="600 15px Inter, sans-serif";
+  if(doc.nombre) ctx.fillText(doc.nombre, 40, 192);
+
+  ctx.strokeStyle="#E4E9F5"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(40,216); ctx.lineTo(W-40,216); ctx.stroke();
+
+  const tilesY=246, tileW=(W-80-16)/2, tileH=110;
+  statTile(ctx, 40, tilesY, tileW, tileH, String(cur.clases), "clases dadas");
+  statTile(ctx, 40+tileW+16, tilesY, tileW, tileH, cur.horas.toFixed(1), "horas dictadas");
+  statTile(ctx, 40, tilesY+tileH+16, tileW, tileH, fmtMoney(cur.ingresos), "ingresos cobrados");
+  statTile(ctx, 40+tileW+16, tilesY+tileH+16, tileW, tileH, String(cur.alumnos), `alumno${cur.alumnos===1?"":"s"} con clase`);
+
+  const yy = tilesY+2*(tileH+16)+30;
+  ctx.fillStyle="#8B90A0";
+  ctx.font="700 11.5px ui-monospace, Consolas, monospace";
+  ctx.fillText("% DE APROBADOS", 40, yy);
+  ctx.fillStyle="#12192E";
+  ctx.font="800 30px Poppins, sans-serif";
+  ctx.fillText(cur.examPct!==null ? Math.round(cur.examPct)+"%" : "sin datos", 40, yy+40);
+  if(cur.examPct!==null && prev.examPct!==null){
+    const diff = Math.round(cur.examPct-prev.examPct);
+    ctx.fillStyle = diff>=0 ? "#1F9D55" : "#D64545";
+    ctx.font="600 15px Inter, sans-serif";
+    ctx.fillText(`${diff>=0?"+":""}${diff} pto${Math.abs(diff)===1?"":"s"} vs. el período anterior`, 40, yy+66);
+  }
+
+  ctx.fillStyle="#9AA3BE";
+  ctx.font="500 12px ui-monospace, Consolas, monospace";
+  ctx.fillText(`Generado con Entreclases — ${fmtDate(today())}`, 40, H-32);
 
   return canvasToPngBlob(canvas);
 }
@@ -5272,6 +5433,7 @@ function render(){
   if(state.agendaEdit) m += vAgendaEditOverlay();
   if(state.agendaEditGrupal) m += vAgendaEditOverlayGrupal();
   if(state.grupalForm) m += vGrupalForm();
+  if(state.finCuatrimestreOpen) m += vFinCuatrimestreOverlay();
   m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
   const viewKey = state.view;
   const viewChanged = viewKey!==_prevViewKey;

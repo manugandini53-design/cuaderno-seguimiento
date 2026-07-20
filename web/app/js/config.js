@@ -14,6 +14,12 @@ const LAST_EXPORT_KEY = "tutoria-last-export"; // timestamp de la última descar
 const BACKUP_REMINDER_DISMISS_KEY = "tutoria-backup-reminder-dismissed-at"; // timestamp del último "descartar" del aviso de respaldo
 const BACKUP_REMINDER_DAYS = 30; // a partir de cuántos días sin exportar se sugiere hacerlo
 const BACKUP_REMINDER_SNOOZE_DAYS = 7; // cada cuánto reaparece el aviso si se descarta
+// Cierre de cuatrimestre (paso 163): mismo patrón de descartar/reaparecer que el aviso de
+// respaldo — se sugiere en meses de recambio (jul/ago, nov-dic-feb, ver finCuatrimestreTemporada()
+// en helpers.js) y, si se descarta, no vuelve a aparecer hasta FIN_CUATRIMESTRE_SNOOZE_DAYS después.
+const FIN_CUATRIMESTRE_DISMISS_KEY = "tutoria-fin-cuatrimestre-dismissed-at";
+const FIN_CUATRIMESTRE_SNOOZE_DAYS = 14;
+const FIN_CUATRIMESTRE_DIAS_SIN_CLASE = 30; // umbral por defecto ("30/60 días" del paso 163)
 const LOGIN_ATTEMPTS_KEY = "tutoria-login-attempts"; // {count, lockUntil} — freno local a intentos de login seguidos, aparte del rate-limit propio de Supabase
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_MS = 5*60*1000;
@@ -363,6 +369,8 @@ const MENSAJES_META = [
     default:"¡Hola {alumno}! Se terminó tu pack de {clases} clases — ¿te armo uno nuevo para seguir?" },
   { key:"felicitarAprobo", label:"Felicitar por aprobar un examen (paso 162)", vars:"{alumno}, {materia}, {nota}, {mail}",
     default:"¡Felicitaciones {alumno}! 🎉 Aprobaste{materia}{nota}. ¡Muy bien merecido, seguimos así!" },
+  { key:"despedida", label:"Despedida de fin de cuatrimestre (paso 163)", vars:"{alumno}, {mail}",
+    default:"¡Éxitos con la cursada, {alumno}! Fue un gusto acompañarte. Cualquier cosa, acá estoy." },
 ];
 function defaultMensajes(){ const o={}; MENSAJES_META.forEach(m=>{ o[m.key]=m.default; }); return o; }
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.

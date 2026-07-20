@@ -1804,6 +1804,68 @@ document.addEventListener("click", (e)=>{
     state.simTimer=null;
   }
   else if(a==="dismiss-backup-reminder"){ dismissBackupReminder(); }
+  else if(a==="dismiss-fin-cuatrimestre"){ dismissFinCuatrimestre(); }
+  else if(a==="fincuatri-open"){
+    state.finCuatrimestreOpen=true; state.finCuatrimestreSkipped=[];
+    state.finCuatrimestreDays = state.finCuatrimestreDays || FIN_CUATRIMESTRE_DIAS_SIN_CLASE;
+  }
+  else if(a==="fincuatri-close"){ state.finCuatrimestreOpen=false; }
+  else if(a==="fincuatri-modal-noop"){ return; }
+  else if(a==="fincuatri-days"){ state.finCuatrimestreDays=parseInt(el.dataset.f,10); }
+  else if(a==="fincuatri-skip"){
+    state.finCuatrimestreSkipped=[...(state.finCuatrimestreSkipped||[]), el.dataset.id];
+  }
+  else if(a==="fincuatri-pausar"){
+    const id=el.dataset.id, st=state.students.find(x=>x.id===id); if(!st) return;
+    update(id,{status:"pausado"});
+    toast("Alumno en pausa", "ok", ()=>{
+      const st2=state.students.find(x=>x.id===id); if(!st2) return;
+      update(id,{status:"activo"});
+    });
+    return;
+  }
+  else if(a==="fincuatri-pausar-todos"){
+    const days=state.finCuatrimestreDays||FIN_CUATRIMESTRE_DIAS_SIN_CLASE;
+    const skipped=state.finCuatrimestreSkipped||[];
+    const ids = alumnosSinClasesFinCuatrimestre(days).filter(x=>!skipped.includes(x.id)).map(x=>x.id);
+    if(!ids.length) return;
+    ids.forEach(id=>update(id,{status:"pausado"}));
+    toast(`${ids.length} alumno${ids.length===1?"":"s"} en pausa`, "ok", ()=>{
+      ids.forEach(id=>{ const st2=state.students.find(x=>x.id===id); if(st2) update(id,{status:"activo"}); });
+    });
+    return;
+  }
+  else if(a==="fincuatri-despedir"){
+    const id=el.dataset.id, st=state.students.find(x=>x.id===id); if(!st) return;
+    update(id,{status:"dejo"});
+    if(hasPhone(st)) window.open(waLink(st,waMsgDespedida(st)),"_blank","noopener");
+    toast("Alumno marcado como dejó", "ok", ()=>{
+      const st2=state.students.find(x=>x.id===id); if(!st2) return;
+      update(id,{status:"activo"});
+    });
+    return;
+  }
+  else if(a==="share-periodo-image"){
+    state.periodoImgBusy=true; render();
+    buildResumenPeriodoImageBlob().then(async blob=>{
+      const fileName="resumen-periodo.png";
+      const file=new File([blob], fileName, {type:"image/png"});
+      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+        try{ await navigator.share({files:[file], title:"Resumen del período"}); }
+        catch(err){ /* cancelado por el usuario o falló el share nativo — no hace falta avisar */ }
+      }else{
+        const url=URL.createObjectURL(blob);
+        const link=document.createElement("a"); link.href=url; link.download=fileName; link.click();
+        URL.revokeObjectURL(url);
+        toast("Imagen descargada");
+      }
+      state.periodoImgBusy=false; render();
+    }).catch(()=>{
+      state.periodoImgBusy=false;
+      toast("No se pudo generar la imagen.","error");
+    });
+    return;
+  }
   else if(a==="ficha-new-career" && s){
     const v=(prompt("Nombre de la nueva carrera:")||"").trim(); if(!v) return;
     let c=state.catalog.careers.find(x=>normName(x.nombre)===normName(v));
