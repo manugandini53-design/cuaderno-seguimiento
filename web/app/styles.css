@@ -842,7 +842,7 @@
     .sembtn{min-width:44px;min-height:44px;justify-content:center}
     .primary,.danger,.tabbtn,button.chip,a.chip{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
     .navitem{min-height:44px}
-    .iconbtn{min-width:38px;min-height:38px}
+    .iconbtn{min-width:40px;min-height:40px}
   }
   /* .help-tip-btn queda visualmente chico a propósito (va inline junto a un título/label) —
      el área de toque se agranda con un ::after invisible en vez de agrandar el círculo. */

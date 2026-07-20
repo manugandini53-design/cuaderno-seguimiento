@@ -538,6 +538,14 @@ document.addEventListener("click", (e)=>{
   else if(a==="cat-career-rename-done"){
     const c=careerById(state.editCareerId); if(!c) return;
     const v=(document.getElementById("career-rename-input").value||"").trim();
+    // Paso 167: s.career es texto libre por alumno (no un id), así que renombrar acá sin
+    // actualizar a los alumnos que tenían el nombre viejo hacía que normalizeCatalogCareers()
+    // (helpers.js) volviera a crear una carrera fantasma con el nombre viejo en el próximo
+    // load()/sync — de ahí el bug de "editar carrera crea otra".
+    if(v && normName(v)!==normName(c.nombre)){
+      const oldNorm=normName(c.nombre);
+      state.students=state.students.map(s=>normName(s.career)===oldNorm?{...s,career:v,updatedAt:Date.now()}:s);
+    }
     if(v) c.nombre=v;
     state.editCareerId=null;
     touchCatalog(); return;
@@ -1526,8 +1534,8 @@ document.addEventListener("click", (e)=>{
     }, 1600);
     return;
   }
-  else if(a==="session-topic-rename-start"){ state.editSessionTopicId=el.dataset.id; return; }
-  else if(a==="session-topic-rename-cancel"){ state.editSessionTopicId=null; return; }
+  else if(a==="session-topic-rename-start"){ state.editSessionTopicId=el.dataset.id; }
+  else if(a==="session-topic-rename-cancel"){ state.editSessionTopicId=null; }
   else if(a==="session-topic-rename-done" && s){
     const cid=el.dataset.id;
     const input=document.getElementById("session-topic-input");

@@ -553,6 +553,9 @@ function applyFichaDraftField(s, field, value){
     patch.status=value; patch.pausaHasta="";
     render(); return;
   }
+  // Paso 167: si se borra el mail, el opt-in de recordatorio por mail (toggle-recordatorio-mail
+  // en events.js) deja de tener sentido — se apaga solo en vez de quedar prendido sin mail al que mandarlo.
+  if(field==="email" && !value.trim() && cur.recordatorioMail) patch.recordatorioMail=false;
   patch[field]=value;
   render();
 }
@@ -592,7 +595,9 @@ function emptyStudent(){
    El mismo nombre en materias distintas es válido (un alumno que cursa varias
    materias tiene una ficha por cada una); lo que no se permite es dos fichas
    vivas con el mismo nombre en la misma materia (incluye "sin materia", subjectId=""). */
-function normName(s){ return (s||"").trim().toLowerCase().replace(/\s+/g," "); }
+// normalize()+regex saca tildes (paso 167: dedup de carreras insensible a mayúsculas/espacios
+// de más/tildes, para que "Ingeniería" e "Ingenieria" cuenten como la misma).
+function normName(s){ return (s||"").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," "); }
 function findDuplicateStudent(name, subjectId, excludeId){
   const n = normName(name); if(!n) return null;
   return alive().find(x => x.id!==excludeId && normName(x.name)===n && (x.subjectId||"")===(subjectId||"")) || null;

@@ -680,7 +680,7 @@ function vHoyRow(e, dia){
 function vHoyClasesHoy(){
   const events = collapseGrupalEvents(agendaRangeEvents(today(), today())).sort((a,b)=>a.time.localeCompare(b.time));
   const body = events.length===0
-    ? emptyState(ICON_CALENDAR, "Sin clases hoy", "No tenés clases agendadas para hoy.")
+    ? emptyState(ICON_CALENDAR, "Hoy no tenés clases 🎉", "Para lo que viene después, andá a la agenda.")
     : events.map(e=>vHoyRow(e,"hoy")).join("");
   return hoyCard("Clases de hoy", events.length, body, {a:"nav-agenda", label:"Ver agenda completa"});
 }
@@ -1226,7 +1226,7 @@ function vFichaResumen(s){
       <div class="field"><div class="flabel">Teléfono (WhatsApp)</div><input data-f="phone" placeholder="Ej: 11 2345-6789" value="${esc(s.phone||"")}"></div></div>
     <div class="hint" style="margin:-4px 0 8px">Cargalo sin el 0 del área ni el 15 — ej: código de área + número.</div>
     <div class="frow">
-      <div class="field"><div class="flabel">Mail de contacto (opcional)</div><input type="email" data-f="email" placeholder="alumno@mail.com" value="${esc(s.email||"")}"></div>
+      <div class="field"><div class="flabel">Mail de contacto (opcional)</div><input type="email" autocomplete="off" data-f="email" placeholder="alumno@mail.com" value="${esc(s.email||"")}"></div>
       ${s.email?`<div class="field" style="max-width:180px;justify-content:flex-end;display:flex"><a class="chip" href="mailto:${esc(s.email)}" style="margin-bottom:2px">Escribir por mail</a></div>`:""}
     </div>
     ${s.email?`<div class="frow" style="margin:-4px 0 8px;align-items:center">
