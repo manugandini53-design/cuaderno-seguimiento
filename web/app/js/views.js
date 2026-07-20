@@ -637,6 +637,28 @@ function vSolicitudClaseRow(sol){
     </div>
   </div>`;
 }
+/* ============ avisos de "Reserva directa" (paso 173) ============
+   A diferencia de vSolicitudesClaseCard de arriba, estas ya están aplicadas (la clase quedó
+   agendada sola, ver reservar_clase_portal() en cuaderno-supabase) — no hay nada que
+   aceptar/rechazar, sólo un aviso descartable ("Ok, listo") para que el docente se entere.
+   state.reservasDirectas se refresca junto a state.solicitudesClase (mismo heartbeat, ver
+   refreshSolicitudesClase en sync.js). */
+function vReservasDirectasCard(){
+  const list = state.reservasDirectas||[];
+  if(list.length===0) return "";
+  return `<div class="formcard">
+    <div class="ftitle">Reservas nuevas (portal)</div>
+    ${list.map(r=>{
+      const s = state.students.find(x=>x.id===r.studentId);
+      return `<div class="log" style="align-items:flex-start">
+        <div class="body"><b>${esc(s?s.name:"Alumno eliminado")}</b> reservó ${fmtDate(r.fecha)} a las ${esc(r.hora)}
+          <span class="pill" style="color:var(--status-activo-fg);background:var(--greenbg)">Agendada</span>
+        </div>
+        <button class="chip" data-a="reserva-directa-ok" data-id="${r.id}">Ok, listo</button>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
 /* ============ panel "Hoy": lo importante del día de un vistazo, arriba del tablero ============
    Tres bloques con la misma tarjeta (.ds-card.hoy-card): "Clases de hoy" (agenda del día,
    con botón registrar/ver), "Para cobrar" (reusa cobrosAtrasadosSummary/vCobrosBanner, el
@@ -752,6 +774,7 @@ function vTablero(){
   h += vBackupReminder();
   h += vCumpleanosBanner();
   h += vTuDia();
+  h += vReservasDirectasCard();
   h += vSolicitudesClaseCard();
 
   h += `<div class="hoy-grid">${vHoyClasesHoy()}${vHoyCobrar()}${vHoyProximo()}</div>`;
@@ -3716,7 +3739,7 @@ function vCuenta(){
     </div>`)}
   ${vCuentaGroup("mensajes","Mensajes y plantillas","Los textos que la app arma para WhatsApp y el recibo — todos editables desde acá.", vMensajesCard())}
   ${vCuentaGroup("portal","Portal y llaves","La página pública para tus alumnos: activarla, la llave general, avisos y llaves grupales por materia.",
-    vPortalCard()+vPedirClaseCard()+vCancelarClaseCard()+vPortalAvisosCard()+vPortalGruposCard())}
+    vPortalCard()+vReservaModoCard()+vCancelarClaseCard()+vPortalAvisosCard()+vPortalGruposCard())}
   ${vCuentaGroup("gruposclase","Grupos de clase","Quiénes integran cada clase grupal (intensivos, grupitos de 2-3) — para no re-elegirlos cada vez. Distinto de las llaves grupales de portal, de arriba.", vGruposClaseCard())}
   ${vCuentaGroup("datos","Datos y respaldos","Copias automáticas, retención y la papelera de alumnos/materias borrados.", `
     <div class="formcard"><div class="ftitle">Respaldos automáticos</div>
@@ -3849,23 +3872,28 @@ function vPortalCard(){
   return h + `</div>`;
 }
 
-// "Pedir una clase" (paso 160): apagado por defecto — sólo tiene sentido con disponibilidad
-// declarada (ver "Mi disponibilidad" en Agenda, paso 159); si no hay ninguna, huecosLibresProximos14Dias()
-// siempre da vacío, así que se lo advierte acá antes de que el docente lo active sin haber
-// cargado nada. El toggle es instantáneo (togglePedirClase en sync.js), no depende de "Publicar
-// cambios" de la tarjeta de arriba.
-function vPedirClaseCard(){
+// "Cómo reservan tus alumnos" (paso 173): reemplaza al simple on/off de "Pedir una clase" (paso
+// 160) por tres modos (chips) — apagado por defecto, "Me piden y yo confirmo" (el flujo de
+// siempre) o "Reservan directo" (nuevo: orden de llegada real, sin que el docente tenga que
+// aceptar nada, ver reservar_clase_portal() en cuaderno-supabase). Ambos modos con hueco dependen
+// de la disponibilidad declarada (ver "Mi disponibilidad" en Agenda, paso 159); si no hay ninguna,
+// huecosLibresProximos14Dias() siempre da vacío, así que se lo advierte acá antes de activar. El
+// cambio de modo es instantáneo (setReservaModo en sync.js), no depende de "Publicar cambios" de
+// la tarjeta de arriba — eso sí hace falta para que una llave individual ya generada empiece a
+// mostrar "Tu clase" en la agenda semanal (misClases, ver buildAlumnoBlock en sync.js).
+function vReservaModoCard(){
   if(!state.portalLoaded || !state.portal) return "";
-  const on = !!(state.portal.publicado && state.portal.publicado.pedirClaseHabilitado);
+  const modo = reservaModoFor();
   const disp = disponibilidadFor();
-  let h = `<div class="formcard"><div class="ftitle">Pedir una clase (portal)</div>
-    <div class="hint" style="margin-bottom:10px">Con su llave individual, un alumno ve tus huecos libres de los próximos 14 días (según tu disponibilidad declarada en Agenda) y puede pedir uno con una nota opcional — vos lo aceptás (se agenda solo) o lo rechazás con un motivo, desde las solicitudes del Tablero.</div>`;
-  if(disp.length===0){
-    h += `<div class="hint" style="margin-bottom:10px">Todavía no declaraste tu disponibilidad — andá a Agenda → "Mi disponibilidad" para marcar tus huecos semanales antes de activar esto (si no, no hay ningún hueco para ofrecer).</div>`;
+  let h = `<div class="formcard"><div class="ftitle">Cómo reservan tus alumnos</div>
+    <div class="hint" style="margin-bottom:10px">Con su llave individual, un alumno ve tus huecos libres de los próximos 14 días (según tu disponibilidad declarada en Agenda). "Me piden y yo confirmo": pide un hueco con una nota opcional y vos lo aceptás (se agenda solo) o lo rechazás, desde las solicitudes del Tablero. "Reservan directo": toca un hueco y la clase queda agendada al toque, orden de llegada — no hace falta que hagas nada.</div>`;
+  if(disp.length===0 && modo!=="apagado"){
+    h += `<div class="hint" style="margin-bottom:10px">Todavía no declaraste tu disponibilidad — andá a Agenda → "Mi disponibilidad" para marcar tus huecos semanales (si no, no hay ningún hueco para ofrecer).</div>`;
   }
   h += `<div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button class="chip ${!on?"on":""}" data-a="pedir-clase-toggle" data-f="no">Desactivado</button>
-    <button class="chip ${on?"on":""}" data-a="pedir-clase-toggle" data-f="si">Activado</button>
+    <button class="chip ${modo==="apagado"?"on":""}" data-a="reserva-modo-set" data-f="apagado">Apagado</button>
+    <button class="chip ${modo==="confirmar"?"on":""}" data-a="reserva-modo-set" data-f="confirmar">Me piden y yo confirmo</button>
+    <button class="chip ${modo==="directa"?"on":""}" data-a="reserva-modo-set" data-f="directa">Reservan directo (orden de llegada)</button>
   </div>`;
   return h + `</div>`;
 }

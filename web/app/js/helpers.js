@@ -106,7 +106,7 @@ let state = { students:[], catalog:defaultCatalog(), editSubjectId:null, editPac
               pendingConfirmEmail:null, confirmStatus:"idle", confirmError:"",
               reportMsg:"", reportStatus:"idle", reportError:"",
               reportes:[], reportFilter:"pendiente", reportesLoaded:false, reportesError:"",
-              solicitudesClase:[],
+              solicitudesClase:[], reservasDirectas:[],
               panelTab:"reportes", users:[], usersLoaded:false, usersError:"",
               metricas:[], altas:[], actividadLoaded:false, actividadError:"", actividadMode:"dia",
               metricasHorarias:[], metricasHorariasLoaded:false, metricasHorariasError:"",
@@ -1731,6 +1731,23 @@ function toggleSemanaCompleta(weekStart){
   touchCatalog();
 }
 
+/* ============ "Cómo reservan tus alumnos" (paso 173) ============
+   Reemplaza al simple on/off de "Pedir una clase" (paso 160) por tres modos, guardados en
+   state.portal.publicado.reservaModo: "apagado" (nada), "confirmar" (el flujo de siempre: el
+   alumno pide un hueco y el docente lo acepta/rechaza a mano) o "directa" (nuevo: el alumno toca
+   un hueco y la clase queda agendada al toque, orden de llegada real vía la RPC atómica
+   reservar_clase_portal(), ver 026_reserva_directa.sql en cuaderno-supabase). pedirClaseHabilitado
+   se sigue escribiendo en paralelo (true sólo si reservaModo==="confirmar") sólo por compatibilidad
+   con un portal.js viejo que quedó en el caché HTTP del navegador de algún alumno — resolveReservaModo()
+   es la única fuente de verdad del lado del cliente, cae a ese campo viejo si reservaModo nunca se
+   escribió (portal configurado antes de este paso). */
+function resolveReservaModo(publicado){
+  if(!publicado) return "apagado";
+  if(publicado.reservaModo) return publicado.reservaModo;
+  return publicado.pedirClaseHabilitado ? "confirmar" : "apagado";
+}
+function reservaModoFor(){ return resolveReservaModo(state.portal && state.portal.publicado); }
+
 /* ============ "Pedir una clase" desde el portal (paso 160) ============
    huecosLibresProximos14Dias() cruza la disponibilidad declarada (arriba) con la agenda real de
    los próximos 14 días — mismo criterio de bucket horario que usa la grilla semanal
@@ -2880,14 +2897,35 @@ function buildDemoData(){
   });
   catalog.gruposClase = [{id:grupoTrioId, nombre:grupoTrioNombre, subjectId:"demo-alg", studentIds:[...trioIds], createdAt:Date.now()}];
 
+  // Disponibilidad (paso 159) sólo de mañana, en días sin ninguna clase habitual/puntual demo
+  // (todas las recurrentes de arriba caen entre las 16 y las 19hs) — para que "Reserva directa"
+  // (paso 173) tenga huecos reales para ofrecer en la demo, sin colisionar con nada ya agendado.
+  catalog.disponibilidad = [
+    {day:weekdayIdx(addDays(today(),1)), hour:"10:00"},
+    {day:weekdayIdx(addDays(today(),3)), hour:"11:00"},
+    {day:weekdayIdx(addDays(today(),6)), hour:"09:00"},
+  ];
+
+  // huecosLibresProximos14Dias() lee state.catalog/state.students (globales) — load() todavía no
+  // los asignó a esta altura (recién lo hace con lo que devuelve buildDemoData(), después de este
+  // punto), así que se adelantan acá para que el cálculo de huecos de más abajo vea el catalog y
+  // los students recién armados, no lo que hubiera antes en state. load() los vuelve a asignar con
+  // estas mismas referencias apenas termine, así que esto no diverge del resultado final.
+  state.catalog = catalog; state.students = students;
+
   // Portal ya activado (paso 95): llave general habilitada, llave individual para Lucía y
   // Valentina (ver portalShare de cada una más arriba) y una llave grupal para Análisis
   // Matemático I con Lucía, Camila y Nicolás — todo simulado en memoria, sin fila real en
   // Supabase (ver los guards IS_DEMO de fetchPortalRow()/loadPortal()/publicarPortal() en
-  // sync.js, que hacen que esto se lea y "edite" sin pegarle nunca a la red).
+  // sync.js, que hacen que esto se lea y "edite" sin pegarle nunca a la red). "Reserva directa"
+  // (paso 173) arranca encendida con los huecos de la disponibilidad de arriba y la clase puntual
+  // de Lucía como ejemplo de "Tu clase" en su agenda semanal — huecosLibresProximos14Dias() y
+  // proximasClasesFor() se recalculan en vivo desde este mismo catalog/students, no hay nada
+  // hardcodeado acá aparte de la disponibilidad.
   const portal = {
     token:"DEMOPORTAL1", habilitado:true, draftNombre:"Prof. Demo",
-    publicado:{nombre:"Prof. Demo"},
+    publicado:{nombre:"Prof. Demo", reservaModo:"directa", huecos:huecosLibresProximos14Dias(),
+      alumnos:{ [lucia.id]:{misClases:proximasClasesFor(lucia)}, [valentina.id]:{misClases:proximasClasesFor(valentina)} }},
     tokensAlumnos:{ "DEMOALUM001":lucia.id, "DEMOALUM002":valentina.id },
     tokensGrupos:{ "DEMOGRUPO01":{materiaId:"demo-am1", alumnos:students.filter(s=>s.subjectId==="demo-am1" && !s.deleted).map(s=>s.id)} },
   };

@@ -717,15 +717,17 @@ async function togglePortalHabilitado(next){
     render();
   }
 }
-// "Permitir que pidan clases" (paso 160): apagado por defecto, instantáneo (mismo patrón
-// optimista que togglePortalHabilitado) — al prender, recalcula y publica los huecos ya mismo
-// (no hace falta esperar al próximo "Publicar cambios"); al apagar, los vacía para que el portal
-// deje de ofrecerlos al toque.
-async function togglePedirClase(next){
-  if(!state.portal) return;
+// "Cómo reservan tus alumnos" (paso 173): reemplaza al on/off de "Pedir una clase" (paso 160,
+// togglePedirClase) por un selector de tres modos — instantáneo (mismo patrón optimista de
+// siempre) y con el mismo efecto secundario sobre huecos: al pasar a "confirmar" o "directa"
+// recalcula y publica los huecos ya mismo (no hace falta esperar al próximo "Publicar cambios");
+// al apagar, los vacía para que el portal deje de ofrecerlos al toque. pedirClaseHabilitado se
+// sigue escribiendo en paralelo por compatibilidad (ver resolveReservaModo() en helpers.js).
+async function setReservaModo(modo){
+  if(!state.portal || reservaModoFor()===modo) return;
   const prevPublicado=state.portal.publicado;
-  const huecos=next?huecosLibresProximos14Dias():[];
-  const publicado={...state.portal.publicado, pedirClaseHabilitado:next, huecos};
+  const huecos=modo==="apagado"?[]:huecosLibresProximos14Dias();
+  const publicado={...state.portal.publicado, reservaModo:modo, pedirClaseHabilitado:modo==="confirmar", huecos};
   state.portal.publicado=publicado; render();
   if(IS_DEMO) return;
   try{
@@ -769,7 +771,7 @@ async function maybeSyncHuecosPortal(uid_, s){
     if(!r.ok) return;
     const row=(await r.json())[0];
     if(!row || !row.habilitado) return;
-    const habilitado=!!(row.publicado&&row.publicado.pedirClaseHabilitado);
+    const habilitado=resolveReservaModo(row.publicado)!=="apagado";
     const huecos=habilitado?huecosLibresProximos14Dias():[];
     const prevHuecos=(row.publicado&&row.publicado.huecos)||[];
     if(stableStringify(huecos)===stableStringify(prevHuecos)) return;
@@ -794,8 +796,33 @@ async function refreshSolicitudesClase(){
     const rows=await r.json();
     state.solicitudesClase=rows.map(x=>({id:x.id, studentId:x.student_id, fecha:x.fecha, hora:x.hora, nota:x.nota||"",
       tipo:x.tipo||"pedido", kind:x.kind||null, sourceId:x.source_id||null, createdAt:x.created_at}));
-    render();
   }catch(e){ /* silencioso, se reintenta en el próximo heartbeat */ }
+  // Reservas directas (paso 173): ya están aplicadas (estado="confirmada" desde que se insertan,
+  // ver reservar_clase_portal() en 026_reserva_directa.sql), así que no comparten lista con las de
+  // arriba (que necesitan aceptar/rechazar) — acá se trae nada más que las que el docente todavía
+  // no descartó ("vista"=false), como aviso simple en el Tablero.
+  try{
+    const s=await ensureToken();
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
+    const r=await fetch(SUPA_URL+"/rest/v1/solicitudes_clase?select=id,student_id,fecha,hora,created_at&tipo=eq.directa&vista=eq.false&order=created_at.desc", {headers:h});
+    if(r.ok){
+      const rows=await r.json();
+      state.reservasDirectas=rows.map(x=>({id:x.id, studentId:x.student_id, fecha:x.fecha, hora:x.hora, createdAt:x.created_at}));
+    }
+  }catch(e){ /* silencioso, se reintenta en el próximo heartbeat */ }
+  render();
+}
+// Descarta un aviso de reserva directa del Tablero (paso 173) — no hay "aceptar/rechazar", la
+// clase ya está agendada; esto sólo apaga el aviso (vista=true), mismo patrón optimista que
+// rechazarSolicitudClase.
+async function descartarReservaDirecta(id){
+  state.reservasDirectas=(state.reservasDirectas||[]).filter(x=>String(x.id)!==String(id));
+  render();
+  try{
+    const s=await ensureToken();
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+    await fetch(SUPA_URL+"/rest/v1/solicitudes_clase?id=eq."+encodeURIComponent(id), {method:"PATCH", headers:h, body:JSON.stringify({vista:true})});
+  }catch(e){ /* silencioso: se puede reintentar, y de última vuelve a aparecer en el próximo refresh */ }
 }
 async function patchSolicitudClase(id, patch){
   const s=await ensureToken();
@@ -900,7 +927,7 @@ async function signMaterialUrl(s, path, expiresInSec){
 // (ver buildGrupoBlock, sin estos campos, y la migración de portal_publico() que tiene que
 // exponer "pendiente"/"cobros" nada más que ahí). Si se suma un dato nuevo compartible aparte de
 // éste, tiene que sumarse como checkbox explícito en la ficha (vPortalAlumnoCard, views.js).
-function buildAlumnoBlock(s){
+function buildAlumnoBlock(s, reservaModo){
   const share=portalShareFor(s);
   const block={
     nombre:s.name, subjectId:s.subjectId||null,
@@ -925,6 +952,14 @@ function buildAlumnoBlock(s){
   if(share.avance){
     block.avance = unitsFor(s).map(u=>({unidad:u.nombre, estado:(s.topics||{})[u.nombre]||"pendiente"}));
   }
+  // misClases (paso 173, "reserva directa"): a diferencia de proximasClases de arriba, NO es
+  // opt-in por checkbox — es parte funcional de la agenda semanal del portal (el alumno necesita
+  // ver sus propias clases junto a los huecos libres para que esa agenda sea "su semana completa",
+  // no sólo huecos), así que se publica siempre que el docente tenga la reserva directa activada,
+  // sin depender de "Compartir con el portal" en la ficha. reservar_clase_portal() (RPC atómica)
+  // también la actualiza directo en publicado, para que una reserva nueva aparezca sin esperar a
+  // que el docente vuelva a tocar "Publicar cambios".
+  if(reservaModo==="directa") block.misClases = proximasClasesFor(s);
   return block;
 }
 // Arma lo que ve quien entra con la llave GRUPAL de una materia (paso 94): biblioteca de esa
@@ -984,11 +1019,12 @@ async function publicarPortal(){
         path, url, bytes:f.bytes||0, at:f.at||null, firmadoAt:Date.now(),
         unitNombre:unit?unit.nombre:"", unitOrden:unit?unit.orden:null};
     }));
+    const reservaModo=resolveReservaModo(state.portal.publicado);
     const alumnoIds=[...new Set(Object.values(state.portal.tokensAlumnos||{}))];
     const alumnos={};
     alumnoIds.forEach(id=>{
       const st=state.students.find(x=>x.id===id);
-      if(st) alumnos[id]=buildAlumnoBlock(st);
+      if(st) alumnos[id]=buildAlumnoBlock(st, reservaModo);
     });
     const tokensGrupos=state.portal.tokensGrupos||{};
     const materiaIds=[...new Set(Object.values(tokensGrupos).map(g=>g.materiaId))];
@@ -1016,16 +1052,19 @@ async function publicarPortal(){
       alias: cobrosCfg.alias||"", linkMP: cobrosCfg.linkMP||"", linkOtro: cobrosCfg.linkOtro||"",
       qr: cobrosCfg.qr ? {url:await signMaterialUrl(s, cobrosCfg.qr.path, PORTAL_LINK_TTL_DAYS*86400), firmadoAt:Date.now()} : null,
     } : null;
-    // Huecos para "Pedir una clase" (paso 160): sólo si el docente lo activó (pedirClaseHabilitado,
-    // ver togglePedirClase() más abajo) — si está apagado se publica una lista vacía para no dejar
-    // colgado un hueco viejo si lo desactivó justo después de haberlos publicado.
-    const pedirClaseHabilitado=!!(state.portal.publicado&&state.portal.publicado.pedirClaseHabilitado);
-    const huecos=pedirClaseHabilitado?huecosLibresProximos14Dias():[];
+    // Huecos para "Pedir una clase"/"Reserva directa" (pasos 160/173): sólo si el modo no está
+    // apagado (reservaModo, ver setReservaModo() más arriba) — si está apagado se publica una
+    // lista vacía para no dejar colgado un hueco viejo si lo desactivó justo después de publicar.
+    // pedirClaseHabilitado (paso 160) se sigue escribiendo por compatibilidad con un portal.js
+    // viejo en caché (ver resolveReservaModo() en helpers.js) — reservaModo (paso 173) ya es la
+    // fuente de verdad.
+    const pedirClaseHabilitado=reservaModo==="confirmar";
+    const huecos=reservaModo!=="apagado"?huecosLibresProximos14Dias():[];
     // Texto de la política de cancelación (paso 172): un solo campo a nivel de "publicado", mismo
     // criterio que cobros/fotoDocente — el portal (standalone) no tiene acceso a state.catalog,
     // así que necesita esto ya resuelto en el JSON público.
     const cancelPolicyTexto=cancelPolicyTextoPublico();
-    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros, pedirClaseHabilitado, huecos, cancelPolicyTexto};
+    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros, pedirClaseHabilitado, huecos, cancelPolicyTexto, reservaModo};
     const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
     await patchPortalRow(uid_, h, {publicado});
     state.portal.publicado=publicado;

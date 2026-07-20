@@ -381,6 +381,78 @@ function pedirClaseHtml(alumno, huecos){
   </div>`;
   return h;
 }
+// Día corto para la agenda semanal de "reserva directa" (paso 173) — mismo orden 0=Lunes..6=Domingo
+// que weekdayIdx() en helpers.js; duplicado acá porque portal.js es standalone y no lo carga
+// (mismo criterio que SUPA_URL/SUPA_ANON_KEY más arriba).
+const DIAS_CORTOS = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+function weekdayIdxLocal(ds){ return (new Date(ds+"T12:00:00").getDay()+6)%7; }
+// "Reserva directa" (paso 173): evolución de "Pedir una clase" — en vez de elegir un hueco de un
+// <select> y esperar que el docente confirme, cada hueco es un botón que agenda la clase al toque
+// (reservar_clase_portal(), RPC atómica con orden de llegada real: si dos alumnos tocan el mismo
+// hueco casi a la vez, el segundo recibe "se acaba de ocupar"). Agrupados por día para que se vea
+// como una semana — alumno.misClases (siempre presente en este modo, ver buildAlumnoBlock en
+// sync.js, no depende del opt-in "Compartir con el portal" de la ficha) se mezcla en el mismo día
+// para que el alumno vea también SUS clases ya agendadas ("Tu clase"), no sólo los huecos libres.
+function reservaDirectaHtml(alumno, huecos){
+  const porDia = new Map();
+  const ensure = d => { if(!porDia.has(d)) porDia.set(d, {libres:[], mias:[]}); return porDia.get(d); };
+  (huecos||[]).forEach(hu=>ensure(hu.date).libres.push(hu.time));
+  (alumno.misClases||[]).forEach(c=>ensure(c.date).mias.push(c.time));
+  const dias = [...porDia.keys()].sort();
+  let h = `<div class="card"><div class="ctitle">Reservá una clase</div>`;
+  if(dias.length===0){
+    return h + `<div class="pempty">No hay horarios libres por ahora — probá más tarde.</div></div>`;
+  }
+  h += `<div class="rsem">` + dias.map(d=>{
+    const info = porDia.get(d);
+    const libresHtml = [...info.libres].sort().map(t=>
+      `<button type="button" class="dl rslot" data-a="reserva-directa-slot" data-fecha="${esc(d)}" data-hora="${esc(t)}">${esc(t)}</button>`).join("");
+    const miasHtml = [...info.mias].sort().map(t=>`<span class="rmine">Tu clase ${esc(t)}</span>`).join("");
+    return `<div class="rsemday">
+      <div class="rsemdate">${esc(DIAS_CORTOS[weekdayIdxLocal(d)])} ${fmtDiaLocal(d)}</div>
+      <div class="rsemslots">${libresHtml}${miasHtml}${(!info.libres.length && !info.mias.length)?'<span class="pempty">—</span>':""}</div>
+    </div>`;
+  }).join("") + `</div>
+    <div id="reserva-directa-msg" class="pmeta" style="margin-top:8px"></div>`;
+  return h + `</div>`;
+}
+function reservaDirectaErrorMsg(err){
+  if(err==="rate_limit") return "Ya reservaste el máximo de clases por hoy — probá de nuevo mañana.";
+  if(err==="disabled") return "Tu profesor desactivó la reserva directa por ahora.";
+  if(err==="slot_unavailable") return "Ese horario se acaba de ocupar — elegí otro.";
+  return "No se pudo reservar — probá de nuevo.";
+}
+function wireReservaDirecta(llave){
+  const slots = document.querySelectorAll('[data-a="reserva-directa-slot"]');
+  if(!slots.length) return;
+  const msg = document.getElementById("reserva-directa-msg");
+  const lockSlots = (lock)=>slots.forEach(b=>b.disabled=lock);
+  slots.forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      lockSlots(true);
+      if(msg) msg.textContent = "Reservando…";
+      try{
+        const r = await fetch(SUPA_URL+"/rest/v1/rpc/reservar_clase_portal", {
+          method:"POST",
+          headers:{apikey:SUPA_ANON_KEY, Authorization:"Bearer "+SUPA_ANON_KEY, "Content-Type":"application/json"},
+          body: JSON.stringify({llave, p_fecha:btn.dataset.fecha, p_hora:btn.dataset.hora}),
+        });
+        if(!r.ok) throw new Error("error "+r.status);
+        const res = await r.json();
+        if(!res || !res.ok){
+          if(msg) msg.textContent = reservaDirectaErrorMsg(res&&res.error);
+          lockSlots(false);
+          return;
+        }
+        if(msg) msg.textContent = "¡Reservada! Ya quedó agendada.";
+        setTimeout(()=>init(), 1200); // recarga el portal para mostrar la clase nueva como "Tu clase"
+      }catch(e){
+        if(msg) msg.textContent = "No se pudo reservar — probá de nuevo.";
+        lockSlots(false);
+      }
+    });
+  });
+}
 function pedirClaseErrorMsg(err){
   if(err==="rate_limit") return "Ya pediste el máximo de clases por hoy — probá de nuevo mañana.";
   if(err==="disabled") return "Tu profesor desactivó los pedidos de clase por ahora.";
@@ -446,7 +518,13 @@ function showPortal(res, llave){
     const cancelarHabilitado = res.cancelarClaseHabilitado!==false;
     const politica = (res.data && res.data.cancelPolicyTexto) || "";
     const personal = personalHtml(res.alumno, cancelarHabilitado, politica);
-    h += (debe ? pagos + personal : personal + pagos) + pedirClaseHtml(res.alumno, res.huecos);
+    // reservaModo (paso 173): "directa" muestra la agenda semanal con reserva al toque;
+    // "confirmar" (o su ausencia — portal_publico() viejo en caché sin este campo, ver
+    // pedirClaseHabilitado más abajo) muestra el <select> de siempre (paso 160); "apagado" no
+    // muestra nada (huecos llega null, y ambas funciones ya devuelven "" en ese caso).
+    const modo = res.reservaModo || (res.pedirClaseHabilitado ? "confirmar" : "apagado");
+    h += (debe ? pagos + personal : personal + pagos) +
+      (modo==="directa" ? reservaDirectaHtml(res.alumno, res.huecos) : pedirClaseHtml(res.alumno, res.huecos));
   }
   // Llave grupal: próximas clases/exámenes del grupo, antes de la biblioteca — mismo criterio
   // que el bloque personal, es lo más "de esta llave puntual" frente a lo genérico de abajo.
@@ -477,6 +555,7 @@ function showPortal(res, llave){
     });
   }
   wirePedirClase(llave);
+  wireReservaDirecta(llave);
   wireCancelUi(llave);
 }
 
