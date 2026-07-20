@@ -1140,6 +1140,10 @@ function vFichaResumen(s){
       <div class="field"><div class="flabel">Mail de contacto (opcional)</div><input type="email" data-f="email" placeholder="alumno@mail.com" value="${esc(s.email||"")}"></div>
       ${s.email?`<div class="field" style="max-width:180px;justify-content:flex-end;display:flex"><a class="chip" href="mailto:${esc(s.email)}" style="margin-bottom:2px">Escribir por mail</a></div>`:""}
     </div>
+    ${s.email?`<div class="frow" style="margin:-4px 0 8px;align-items:center">
+      <button class="chip ${s.recordatorioMail?"on":""}" data-a="toggle-recordatorio-mail">${s.recordatorioMail?"✓ Recordatorio por mail activo":"Recordarle las clases por mail"}</button>
+      <span class="hint">Le llega un mail ${(getSes()&&getSes().recordatorioClasesHorasAntes)||14}hs antes de cada clase, con fecha, hora, materia y el link si hay.</span>
+    </div>`:""}
     <div class="frow">
       <div class="field"><div class="flabel">Estado</div><select data-f="status">
         ${Object.entries(STATUS_META).map(([k,m])=>opt(k,s.status,m.label)).join("")}</select></div>
@@ -3350,6 +3354,11 @@ function vCuenta(){
         <button class="chip ${!(ses&&ses.resumenSemanal)?"on":""}" data-a="toggle-resumen-semanal" data-f="no">Apagado</button>
         <button class="chip ${(ses&&ses.resumenSemanal)?"on":""}" data-a="toggle-resumen-semanal" data-f="si">Recibir el resumen semanal por mail</button>
       </div>
+    </div>
+    <div class="formcard"><div class="ftitle">Recordatorio por mail de clases</div>
+      <div class="hint" style="margin-bottom:8px">Cuántas horas antes de cada clase le llega el recordatorio a los alumnos que tenés activados (se activa por alumno, desde su ficha → Portal). La primera semana corre en modo simulacro — no manda mails reales todavía.</div>
+      <div class="field" style="max-width:160px"><div class="flabel">Horas antes</div>
+        <input type="number" min="1" max="48" data-cf="recordatorio-horas-antes" value="${ses&&ses.recordatorioClasesHorasAntes||14}"></div>
     </div>`)}
   ${vCuentaGroup("mensajes","Mensajes y plantillas","Los textos que la app arma para WhatsApp y el recibo — todos editables desde acá.", vMensajesCard())}
   ${vCuentaGroup("portal","Portal y llaves","La página pública para tus alumnos: activarla, la llave general, avisos y llaves grupales por materia.",

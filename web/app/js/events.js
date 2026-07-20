@@ -846,6 +846,10 @@ document.addEventListener("click", (e)=>{
       .catch(()=>toast("No se pudo copiar — seleccioná el texto manualmente.","error"));
     return;
   }
+  else if(a==="toggle-recordatorio-mail" && s){
+    update(s.id,{recordatorioMail: !s.recordatorioMail});
+    return;
+  }
   else if(a==="portal-alumno-share-toggle" && s){
     const key=el.dataset.key, cur=portalShareFor(s);
     update(s.id,{portalShare:{...cur, [key]: !cur[key]}});
@@ -2093,6 +2097,7 @@ function handleFormChange(e){
     state.catalog.cancelPolicy = {...cancelPolicyFor(), texto:cf.value};
     touchCatalog(); return;
   }
+  if(cf && cf.dataset.cf==="recordatorio-horas-antes"){ setRecordatorioClasesHorasAntes(cf.value); return; }
   if(cf && cf.dataset.cf==="docente-nombre"){ state.catalog.docente={...docenteFor(), nombre:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-telefono"){ state.catalog.docente={...docenteFor(), telefono:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="docente-dni"){ state.catalog.docente={...docenteFor(), dni:cf.value}; touchCatalog(); return; }

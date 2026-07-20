@@ -198,6 +198,29 @@ async function setResumenSemanal(v){
   }
 }
 
+// Config de "cuántas horas antes" del recordatorio por mail de clases (paso 161,
+// perfiles.recordatorio_clases_horas_antes — ver 023_recordatorio_clases_mail.sql): una config por
+// CUENTA (no por alumno — el opt-in en sí sí es por alumno, ver s.recordatorioMail en la ficha),
+// mismo patrón optimista que setResumenSemanal.
+async function setRecordatorioClasesHorasAntes(v){
+  const ses=getSes(); if(!ses) return;
+  const horas=Math.max(1, Math.min(48, Number(v)||14));
+  const prev=ses.recordatorioClasesHorasAntes;
+  setSes({...ses, recordatorioClasesHorasAntes:horas}); render();
+  try{
+    const s=await ensureToken();
+    const uid_=jwtSub(s.access);
+    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
+    const r=await fetch(SUPA_URL+"/rest/v1/perfiles?user_id=eq."+encodeURIComponent(uid_), {method:"PATCH", headers:h,
+      body:JSON.stringify({recordatorio_clases_horas_antes:horas})});
+    if(!r.ok) throw new Error("error "+r.status);
+  }catch(e){
+    const cur=getSes(); if(cur) setSes({...cur, recordatorioClasesHorasAntes:prev});
+    toast("No se pudo guardar — probá de nuevo.", "error");
+    render();
+  }
+}
+
 /* ============ push de recordatorio de las clases del día (paso 108) ============
    Opt-in en perfiles.notif_clases_dia (mismo patrón optimista que setResumenSemanal), más la
    suscripción real del navegador (PushManager) guardada en push_subscriptions — una fila por
