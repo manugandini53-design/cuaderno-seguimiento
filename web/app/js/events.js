@@ -1119,7 +1119,7 @@ document.addEventListener("click", (e)=>{
     toast("Cambios descartados");
     return;
   }
-  else if(a==="new"){ state.showNew=true; state.newStudentError=""; state.newStudentAdvancedOpen=false; state.newStudentSeniaActiva=false; }
+  else if(a==="new"){ state.showNew=true; state.newStudentError=""; state.newStudentAdvancedOpen=false; state.newStudentSeniaActiva=false; state.newStudentTarifaOverride=false; }
   else if(a==="load-sample"){
     const st=sampleStudent();
     state.students.push(st); save();
@@ -1131,7 +1131,7 @@ document.addEventListener("click", (e)=>{
   // Precarga lo que puede según el contexto — si ya estás en la ficha de un alumno, "nueva
   // clase"/"registrar pago" van directo a su pestaña; si no, primero piden elegir a quién.
   else if(a==="fab-toggle"){ state.fabOpen=!state.fabOpen; }
-  else if(a==="fab-new-student"){ state.fabOpen=false; state.showNew=true; state.newStudentError=""; state.newStudentAdvancedOpen=false; state.newStudentSeniaActiva=false; }
+  else if(a==="fab-new-student"){ state.fabOpen=false; state.showNew=true; state.newStudentError=""; state.newStudentAdvancedOpen=false; state.newStudentSeniaActiva=false; state.newStudentTarifaOverride=false; }
   else if(a==="fab-new-clase"){
     state.fabOpen=false;
     if(sel()){ state.tab="clases"; state.sessionPrefillDate=today(); state.confirmDel=false; state.fichaError=""; state.registrarClaseTipo="pasada"; }
@@ -1158,6 +1158,13 @@ document.addEventListener("click", (e)=>{
     const div=document.getElementById("n-advanced");
     if(div) div.style.display = state.newStudentAdvancedOpen ? "" : "none";
     el.textContent = (state.newStudentAdvancedOpen?"▾":"▸")+" Opciones avanzadas";
+    return;
+  }
+  else if(a==="new-tarifa-override-toggle"){
+    state.newStudentTarifaOverride=true;
+    const info=document.getElementById("n-tarifa-info"), row=document.getElementById("n-tarifa-row");
+    if(info) info.style.display="none";
+    if(row) row.style.display="";
     return;
   }
   else if(a==="new-senia-toggle"){
@@ -1690,6 +1697,28 @@ document.addEventListener("click", (e)=>{
     if(state.mensajeAbierto==="propia:"+id) state.mensajeAbierto=null;
     touchCatalog(); toast("Plantilla borrada"); return;
   }
+  // Packs de catálogo (paso 176): mismo patrón CRUD que las plantillas propias de arriba.
+  else if(a==="pack-cat-nuevo"){
+    const p={id:uid(), nombre:"Nuevo pack", cantidad:8, precio:"", vigenciaTexto:"", mostrarPortal:false};
+    state.catalog.packsCatalogo=[...packsCatalogoFor(), p];
+    state.mensajeAbierto="pack:"+p.id;
+    touchCatalog(); return;
+  }
+  else if(a==="pack-cat-toggle-portal"){
+    const id=el.dataset.id;
+    state.catalog.packsCatalogo=packsCatalogoFor().map(p=>p.id===id?{...p,mostrarPortal:!p.mostrarPortal}:p);
+    touchCatalog(); return;
+  }
+  else if(a==="pack-cat-del-ask"){ state.packCatalogoDelConfirmId=el.dataset.id; }
+  else if(a==="pack-cat-del-cancel"){ state.packCatalogoDelConfirmId=null; }
+  else if(a==="pack-cat-del-confirm"){
+    const id=el.dataset.id;
+    state.catalog.packsCatalogo=packsCatalogoFor().filter(p=>p.id!==id);
+    state.packCatalogoDelConfirmId=null;
+    if(state.mensajeAbierto==="pack:"+id) state.mensajeAbierto=null;
+    if(state.packClasesCatalogId===id) state.packClasesCatalogId="";
+    touchCatalog(); toast("Pack borrado"); return;
+  }
   else if(a==="toggle-recordatorios"){
     state.catalog.recordatorios = {...recordatoriosFor(), activo: el.dataset.f==="si"};
     touchCatalog(); return;
@@ -1774,10 +1803,16 @@ document.addEventListener("click", (e)=>{
       toast("Pago restaurado");
     }); return;
   }
+  else if(a==="pack-clases-elegir-catalogo"){
+    const p=packsCatalogoFor().find(x=>x.id===el.dataset.id); if(!p) return;
+    state.packClasesCatalogId=p.id; state.packClasesCant=p.cantidad; render(); return;
+  }
+  else if(a==="pack-clases-elegir-personalizado"){ state.packClasesCatalogId=""; render(); return; }
   else if(a==="save-pack-clases" && s){
+    const catalogPack = packsCatalogoFor().find(p=>p.id===state.packClasesCatalogId);
     const cant = parseInt(document.getElementById("pack-clases-cant")?.value, 10) || Number(state.packClasesCant) || 8;
     const precioEl = document.getElementById("pack-clases-precio");
-    const precio = (precioEl && precioEl.value!=="") ? Number(precioEl.value) : packClasesPrecioSugerido(s, cant);
+    const precio = (precioEl && precioEl.value!=="") ? Number(precioEl.value) : (catalogPack ? Number(catalogPack.precio)||0 : packClasesPrecioSugerido(s, cant));
     if(!cant || cant<1 || !precio || precio<=0) return;
     const date = document.getElementById("pack-clases-fecha")?.value || today();
     const packId = uid(), pagoId = uid();
@@ -1801,15 +1836,24 @@ document.addEventListener("click", (e)=>{
     cfg.excluidos = todosIncluidos ? [...new Set([...cfg.excluidos, ...ids])] : cfg.excluidos.filter(id=>!ids.includes(id));
     render(); return;
   }
+  else if(a==="toggle-tarifa-ajuste-default"){
+    tarifaAjusteState().incluirDefault = !tarifaAjusteState().incluirDefault;
+    return;
+  }
   else if(a==="apply-tarifa-ajuste"){
     const cfg=tarifaAjusteState();
     const step = Number(cfg.redondeo)||0;
     const cambios = alive().filter(s=>s.status==="activo" && Number(s.tarifa)>0 && !cfg.excluidos.includes(s.id))
       .map(s=>({id:s.id, actual:Number(s.tarifa)||0, nueva:tarifaAjusteNueva(Number(s.tarifa)||0, cfg.modo, cfg.valor, step)}));
-    if(cambios.length===0) return;
-    applyTarifaAjuste(cambios);
-    state.tarifaAjuste = {modo:cfg.modo, valor:"", redondeo:cfg.redondeo, excluidos:[]};
-    toast(`Tarifa ajustada para ${cambios.length} alumno${cambios.length===1?"":"s"}.`, "ok");
+    if(cambios.length===0 && !cfg.incluirDefault) return;
+    if(cambios.length) applyTarifaAjuste(cambios);
+    if(cfg.incluirDefault && Number(tarifaDefaultFor().monto)>0){
+      const nuevaDef = tarifaAjusteNueva(Number(tarifaDefaultFor().monto)||0, cfg.modo, cfg.valor, step);
+      state.catalog.tarifaDefault = {...tarifaDefaultFor(), monto:nuevaDef};
+      touchCatalog();
+    }
+    state.tarifaAjuste = {modo:cfg.modo, valor:"", redondeo:cfg.redondeo, excluidos:[], incluirDefault:false};
+    toast(`Tarifa ajustada para ${cambios.length} alumno${cambios.length===1?"":"s"}${cfg.incluirDefault?" y tu tarifa habitual":""}.`, "ok");
     return;
   }
   else if(a==="stats-mode"){ state.statsMode=el.dataset.m; }
@@ -2114,7 +2158,7 @@ document.addEventListener("keydown",(e)=>{
     e.preventDefault(); state.searchOpen=true; state.searchQuery=""; state.searchSel=0; render(); return;
   }
   if(!state.searchOpen && !state.showNew && !typing && getSes() && !state.recovery && !e.ctrlKey && !e.metaKey && !e.altKey){
-    if(e.key==="n"){ e.preventDefault(); state.showNew=true; state.newStudentError=""; state.newStudentAdvancedOpen=false; state.newStudentSeniaActiva=false; render(); return; }
+    if(e.key==="n"){ e.preventDefault(); state.showNew=true; state.newStudentError=""; state.newStudentAdvancedOpen=false; state.newStudentSeniaActiva=false; state.newStudentTarifaOverride=false; render(); return; }
     if(e.key==="c" && state.view==="detalle" && sel()){ e.preventDefault(); state.tab="clases"; render(); return; }
   }
   if(!state.searchOpen){
@@ -2286,6 +2330,9 @@ function handleFormChange(e){
   // Cobros del docente (paso 141): alias/CVU sin validar (texto libre); los dos links sí, sólo
   // https — se guardan igual si no cumplen (para no perder lo tipeado a medio escribir), pero
   // avisa con un hint bajo el campo (ver vCobrosCard, views.js).
+  if(cf && cf.dataset.cf==="tarifa-default-modalidad"){ state.catalog.tarifaDefault={...tarifaDefaultFor(), modalidad:cf.value}; touchCatalog(); return; }
+  if(cf && cf.dataset.cf==="tarifa-default-monto"){ state.catalog.tarifaDefault={...tarifaDefaultFor(), monto:cf.value}; touchCatalog(); return; }
+  if(cf && cf.dataset.cf==="tarifa-default-duracion"){ state.catalog.tarifaDefault={...tarifaDefaultFor(), duracion:parseInt(cf.value,10)||60}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="cobros-alias"){ state.catalog.cobrosDocente={...cobrosDocenteFor(), alias:cf.value.trim()}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="cobros-linkmp"){
     const v=cf.value.trim();
@@ -2310,6 +2357,26 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("propia-texto-")){
     const id=cf.dataset.cf.slice("propia-texto-".length);
     state.catalog.mensajesPropios=mensajesPropiasFor().map(p=>p.id===id?{...p,texto:cf.value}:p);
+    touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("pack-cat-nombre-")){
+    const id=cf.dataset.cf.slice("pack-cat-nombre-".length);
+    state.catalog.packsCatalogo=packsCatalogoFor().map(p=>p.id===id?{...p,nombre:cf.value}:p);
+    touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("pack-cat-cantidad-")){
+    const id=cf.dataset.cf.slice("pack-cat-cantidad-".length);
+    state.catalog.packsCatalogo=packsCatalogoFor().map(p=>p.id===id?{...p,cantidad:parseInt(cf.value,10)||1}:p);
+    touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("pack-cat-precio-")){
+    const id=cf.dataset.cf.slice("pack-cat-precio-".length);
+    state.catalog.packsCatalogo=packsCatalogoFor().map(p=>p.id===id?{...p,precio:cf.value}:p);
+    touchCatalog(); return;
+  }
+  if(cf && cf.dataset.cf && cf.dataset.cf.startsWith("pack-cat-vigencia-")){
+    const id=cf.dataset.cf.slice("pack-cat-vigencia-".length);
+    state.catalog.packsCatalogo=packsCatalogoFor().map(p=>p.id===id?{...p,vigenciaTexto:cf.value}:p);
     touchCatalog(); return;
   }
   if(cf && cf.dataset.cf==="portal-nombre"){ if(state.portal) state.portal.draftNombre=cf.value; return; }

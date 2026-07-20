@@ -1582,17 +1582,26 @@ function vFichaPagos(s){
 function vPackClasesCard(s){
   const activo = packClasesActivo(s);
   const hist = [...(s.packsClases||[])].sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const cant = state.packClasesCant || 8;
+  const catalogo = packsCatalogoFor();
+  const catalogId = state.packClasesCatalogId||"";
+  const catalogPack = catalogo.find(p=>p.id===catalogId);
+  const cant = catalogPack ? catalogPack.cantidad : (state.packClasesCant || 8);
   let h = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--soft)">
     <div class="flabel" style="margin-bottom:6px">Pack de clases prepago</div>`;
   if(activo){
     const agotandose = activo.restantes<=2;
     h += `<div class="chip" style="margin-bottom:10px;${agotandose?"color:var(--status-desaprobo-fg);border-color:var(--status-desaprobo-fg)":"color:var(--status-activo-fg);border-color:var(--status-activo-fg)"}">Quedan ${activo.restantes} de ${activo.total} clases</div>`;
   }
-  h += `<div class="hint" style="margin-bottom:8px">${activo?"¿Le vendés otro para cuando termine éste?":"Vendé un pack de varias clases prepago — cada clase que registres después se lo va descontando sola, sin marcarla cobrada aparte."}</div>
-    <div class="frow" style="align-items:flex-end">
-      <div class="field" style="max-width:110px"><div class="flabel">Cantidad</div><input type="number" min="1" data-cf="pack-clases-cant" value="${cant}"></div>
-      <div class="field"><div class="flabel">Precio total</div><input type="number" min="0" id="pack-clases-precio" placeholder="Sugerido: ${fmtMoney(packClasesPrecioSugerido(s,cant))}" data-enter="save-pack-clases"></div>
+  h += `<div class="hint" style="margin-bottom:8px">${activo?"¿Le vendés otro para cuando termine éste?":"Vendé un pack de varias clases prepago — cada clase que registres después se lo va descontando sola, sin marcarla cobrada aparte."}</div>`;
+  if(catalogo.length){
+    h += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="chip ${!catalogId?"on":""}" data-a="pack-clases-elegir-personalizado">Personalizado</button>
+      ${catalogo.map(p=>`<button class="chip ${catalogId===p.id?"on":""}" data-a="pack-clases-elegir-catalogo" data-id="${p.id}">${esc(p.nombre)}</button>`).join("")}
+    </div>`;
+  }
+  h += `<div class="frow" style="align-items:flex-end">
+      <div class="field" style="max-width:110px"><div class="flabel">Cantidad</div><input type="number" min="1" data-cf="pack-clases-cant" value="${cant}" ${catalogPack?"disabled":""}></div>
+      <div class="field"><div class="flabel">Precio total</div><input type="number" min="0" id="pack-clases-precio" placeholder="Sugerido: ${fmtMoney(packClasesPrecioSugerido(s,cant))}" value="${catalogPack?esc(catalogPack.precio):""}" data-enter="save-pack-clases"></div>
       <div class="field" style="max-width:160px"><div class="flabel">Fecha</div><input type="date" id="pack-clases-fecha" value="${today()}" data-enter="save-pack-clases"></div>
       <button class="chip" data-a="save-pack-clases" style="margin-bottom:2px">Vender pack</button></div>`;
   if(hist.length){
@@ -2715,7 +2724,7 @@ function vPagosResumen(){
    aplicar — cada alumno arranca incluido, se puede destildar uno a la vez o toda una materia
    junto (toggle-tarifa-ajuste-materia). Sólo alumnos activos con tarifa cargada; el cambio real
    lo hace applyTarifaAjuste() (helpers.js), que además deja una línea en s.tarifaHistorial. */
-function tarifaAjusteState(){ return state.tarifaAjuste || (state.tarifaAjuste = {modo:"porcentaje", valor:"", redondeo:"", excluidos:[]}); }
+function tarifaAjusteState(){ return state.tarifaAjuste || (state.tarifaAjuste = {modo:"porcentaje", valor:"", redondeo:"", excluidos:[], incluirDefault:false}); }
 function vAjustarTarifas(){
   const cfg = tarifaAjusteState();
   const candidatos = alive().filter(s=>s.status==="activo" && Number(s.tarifa)>0)
@@ -2739,9 +2748,12 @@ function vAjustarTarifas(){
           <option value="1000" ${cfg.redondeo==="1000"?"selected":""}>Al $1000 más cercano</option>
         </select></div>
     </div>
+    ${Number(tarifaDefaultFor().monto)>0?`<div style="margin-top:10px">
+      <button class="chip ${cfg.incluirDefault?"on":""}" data-a="toggle-tarifa-ajuste-default">${cfg.incluirDefault?"✓ ":""}Incluir tu tarifa habitual (Cuenta → Cobros)</button>
+    </div>`:""}
   </div>`;
 
-  if(candidatos.length===0){
+  if(candidatos.length===0 && !cfg.incluirDefault){
     return h + emptyState(ICON_WALLET, "No hay tarifas para ajustar",
       "Cargá una tarifa en la ficha de algún alumno activo (pestaña «Pagos») para poder aplicarle un aumento acá.");
   }
@@ -2776,7 +2788,15 @@ function vAjustarTarifas(){
       </div>
     </button>`).join("");
   });
-  h += `<button class="primary" style="margin-top:14px;margin-left:0" data-a="apply-tarifa-ajuste" ${incluidos.length===0?"disabled":""}>Aplicar aumento a ${incluidos.length} alumno${incluidos.length===1?"":"s"}</button>
+  if(cfg.incluirDefault && Number(tarifaDefaultFor().monto)>0){
+    const actualDef = Number(tarifaDefaultFor().monto)||0;
+    const nuevaDef = tarifaAjusteNueva(actualDef, cfg.modo, cfg.valor, step);
+    h += `<div class="stitle">Cuenta</div>
+    <div class="row"><div class="main"><div class="name">Tu tarifa habitual</div></div>
+      <div class="right" style="text-align:right"><span class="hint">${fmtMoney(actualDef)}</span> → <b style="color:var(--accent-dark)">${fmtMoney(nuevaDef)}</b></div>
+    </div>`;
+  }
+  h += `<button class="primary" style="margin-top:14px;margin-left:0" data-a="apply-tarifa-ajuste" ${(incluidos.length===0 && !cfg.incluirDefault)?"disabled":""}>Aplicar aumento a ${incluidos.length} alumno${incluidos.length===1?"":"s"}${cfg.incluirDefault?" y tu tarifa habitual":""}</button>
   </div>`;
   return h;
 }
@@ -3677,13 +3697,68 @@ function vMensajesCard(){
 // QR opcional (mismo bucket/cuota que las fotos de perfil, ver uploadCobrosQr en sync.js). Se
 // muestra en el portal individual de cada alumno (buildAlumnoBlock/publicarPortal en sync.js) —
 // nunca en la llave grupal ni la general.
+// Tarifa habitual (paso 176): modalidad+monto+duración típica de la cuenta — precarga el alta de
+// alumno en modo simple (vModal()) sin obligar a tocar nada ahí; la tarifa especial por alumno
+// sigue viviendo en Opciones avanzadas del alta y en la ficha, sin cambios.
+function vTarifaDefaultCard(){
+  const t = tarifaDefaultFor();
+  return `<div class="formcard"><div class="ftitle">Tu tarifa habitual</div>
+    <div class="hint" style="margin-bottom:10px">La que usa de entrada el alta de alumno nuevo — cambiarla acá no toca la tarifa ya cargada de ningún alumno existente.</div>
+    <div class="frow">
+      <div class="field"><div class="flabel">Modalidad</div><select data-cf="tarifa-default-modalidad">
+        <option value="" ${!t.modalidad?"selected":""}>—</option>
+        <option value="clase" ${t.modalidad==="clase"?"selected":""}>Por clase</option>
+        <option value="hora" ${t.modalidad==="hora"?"selected":""}>Por hora</option></select></div>
+      <div class="field"><div class="flabel">Monto (pesos)</div><input type="number" min="0" data-cf="tarifa-default-monto" value="${esc(t.monto||"")}"></div>
+      <div class="field"><div class="flabel">Duración típica</div>${durationFieldHtml(t.duracion, {dataCf:"tarifa-default-duracion"})}</div>
+    </div>
+  </div>`;
+}
+// Un pack de catálogo colapsado, mismo patrón que vPlantillaPropiaRow (paso 175) — nombre en el
+// header, se abre de a uno para editar (state.mensajeAbierto se reusa como "abierto único" acá
+// también, con su propio prefijo "pack:" para no chocar con las plantillas de mensajes).
+function vPackCatalogoRow(p){
+  const open = state.mensajeAbierto==="pack:"+p.id;
+  const confirming = state.packCatalogoDelConfirmId===p.id;
+  return `<div class="cuenta-group" style="margin:8px 0">
+    <button class="cuenta-group-head" data-a="msg-tpl-toggle" data-key="pack:${p.id}" aria-expanded="${open}">
+      <div><div class="ftitle" style="margin:0">${esc(p.nombre||"(sin nombre)")}</div>
+        <div class="hint">${Number(p.cantidad)||0} clases — ${fmtMoney(p.precio)}${p.mostrarPortal?" · en el portal":""}</div></div>
+      <span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
+    </button>
+    ${open?`<div class="cuenta-group-body">
+      <div class="frow">
+        <div class="field"><div class="flabel">Nombre</div><input data-cf="pack-cat-nombre-${p.id}" value="${esc(p.nombre||"")}" placeholder="Ej: Pack 8 clases"></div>
+        <div class="field" style="max-width:120px"><div class="flabel">Cantidad</div><input type="number" min="1" data-cf="pack-cat-cantidad-${p.id}" value="${esc(p.cantidad||"")}"></div>
+        <div class="field" style="max-width:160px"><div class="flabel">Precio total</div><input type="number" min="0" data-cf="pack-cat-precio-${p.id}" value="${esc(p.precio||"")}"></div>
+      </div>
+      <div class="field"><div class="flabel">Vigencia (opcional)</div><input data-cf="pack-cat-vigencia-${p.id}" value="${esc(p.vigenciaTexto||"")}" placeholder="Ej: válido hasta fin de cuatrimestre"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+        <button class="chip ${p.mostrarPortal?"on":""}" data-a="pack-cat-toggle-portal" data-id="${p.id}">${p.mostrarPortal?"✓ Mostrado en el portal":"Mostrar en el portal"}</button>
+        ${!confirming?`<button class="del" data-a="pack-cat-del-ask" data-id="${p.id}">Borrar</button>`
+          :`<span style="font-size:12px;color:var(--status-desaprobo-fg)">¿Borrar «${esc(p.nombre||"este pack")}»?</span>
+          <button class="danger" data-a="pack-cat-del-confirm" data-id="${p.id}">Sí, borrar</button>
+          <button class="chip" data-a="pack-cat-del-cancel">Cancelar</button>`}
+      </div>
+      <div class="hint" style="margin-top:6px">Mostrarlo en el portal lo suma como promo (sin vender nada solo) — falta "Publicar cambios" en Portal para que se vea.</div>
+    </div>`:""}
+  </div>`;
+}
+function vPacksCatalogoCard(){
+  const packs = packsCatalogoFor();
+  return `<div class="formcard"><div class="ftitle">Mis packs</div>
+    <div class="hint" style="margin-bottom:10px">Armá packs de varias clases una sola vez — al vender uno desde la ficha de un alumno, elegís acá en vez de cargar cantidad y precio a mano cada vez. Los que marqués "Mostrar en el portal" aparecen como promo para tus alumnos.</div>
+    ${packs.length?packs.map(vPackCatalogoRow).join(""):`<div class="empty" style="font-size:13px">Sin packs de catálogo todavía.</div>`}
+    <button class="chip" style="margin-top:8px" data-a="pack-cat-nuevo">+ Nuevo pack</button>
+  </div>`;
+}
 function vCobrosCard(){
   const c = cobrosDocenteFor();
   const qrUrl = c.qr ? avatarUrlFor(c.qr) : null;
   const uploading = state.cobrosQrUploading;
   const confirming = state.cobrosQrDeleteConfirm;
   const offline = !navigator.onLine;
-  return `<div class="formcard"><div class="ftitle">Cobros</div>
+  return vTarifaDefaultCard() + vPacksCatalogoCard() + `<div class="formcard"><div class="ftitle">Cobros</div>
     <div class="hint" style="margin-bottom:10px">Tus medios de pago, para que cada alumno vea cómo pagarte desde su propio portal — sin API, sin comisiones, sin procesar nada nosotros. Cuando te paguen, registralo como siempre (pestaña Pagos, en la ficha del alumno); esto no cobra ni confirma nada solo.</div>
     <div class="frow">
       <div class="field"><div class="flabel">Alias / CVU</div><input data-cf="cobros-alias" placeholder="tu.alias.mp" value="${esc(c.alias||"")}"></div>
@@ -5608,6 +5683,9 @@ function vSearchOverlay(){
 function vModal(){
   const advOpen = state.newStudentAdvancedOpen;
   const seniaActiva = state.newStudentSeniaActiva;
+  const tarifaDef = tarifaDefaultFor();
+  const hasTarifaDefault = Number(tarifaDef.monto)>0 && tarifaDef.modalidad;
+  const tarifaOverride = state.newStudentTarifaOverride || !hasTarifaDefault;
   return `<div class="overlay"><div class="modal">
     <div class="ftitle" style="font-size:16px">Nuevo estudiante</div>
     ${state.newStudentError?`<div class="saveerr">${esc(state.newStudentError)}</div>`:""}
@@ -5630,12 +5708,13 @@ function vModal(){
         </optgroup>` : ""}
         <option value="">Otra / sin materia por ahora</option></select></div>
       <div class="field"><div class="flabel">Teléfono (WhatsApp)</div><input id="n-phone" placeholder="Ej: 11 2345-6789" data-enter="create"></div></div>
-    <div class="frow">
-      <div class="field"><div class="flabel">Tarifa (pesos)</div><input type="number" min="0" id="n-tarifa" placeholder="Sin cargar = sin cobro" data-enter="create"></div>
+    ${hasTarifaDefault?`<div class="hint" id="n-tarifa-info" style="margin-top:2px${tarifaOverride?";display:none":""}">Tarifa: ${fmtMoney(tarifaDef.monto)} ${tarifaDef.modalidad==="hora"?"por hora":"por clase"} (tu habitual) — <button class="chip" style="padding:1px 8px;font-size:11px" data-a="new-tarifa-override-toggle">cambiar</button></div>`:""}
+    <div class="frow" id="n-tarifa-row" style="${hasTarifaDefault&&!tarifaOverride?"display:none":""}">
+      <div class="field"><div class="flabel">Tarifa (pesos)</div><input type="number" min="0" id="n-tarifa" placeholder="Sin cargar = sin cobro" value="${hasTarifaDefault?esc(tarifaDef.monto):""}" data-enter="create"></div>
       <div class="field"><div class="flabel">Modalidad de cobro</div><select id="n-modalidad" data-enter="create">
         <option value="">—</option>
-        <option value="clase">Por clase</option>
-        <option value="hora">Por hora</option>
+        <option value="clase" ${hasTarifaDefault&&tarifaDef.modalidad==="clase"?"selected":""}>Por clase</option>
+        <option value="hora" ${hasTarifaDefault&&tarifaDef.modalidad==="hora"?"selected":""}>Por hora</option>
         <option value="mensual">Mensual</option></select></div></div>
     <div class="hint" style="margin-top:2px">¿Cursa más de una materia? Cargalo una vez por cada materia — o elegí un pack para crear todas sus fichas de una.</div>
     <div style="margin-top:10px">

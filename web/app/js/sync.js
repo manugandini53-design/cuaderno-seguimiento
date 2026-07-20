@@ -1064,7 +1064,13 @@ async function publicarPortal(){
     // criterio que cobros/fotoDocente — el portal (standalone) no tiene acceso a state.catalog,
     // así que necesita esto ya resuelto en el JSON público.
     const cancelPolicyTexto=cancelPolicyTextoPublico();
-    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros, pedirClaseHabilitado, huecos, cancelPolicyTexto, reservaModo};
+    // Promos (paso 176): packs de catálogo marcados "Mostrar en el portal" — un campo más a nivel
+    // de "publicado" (como cancelPolicyTexto), visible en los tres tipos de llave (portal_publico()
+    // no lo excluye en ninguna rama, ver cuaderno-supabase) porque es info general de la cuenta,
+    // no de un alumno puntual.
+    const promos=packsCatalogoFor().filter(p=>p.mostrarPortal).map(p=>
+      ({nombre:p.nombre||"Pack", cantidad:Number(p.cantidad)||0, precio:Number(p.precio)||0, vigenciaTexto:p.vigenciaTexto||""}));
+    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros, pedirClaseHabilitado, huecos, cancelPolicyTexto, reservaModo, promos};
     const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
     await patchPortalRow(uid_, h, {publicado});
     state.portal.publicado=publicado;

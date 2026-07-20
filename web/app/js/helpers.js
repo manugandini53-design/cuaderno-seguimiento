@@ -855,6 +855,10 @@ function goalCountsInMonth(mk){
   return { si, medias, no, total: si+medias+no };
 }
 
+// Tarifa habitual de la cuenta (paso 176, state.catalog.tarifaDefault): modalidad+monto+duración
+// típica que precarga el alta de alumno (modo simple) — ver vModal()/vCobrosCard() en views.js.
+// Nunca pisa la tarifa/modalidad ya cargada de un alumno existente; sólo sugiere en el alta.
+function tarifaDefaultFor(){ return {modalidad:"", monto:"", duracion:60, ...(state.catalog.tarifaDefault||{})}; }
 /* ============ pagos: opcional por alumno (tarifa + modalidad) ============
    Sin tarifa cargada, la función de pagos no existe para ese alumno — ni en su
    ficha, ni en clases, ni en la vista "Pagos". Todo se calcula por mes (YYYY-MM):
@@ -926,6 +930,13 @@ function pagoResumen(s, mk){
   const cobrado=Math.min(tarifa, (s.pagos||[]).filter(p=>monthKeyOf(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0));
   return { clases:clasesMes.length, total:tarifa, cobrado, pendiente:Math.max(0, tarifa-cobrado) };
 }
+// Packs de catálogo (paso 176, state.catalog.packsCatalogo): armados de una vez por el docente
+// (nombre, cantidad de clases, precio, vigencia opcional en texto libre) — independientes de
+// materia, para elegir al vender un pack a un alumno (ver vPackClasesCard en views.js) en vez de
+// cargar cantidad/precio "personalizados" cada vez. mostrarPortal (apagado por defecto) los suma
+// a publicado.promos al publicar (ver publicarPortal() en sync.js) — no vende nada solo, sólo
+// informa; el alumno sigue coordinando con el docente como siempre.
+function packsCatalogoFor(){ return Array.isArray(state.catalog.packsCatalogo) ? state.catalog.packsCatalogo : []; }
 /* ============ packs de clases prepagos (paso 158) ============
    s.packsClases guarda el historial de packs vendidos a un alumno con modalidad "clase" u "hora"
    (nunca "mensual" — ver vPackClasesCard en views.js, que sólo se muestra ahí). Cada venta es

@@ -243,6 +243,17 @@ function pagosHtml(alumno, cobros, nombreDocente){
   h += historialClasesHtml(alumno.historialClases);
   return h + `</div>`;
 }
+// Promos (paso 176): packs de catálogo que el docente marcó "Mostrar en el portal" (ver
+// publicarPortal() en sync.js, campo publicado.promos) — sólo informa precio/cantidad, no vende
+// ni reserva nada; el alumno sigue coordinando la compra con su docente como siempre.
+function promosHtml(promos){
+  if(!Array.isArray(promos) || promos.length===0) return "";
+  return `<div class="card"><div class="ctitle">Promos</div>` +
+    promos.map(p=>`<div class="prow"><div class="plabel">${esc(p.nombre||"Pack")}</div>
+      <div class="pvalue">${Number(p.cantidad)||0} clases — ${fmtMoneyPortal(p.precio)}</div>
+      ${p.vigenciaTexto?`<div class="filemeta">${esc(p.vigenciaTexto)}</div>`:""}
+    </div>`).join("") + `</div>`;
+}
 // Bloque de una llave GRUPAL (ver buildGrupoBlock en sync.js): próximas clases/exámenes del
 // grupo, siempre fechas sueltas sin nombre de alumno — jamás notas, pagos ni avance individual.
 function grupoHtml(grupo){
@@ -550,6 +561,7 @@ function showPortal(res, llave){
   // Llave grupal: próximas clases/exámenes del grupo, antes de la biblioteca — mismo criterio
   // que el bloque personal, es lo más "de esta llave puntual" frente a lo genérico de abajo.
   if(esGrupo) h += grupoHtml(res.grupo);
+  h += promosHtml(res.data && res.data.promos);
   h += `<div class="card">
     <div class="ctitle">Biblioteca</div>
     ${biblioteca.length>1 ? `<input id="biblio-search" placeholder="Buscar por materia o archivo…" autocomplete="off">` : ""}
