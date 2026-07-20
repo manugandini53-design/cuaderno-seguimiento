@@ -309,6 +309,20 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="agenda-grid-add"){ state.agendaGridQuick={date:el.dataset.date, time:el.dataset.hour}; }
   else if(a==="agenda-grid-quick-cancel"){ state.agendaGridQuick=null; }
+  // Popover de "modo lista" de un cluster comprimido de la agenda (paso 169, ver
+  // vAgendaCompressedCluster/vAgendaHourListOverlay en views.js) — data-items trae cada clase
+  // codificada como "i|studentId|kind|sourceId|origDate" (individual) o "g|grupoId|kind|origDate"
+  // (grupal), separadas por ";", ya que uid() sólo produce alfanumérico y nunca esos separadores.
+  else if(a==="agenda-hour-list-open"){
+    const items=(el.dataset.items||"").split(";").filter(Boolean).map(tok=>{
+      const p=tok.split("|");
+      return p[0]==="g" ? {type:"grupal", grupoId:p[1], kind:p[2], origDate:p[3]}
+        : {type:"individual", studentId:p[1], kind:p[2], sourceId:p[3], origDate:p[4]};
+    });
+    state.agendaHourList={date:el.dataset.date, items};
+  }
+  else if(a==="agenda-hour-list-close"){ state.agendaHourList=null; }
+  else if(a==="agenda-hour-list-noop"){ return; }
   else if(a==="agenda-disp-edit-toggle"){ state.agendaDispEdit=!state.agendaDispEdit; state.agendaGridQuick=null; }
   else if(a==="agenda-disp-toggle"){
     toggleDisponibilidadCelda(parseInt(el.dataset.day,10), el.dataset.hour);
@@ -333,6 +347,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="agenda-event-open"){
     state.agendaEdit={studentId:el.dataset.studentId, kind:el.dataset.kind, sourceId:el.dataset.sourceId, origDate:el.dataset.origDate};
     state.agendaEditPending=null; state.agendaEditCancelConfirm=false; state.agendaEditDeleteConfirm=false;
+    state.agendaHourList=null;
   }
   else if(a==="agenda-edit-close"){
     state.agendaEdit=null; state.agendaEditPending=null; state.agendaEditCancelConfirm=false; state.agendaEditDeleteConfirm=false;
@@ -404,6 +419,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="agenda-event-grupal-open"){
     state.agendaEditGrupal={grupoId:el.dataset.grupoId, kind:el.dataset.kind, origDate:el.dataset.origDate};
     state.agendaEditGrupalPending=null; state.agendaEditGrupalCancelConfirm=false; state.agendaEditGrupalDeleteConfirm=false;
+    state.agendaHourList=null;
   }
   else if(a==="agenda-edit-grupal-close"){
     state.agendaEditGrupal=null; state.agendaEditGrupalPending=null; state.agendaEditGrupalCancelConfirm=false; state.agendaEditGrupalDeleteConfirm=false;

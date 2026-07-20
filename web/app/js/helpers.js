@@ -367,6 +367,37 @@ function flattenUnitLabels(units){
 // Si el valor actual no matchea ninguna opción listada (tema viejo de texto libre, o una unidad
 // borrada del catálogo desde entonces) se inyecta como opción extra al final para no perderlo —
 // mismo truco que careerOptions() usa para una carrera huérfana.
+// "1 h", "1,5 h", "2 h"… (paso 169) — coma decimal, como el resto de la app en es-AR.
+function durationLabel(min){
+  const hs = min/60;
+  return (Number.isInteger(hs) ? String(hs) : hs.toFixed(1).replace(".",","))+" h";
+}
+// Campo de duración de una clase (paso 169): un <select> con presets en horas (DURATION_PRESETS,
+// config.js) + "Otra…", más el <input type=number> REAL (el que de verdad lleva el id/data-cf y
+// se lee en events.js, sin cambios en esa lectura) que queda oculto mientras hay un preset elegido
+// y se muestra para minutos finos si se elige "Otra…". El <select> es sólo UI: al elegir un preset
+// escribe el valor en el input real y dispara un "change" sintético (durationPresetChanged, más
+// abajo) para que el mismo listener delegado de siempre lo commitee donde haga falta (data-cf) —
+// cero cambios en la lectura/escritura existente de duración en todo el resto de la app.
+function durationFieldHtml(currentMin, attrs){
+  attrs = attrs||{};
+  const min = Number(currentMin)||60;
+  const isPreset = DURATION_PRESETS.includes(min);
+  const enterAttr = attrs.dataEnter ? ` data-enter="${esc(attrs.dataEnter)}"` : "";
+  const inputAttrs = (attrs.id?` id="${esc(attrs.id)}"`:"") + enterAttr + (attrs.dataCf?` data-cf="${esc(attrs.dataCf)}"`:"");
+  const opts = DURATION_PRESETS.map(m=>`<option value="${m}" ${isPreset&&m===min?"selected":""}>${durationLabel(m)}</option>`).join("")
+    + `<option value="otra" ${!isPreset?"selected":""}>Otra…</option>`;
+  return `<select class="duration-preset"${enterAttr} onchange="durationPresetChanged(this)">${opts}</select>
+    <input type="number" min="1" step="5"${inputAttrs} value="${min}" style="margin-top:4px${isPreset?";display:none":""}">`;
+}
+// Al elegir un preset, lo escribe en el input real y dispara su "change" para que se guarde igual
+// que si se hubiera tipeado (ver durationFieldHtml arriba); al elegir "Otra…" sólo muestra el
+// input real para que se tipeen los minutos.
+function durationPresetChanged(sel){
+  const inp = sel.nextElementSibling;
+  if(sel.value==="otra"){ inp.style.display=""; inp.focus(); }
+  else{ inp.style.display="none"; inp.value=sel.value; inp.dispatchEvent(new Event("change",{bubbles:true})); }
+}
 function topicOptionsHtml(s, cur){
   const units = flattenUnitLabels(unitsFor(s));
   const known = new Set([...units, ...GENERIC_TOPICS]);
@@ -2057,6 +2088,22 @@ function markOverlaps(events){
     if(a.date===b.date && a.startMin<b.endMin && b.startMin<a.endMin){ a.overlap=true; b.overlap=true; }
   }
   return events;
+}
+
+// Agrupa las clases de un día (ya de un único día/columna) que se superponen en el tiempo, aunque
+// sea parcialmente (paso 169) — sweep clásico sobre startMin ordenado, uniendo en un cluster todo
+// lo que se toca transitivamente. Un cluster de 1 ocupa toda la columna; de 2 hasta AGENDA_MAX_COLS
+// (config.js), van lado a lado; más que eso, se comprimen en chips con popover — ver
+// vAgendaDayEvents/vAgendaCompressedCluster en views.js.
+function clusterAgendaOverlaps(list){
+  const sorted = [...list].sort((a,b)=>a.startMin-b.startMin);
+  const clusters = []; let cur = [], curEnd = -Infinity;
+  sorted.forEach(e=>{
+    if(cur.length && e.startMin<curEnd){ cur.push(e); curEnd=Math.max(curEnd,e.endMin); }
+    else{ if(cur.length) clusters.push(cur); cur=[e]; curEnd=e.endMin; }
+  });
+  if(cur.length) clusters.push(cur);
+  return clusters;
 }
 
 /* ============ sesión: cookies (web) / localStorage (nativo) ============ */

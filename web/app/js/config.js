@@ -387,6 +387,18 @@ const MENSAJES_META = [
 function defaultMensajes(){ const o={}; MENSAJES_META.forEach(m=>{ o[m.key]=m.default; }); return o; }
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+// Duración de una clase, en minutos (paso 169): presets en horas para el selector de todos los
+// formularios de clase (durationFieldHtml() en helpers.js) — "Otra…" revela un campo libre para
+// minutos finos. El dato guardado sigue siendo minutos, sin cambios de formato.
+const DURATION_PRESETS = [60,90,120,150,180,240];
+// Alto fijo (px) de un bloque de una hora en la grilla semanal y en la vista día (paso 169) — antes
+// crecía con el contenido; ahora es constante y las clases ocupan su alto proporcional a la
+// duración dentro de él (ver vAgendaDayEvents en views.js). Debe coincidir con el período del
+// repeating-linear-gradient de fondo en styles.css (.agenda-hour-bg).
+const AGENDA_ROW_H = 52;
+// Máximo de clases superpuestas que se muestran lado a lado en la agenda antes de comprimirlas en
+// chips mínimos con popover de detalle (paso 169, ver clusterAgendaOverlaps en helpers.js).
+const AGENDA_MAX_COLS = 2;
 // Plantillas de materias: temarios típicos de primer año universitario para no arrancar
 // una materia nueva desde cero. Elegir una precarga estas unidades tal cual — 100% editables
 // después desde el editor de la materia, igual que si las hubiera cargado a mano.

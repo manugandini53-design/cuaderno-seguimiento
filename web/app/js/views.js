@@ -1294,8 +1294,8 @@ function vClasePasadaForm(s){
       <div class="field"><div class="flabel">¿Trajo la tarea?</div><select id="c-tarea" data-enter="save-session">
         <option value="sd">—</option><option value="hecha">Hecha</option>
         <option value="intentada">Intentada</option><option value="no">No hecha</option></select></div>
-      <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div>
-        <input type="number" min="1" id="c-duration" value="60" data-enter="save-session"></div>
+      <div class="field" style="max-width:150px"><div class="flabel">Duración</div>
+        ${durationFieldHtml(60, {id:"c-duration", dataEnter:"save-session"})}</div>
       ${s.modalidad==="hora" ? `<div class="field" style="max-width:150px"><div class="flabel">Monto (opcional)</div>
         <input type="number" min="0" id="c-monto" placeholder="Auto: tarifa × horas" data-enter="save-session"></div>` : ""}` : `
       <div class="field"><div class="flabel">Motivo</div><select data-cf="session-ausente-motivo">
@@ -1323,7 +1323,7 @@ function vProximaClaseForm(s){
     <div class="frow">
       <div class="field"><div class="flabel">Fecha</div><input type="date" id="pc-date" min="${today()}" value="${today()}" data-enter="save-proxima-clase"></div>
       <div class="field"><div class="flabel">Hora</div><input type="time" id="pc-time" value="18:00" data-enter="save-proxima-clase"></div>
-      <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div><input type="number" id="pc-duration" value="60" min="15" step="15" data-enter="save-proxima-clase"></div>
+      <div class="field" style="max-width:150px"><div class="flabel">Duración</div>${durationFieldHtml(60, {id:"pc-duration", dataEnter:"save-proxima-clase"})}</div>
     </div>
     <div class="frow">
       <div class="field"><div class="flabel">Tema previsto (opcional)</div><select id="pc-topic" data-enter="save-proxima-clase">${topicOptionsHtml(s,"")}</select></div>
@@ -1392,7 +1392,7 @@ function vGrupalFormBody(f){
     h += `<div class="frow" style="margin-top:8px">
       <div class="field"><div class="flabel">Fecha</div><input type="date" min="${today()}" value="${esc(f.date||today())}" data-cf="grupal-form-date"></div>
       <div class="field"><div class="flabel">Hora</div><input type="time" value="${esc(f.time||"18:00")}" data-cf="grupal-form-time"></div>
-      <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div><input type="number" value="${f.duration||60}" min="15" step="15" data-cf="grupal-form-duration"></div>
+      <div class="field" style="max-width:150px"><div class="flabel">Duración</div>${durationFieldHtml(f.duration||60, {dataCf:"grupal-form-duration"})}</div>
     </div>
     <div class="frow">
       <div class="field"><div class="flabel">Tema previsto (opcional)</div><input value="${esc(f.topic||"")}" data-cf="grupal-form-topic"></div>
@@ -1410,7 +1410,7 @@ function vGrupalFormBody(f){
     h += `<div class="frow" style="margin-top:8px">
       <div class="field"><div class="flabel">Fecha</div><input type="date" max="${today()}" value="${esc(f.date||today())}" data-cf="grupal-form-date"></div>
       <div class="field"><div class="flabel">Tema principal</div><input value="${esc(f.topic||"")}" placeholder="Común a todo el grupo" data-cf="grupal-form-topic"></div>
-      <div class="field" style="max-width:130px"><div class="flabel">Duración (min)</div><input type="number" value="${f.duration||60}" min="1" data-cf="grupal-form-duration"></div>
+      <div class="field" style="max-width:150px"><div class="flabel">Duración</div>${durationFieldHtml(f.duration||60, {dataCf:"grupal-form-duration"})}</div>
     </div>
     <div class="field"><div class="flabel">Nota rápida (opcional, común al grupo)</div><input value="${esc(f.note||"")}" data-cf="grupal-form-note"></div>
     <div style="margin-top:10px">${f.studentIds.map(id=>vGrupalAsistenciaRow(id,f)).join("")}</div>
@@ -1791,7 +1791,7 @@ function vHorariosCard(s){
     <div class="field"><div class="flabel">Día</div><select id="h-day" data-enter="add-horario">
       ${DIAS_SEMANA.map((d,i)=>`<option value="${i}">${esc(d)}</option>`).join("")}</select></div>
     <div class="field"><div class="flabel">Hora</div><input type="time" id="h-time" value="18:00" data-enter="add-horario"></div>
-    <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" id="h-duration" value="60" min="15" step="15" data-enter="add-horario"></div>
+    <div class="field" style="max-width:150px"><div class="flabel">Duración</div>${durationFieldHtml(60, {id:"h-duration", dataEnter:"add-horario"})}</div>
     <div class="field"><div class="flabel">Link (opcional, si es distinto del de arriba)</div><input id="h-link" placeholder="https://…" data-enter="add-horario"></div>
     <button class="chip" data-a="add-horario" style="margin-bottom:2px">+ Agregar horario</button></div>
   </div>`;
@@ -1926,20 +1926,23 @@ function vAgendaSemana(){
 }
 // grilla horaria semanal (paso 134): 7 columnas (una por día, siempre las 7 visibles — ver
 // .week-scroll en styles.css para el scroll horizontal en mobile) × filas de una hora, 08-22
-// por defecto y extendida ese día puntual si hay una clase fuera de rango. Cada celda agrupa
-// las clases que empiezan en esa hora con el mismo criterio de "lado a lado" que la vista de
-// un día (paso 90, vAgendaDayHours) — mismo componente vAgendaEvent(), sólo más chico. Las
-// celdas vacías son clickeables: abren vAgendaGridQuickForm() con día y hora precargados.
-// Paso 159 (disponibilidad): en modo normal, una celda vacía Y dentro de la disponibilidad
-// declarada (esCeldaDisponible) se pinta con un fondo sutil distinto (.disp-suggest, ver
-// styles.css) para sugerirla como horario libre para agendar — sigue siendo el mismo
-// data-a="agenda-grid-add" de siempre, sólo cambia el fondo. En modo edición
-// (state.agendaDispEdit, chip "Mi disponibilidad" en vAgendaSemana) toda celda pasa a llevar
-// data-a="agenda-disp-toggle" (día+hora en dataset) para pintar/despintar disponibilidad con un
-// click, reusando el mismo delegado de click que el resto de la grilla en vez de inventar un
-// modelo de interacción nuevo — si la celda tiene una clase encima, el click todavía la abre
-// como siempre (vAgendaEvent/vAgendaEventGrupal traen su propio data-a más específico, que
-// closest() encuentra primero); sólo clickear el fondo de la celda pinta/despinta.
+// por defecto y extendida ese día puntual si hay una clase fuera de rango. Las celdas de fondo
+// (una por hora×día) son siempre de alto FIJO (AGENDA_ROW_H, config.js) y sólo sirven de click-
+// target/fondo — las clases se dibujan en una capa aparte por día (.week-daylayer,
+// position:relative) posicionada en absoluto ocupando su bloque proporcional a la duración real
+// (paso 169, ver vAgendaDayEvents en este archivo); antes vivían DENTRO de la celda y la hacían
+// crecer con el contenido (min-height + flex-wrap), por eso la agenda medía distinto según cuánto
+// hubiera cargado esa semana. Las celdas vacías siguen siendo clickeables: abren
+// vAgendaGridQuickForm() con día y hora precargados. Paso 159 (disponibilidad): en modo normal,
+// una celda vacía Y dentro de la disponibilidad declarada (esCeldaDisponible) se pinta con un
+// fondo sutil distinto (.disp-suggest, ver styles.css) para sugerirla como horario libre para
+// agendar — sigue siendo el mismo data-a="agenda-grid-add" de siempre, sólo cambia el fondo. En
+// modo edición (state.agendaDispEdit, chip "Mi disponibilidad" en vAgendaSemana) toda celda pasa a
+// llevar data-a="agenda-disp-toggle" (día+hora en dataset) para pintar/despintar disponibilidad
+// con un click, reusando el mismo delegado de click que el resto de la grilla. La capa de eventos
+// tiene pointer-events:none salvo en cada tarjeta/chip (pointer-events:auto), así que un click en
+// el espacio vacío de un bloque ya ocupado sigue llegando a la celda de fondo de abajo — y uno
+// sobre una clase la abre como siempre (vAgendaEvent/vAgendaEventGrupal traen su propio data-a).
 function vAgendaWeekGrid(weekStart, events){
   const days = Array.from({length:7},(_,i)=>addDays(weekStart,i));
   const byDay = Array.from({length:7},()=>[]);
@@ -1947,39 +1950,80 @@ function vAgendaWeekGrid(weekStart, events){
     const idx = Math.round((new Date(e.date+"T12:00:00")-new Date(weekStart+"T12:00:00"))/86400000);
     if(idx>=0 && idx<7) byDay[idx].push(e);
   });
-  byDay.forEach(list=>list.sort((a,b)=>a.time.localeCompare(b.time)));
 
   const startHour = events.length ? Math.min(8, ...events.map(e=>Math.floor(e.startMin/60))) : 8;
   const endHour = events.length ? Math.max(22, ...events.map(e=>Math.ceil(e.endMin/60))) : 22;
+  const totalHours = endHour-startHour;
   const now = new Date();
   const nowMin = now.getHours()*60+now.getMinutes();
   const editMode = !!state.agendaDispEdit;
 
-  let h = `<div class="week-scroll"><div class="week-grid ${editMode?"disp-edit":""}">`;
-  h += `<div class="week-corner"></div>`;
-  h += days.map((d,i)=>`<div class="week-head ${d===today()?"today":""}">${esc(DIAS_SEMANA[i].slice(0,3))}<span class="week-headdate">${esc(fmtDate(d))}</span></div>`).join("");
+  let h = `<div class="week-scroll"><div class="week-grid ${editMode?"disp-edit":""}" style="grid-template-rows:auto repeat(${totalHours},${AGENDA_ROW_H}px)">`;
+  h += `<div class="week-corner" style="grid-row:1;grid-column:1"></div>`;
+  h += days.map((d,i)=>`<div class="week-head ${d===today()?"today":""}" style="grid-row:1;grid-column:${i+2}">${esc(DIAS_SEMANA[i].slice(0,3))}<span class="week-headdate">${esc(fmtDate(d))}</span></div>`).join("");
 
   for(let hr=startHour; hr<endHour; hr++){
+    const rowIdx = 2+(hr-startHour);
     const label = String(hr).padStart(2,"0")+":00";
-    h += `<div class="week-hourlabel">${label}</div>`;
+    h += `<div class="week-hourlabel" style="grid-row:${rowIdx};grid-column:1">${label}</div>`;
     h += days.map((d,i)=>{
       const isToday = d===today();
-      const list = byDay[i].filter(e=>Math.floor(e.startMin/60)===hr);
-      const nowLine = isToday && nowMin>=hr*60 && nowMin<(hr+1)*60
-        ? `<div class="week-now" style="top:${(((nowMin-hr*60)/60)*100).toFixed(1)}%"></div>` : "";
       const dayIdx = weekdayIdx(d);
       const disponible = esCeldaDisponible(dayIdx, label);
       if(editMode){
-        return `<div class="week-cell empty ${isToday?"today":""} ${disponible?"disp-available":""}" data-a="agenda-disp-toggle" data-day="${dayIdx}" data-hour="${label}">${nowLine}${list.map(e=>e.kind==="grupal"?vAgendaEventGrupal(e,d):vAgendaEvent(e,d)).join("")}</div>`;
+        return `<div class="week-cell empty ${isToday?"today":""} ${disponible?"disp-available":""}" style="grid-row:${rowIdx};grid-column:${i+2}" data-a="agenda-disp-toggle" data-day="${dayIdx}" data-hour="${label}"></div>`;
       }
-      if(list.length===0){
-        return `<div class="week-cell empty ${isToday?"today":""} ${disponible?"disp-suggest":""}" data-a="agenda-grid-add" data-date="${d}" data-hour="${label}">${nowLine}</div>`;
-      }
-      return `<div class="week-cell ${isToday?"today":""}">${nowLine}${list.map(e=>e.kind==="grupal"?vAgendaEventGrupal(e,d):vAgendaEvent(e,d)).join("")}</div>`;
+      return `<div class="week-cell empty ${isToday?"today":""} ${disponible?"disp-suggest":""}" style="grid-row:${rowIdx};grid-column:${i+2}" data-a="agenda-grid-add" data-date="${d}" data-hour="${label}"></div>`;
     }).join("");
   }
+
+  h += days.map((d,i)=>{
+    const isToday = d===today();
+    const nowLine = isToday && nowMin>=startHour*60 && nowMin<endHour*60
+      ? `<div class="week-now" style="top:${(((nowMin-startHour*60)/60)*AGENDA_ROW_H).toFixed(1)}px"></div>` : "";
+    return `<div class="week-daylayer" style="grid-row:2 / span ${totalHours};grid-column:${i+2}">${nowLine}${vAgendaDayEvents(byDay[i], d, startHour)}</div>`;
+  }).join("");
+
   h += `</div></div>`;
   return h;
+}
+// Ubica las clases de una columna de agenda (un día de la semanal, o el único día de la vista día
+// — vAgendaDayHours reusa esta misma función) dentro de su capa (paso 169): agrupa por
+// superposición real de horario con clusterAgendaOverlaps (helpers.js) y, dentro de cada cluster,
+// las pone lado a lado si entran (hasta AGENDA_MAX_COLS) o las comprime en chips mínimos con
+// popover si no — mismo criterio para semana y día para que se vean igual.
+function vAgendaDayEvents(list, date, startHour){
+  if(!list.length) return "";
+  return clusterAgendaOverlaps(list).map(cluster=>{
+    if(cluster.length>AGENDA_MAX_COLS) return vAgendaCompressedCluster(cluster, date, startHour);
+    const colW = 100/cluster.length;
+    return cluster.map((e,ci)=>{
+      const top = ((e.startMin-startHour*60)/60)*AGENDA_ROW_H;
+      const height = Math.max(26, (e.duration/60)*AGENDA_ROW_H - 2);
+      const posStyle = `position:absolute;top:${top.toFixed(1)}px;height:${height.toFixed(1)}px;left:${(ci*colW).toFixed(2)}%;width:${colW.toFixed(2)}%`;
+      const compact = height<46;
+      return e.kind==="grupal" ? vAgendaEventGrupal(e,date,posStyle,compact) : vAgendaEvent(e,date,posStyle,compact);
+    }).join("");
+  }).join("");
+}
+// Chips mínimos (color de materia + inicial) para un cluster de más de AGENDA_MAX_COLS clases
+// superpuestas (paso 169) — al tocarlo abre vAgendaHourListOverlay() con el detalle completo,
+// reusando vAgendaEvent/vAgendaEventGrupal tal cual (mismo popover del paso 135, en modo lista).
+function vAgendaCompressedCluster(cluster, date, startHour){
+  const top = ((Math.min(...cluster.map(e=>e.startMin))-startHour*60)/60)*AGENDA_ROW_H;
+  const bottom = ((Math.max(...cluster.map(e=>e.endMin))-startHour*60)/60)*AGENDA_ROW_H;
+  const height = Math.max(26, bottom-top-2);
+  const items = cluster.map(e=>e.kind==="grupal"
+    ? `g|${e.grupoId}|${e.sourceKind}|${e.origDate||e.date}`
+    : `i|${e.studentId}|${e.kind}|${e.sourceId}|${e.origDate||e.date}`).join(";");
+  const chips = cluster.slice(0,4).map(e=>{
+    const bg = e.subjectId ? `var(--subj-${subjectColorKey(e.subjectId)}-fg)` : "var(--muted)";
+    const label = e.kind==="grupal" ? "G" : (e.studentName||"?").slice(0,1).toUpperCase();
+    return `<span class="agenda-chip" style="background:${bg}">${esc(label)}</span>`;
+  }).join("");
+  const more = cluster.length>4 ? `<span class="agenda-chip-more">+${cluster.length-4}</span>` : "";
+  return `<div class="agenda-compressed" style="position:absolute;top:${top.toFixed(1)}px;height:${height.toFixed(1)}px;left:0;width:100%"
+    data-a="agenda-hour-list-open" data-date="${date}" data-items="${esc(items)}">${chips}${more}</div>`;
 }
 // mini-formulario "Programar clase acá" (paso 132), disparado al clickear un hueco de la
 // grilla semanal — mismos tres campos y misma addPuntualClase() que "Programar clase acá" en
@@ -2002,7 +2046,7 @@ function vAgendaGridQuickForm(){
           ${activos.map(s=>`<option value="${s.id}">${esc(s.name)}${s.subject?" · "+esc(s.subject):""}</option>`).join("")}
         </select></div>
         <div class="field"><div class="flabel">Hora</div><input type="time" id="wq-time" value="${esc(q.time)}"></div>
-        <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" id="wq-duration" value="60" min="15" step="15"></div>
+        <div class="field" style="max-width:150px"><div class="flabel">Duración</div>${durationFieldHtml(60, {id:"wq-duration"})}</div>
         <button class="chip" data-a="agenda-grid-quick-add" style="margin-bottom:2px">+ Programar</button>
         <button class="chip" data-a="agenda-grid-quick-cancel" style="margin-bottom:2px">Cancelar</button>
       </div>`;
@@ -2061,37 +2105,46 @@ function vAgendaDayDetail(date){
           ${activos.map(s=>`<option value="${s.id}">${esc(s.name)}${s.subject?" · "+esc(s.subject):""}</option>`).join("")}
         </select></div>
         <div class="field"><div class="flabel">Hora</div><input type="time" id="aq-time" value="18:00"></div>
-        <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" id="aq-duration" value="60" min="15" step="15"></div>
+        <div class="field" style="max-width:150px"><div class="flabel">Duración</div>${durationFieldHtml(60, {id:"aq-duration"})}</div>
         <button class="chip" data-a="agenda-quick-add" style="margin-bottom:2px">+ Programar</button>
       </div>`;
   }
   return h + `</div>`;
 }
 // Grilla vertical de bloques por hora para la vista de un día (paso 90): desde la primera hora
-// con clase (si es más temprano) hasta un rango razonable 8-22 (más tarde, si hace falta),
-// con scroll. Cada bloque muestra todas las clases que empiezan en esa hora lado a lado — nunca
-// superpuestas ni ocultas — reusando vAgendaEvent() tal cual (mismo click, mismo aviso de
-// superposición ya calculado por markOverlaps() antes de llamar acá).
+// con clase (si es más temprano) hasta un rango razonable 8-22 (más tarde, si hace falta), con
+// scroll. Mismo criterio de alto fijo + span proporcional + compresión que la grilla semanal
+// (paso 169, ver vAgendaDayEvents más arriba) — una única columna en vez de siete.
 function vAgendaDayHours(events, date){
   const startHour = Math.min(8, ...events.map(e=>Math.floor(e.startMin/60)));
   const endHour = Math.max(22, ...events.map(e=>Math.ceil(e.endMin/60)));
-  let h = `<div class="agenda-hours">`;
+  const totalHours = endHour-startHour;
+  let h = `<div class="agenda-hours" style="grid-template-rows:repeat(${totalHours},${AGENDA_ROW_H}px)">`;
   for(let hr=startHour; hr<endHour; hr++){
-    const label = String(hr).padStart(2,"0")+":00";
-    const list = events.filter(e=>Math.floor(e.startMin/60)===hr);
-    h += `<div class="agenda-hour-row">
-      <div class="agenda-hour-label">${label}</div>
-      <div class="agenda-hour-slot">${list.map(e=>e.kind==="grupal"?vAgendaEventGrupal(e,date):vAgendaEvent(e,date)).join("")}</div>
-    </div>`;
+    h += `<div class="agenda-hour-label" style="grid-row:${1+(hr-startHour)}">${String(hr).padStart(2,"0")}:00</div>`;
   }
+  h += `<div class="agenda-hour-bg" style="grid-row:1 / span ${totalHours}"></div>`;
+  h += `<div class="agenda-hour-layer" style="grid-row:1 / span ${totalHours}">${vAgendaDayEvents(events, date, startHour)}</div>`;
   return h + `</div>`;
 }
-function vAgendaEvent(e, date){
+// posStyle/compact (paso 169): cuando se dibuja dentro de una capa de agenda (semana o vista día),
+// vAgendaDayEvents pasa el position:absolute (top/height/left/width, proporcional a la duración
+// real) y, si el bloque queda muy bajo para el contenido completo, compact=true (una sola línea
+// hora+nombre). Sin esos dos argumentos (p.ej. dentro de vAgendaHourListOverlay, el popover de
+// "modo lista" de un cluster comprimido) se dibuja como tarjeta suelta de siempre.
+function vAgendaEvent(e, date, posStyle, compact){
   const past = date<today();
   const already = past && studentHasSessionOnDate(e.studentId, e.date);
   const borderColor = e.subjectId ? `var(--subj-${subjectColorKey(e.subjectId)}-fg)` : "transparent";
+  const style = `${posStyle||""};border-left:3px solid ${borderColor}`;
+  if(compact){
+    return `<div class="agenda-event compact ${e.overlap?"overlap":""}" style="${style}"
+      data-a="agenda-event-open" data-student-id="${e.studentId}" data-kind="${e.kind}" data-source-id="${e.sourceId}" data-orig-date="${e.origDate||e.date}">
+      <span class="agenda-time">${esc(e.time)}</span><span class="agenda-who-compact">${esc(e.studentName)}</span>
+    </div>`;
+  }
   const waBtn = date===today() ? vWaRecordarClaseBtn(e,"hoy") : date===addDays(today(),1) ? vWaRecordarClaseBtn(e,"mañana") : "";
-  return `<div class="agenda-event ${e.overlap?"overlap":""}" style="border-left:3px solid ${borderColor};cursor:pointer"
+  return `<div class="agenda-event ${e.overlap?"overlap":""}" style="${style}"
     data-a="agenda-event-open" data-student-id="${e.studentId}" data-kind="${e.kind}" data-source-id="${e.sourceId}" data-orig-date="${e.origDate||e.date}">
     <div class="agenda-time">${esc(e.time)} <span class="hint">${e.duration}min</span></div>
     <div class="agenda-who" style="display:flex;align-items:center;gap:5px">${avatarHtml(e.studentId, e.studentName, studentFotoFor(e.studentId), 18)}${e.subjectId?subjectDot(e.subjectId):""} <b>${esc(e.studentName)}</b>${e.subject?` <span class="hint">· ${esc(e.subject)}</span>`:""}</div>
@@ -2106,11 +2159,19 @@ function vAgendaEvent(e, date){
 // Tarjeta de una clase grupal ya colapsada (paso 157, ver collapseGrupalEvents en helpers.js) —
 // mismo look que vAgendaEvent pero con los N integrantes en vez de un solo alumno, y sin botón de
 // WhatsApp (no hay un único destinatario). Abre el popover grupal (agenda-event-grupal-open).
-function vAgendaEventGrupal(e, date){
+// Mismos posStyle/compact que vAgendaEvent (paso 169).
+function vAgendaEventGrupal(e, date, posStyle, compact){
   const past = date<today();
   const already = past && grupalOccurrenceRegistered(e);
   const borderColor = e.subjectId ? `var(--subj-${subjectColorKey(e.subjectId)}-fg)` : "transparent";
-  return `<div class="agenda-event ${e.overlap?"overlap":""}" style="border-left:3px solid ${borderColor};cursor:pointer"
+  const style = `${posStyle||""};border-left:3px solid ${borderColor}`;
+  if(compact){
+    return `<div class="agenda-event compact ${e.overlap?"overlap":""}" style="${style}"
+      data-a="agenda-event-grupal-open" data-grupo-id="${e.grupoId}" data-kind="${e.sourceKind}" data-orig-date="${e.origDate||e.date}">
+      <span class="agenda-time">${esc(e.time)}</span><span class="agenda-who-compact">${e.studentIds.length} alumnos</span>
+    </div>`;
+  }
+  return `<div class="agenda-event ${e.overlap?"overlap":""}" style="${style}"
     data-a="agenda-event-grupal-open" data-grupo-id="${e.grupoId}" data-kind="${e.sourceKind}" data-orig-date="${e.origDate||e.date}">
     <div class="agenda-time">${esc(e.time)} <span class="hint">${e.duration}min</span></div>
     <div class="agenda-who" style="display:flex;align-items:center;gap:5px">${e.subjectId?subjectDot(e.subjectId):""} <b>${e.studentIds.length} alumnos</b>${e.subject?` <span class="hint">· ${esc(e.subject)}</span>`:""}</div>
@@ -2119,6 +2180,34 @@ function vAgendaEventGrupal(e, date){
     ${past && already ? `<div class="hint" style="color:var(--status-activo-fg)">Ya registrada</div>` : ""}
     ${past && !already ? `<button class="chip" style="margin-top:6px" data-a="agenda-event-grupal-open" data-grupo-id="${e.grupoId}" data-kind="${e.sourceKind}" data-orig-date="${e.origDate||e.date}">Registrar esta clase</button>` : ""}
     ${!past && e.link ? `<a class="chip" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(e.link)}">Entrar a la clase</a>` : ""}
+  </div>`;
+}
+
+// Popover de "modo lista" para un cluster comprimido de la agenda (paso 169, ver
+// vAgendaCompressedCluster más arriba) — reusa vAgendaEvent/vAgendaEventGrupal SIN posStyle/
+// compact (tarjetas completas apiladas, no posicionadas) para mostrar el detalle completo de esas
+// clases superpuestas; tocar una de ellas abre su popover normal de edición (paso 135) y cierra
+// éste (ver agenda-event-open/agenda-event-grupal-open en events.js).
+function vAgendaHourListOverlay(){
+  const hl = state.agendaHourList; if(!hl) return "";
+  const cards = hl.items.map(it=>{
+    if(it.type==="grupal"){
+      const ge = findAgendaEditEventGrupal({grupoId:it.grupoId, kind:it.kind, origDate:it.origDate});
+      return ge ? vAgendaEventGrupal({...ge, sourceKind:ge.kind}, ge.date) : "";
+    }
+    const ie = findAgendaEditEvent({studentId:it.studentId, kind:it.kind, sourceId:it.sourceId, origDate:it.origDate});
+    return ie ? vAgendaEvent(ie, ie.date) : "";
+  }).filter(Boolean);
+  if(!cards.length){ state.agendaHourList=null; return ""; }
+  return `<div class="overlay" data-a="agenda-hour-list-close">
+    <div class="modal" data-a="agenda-hour-list-noop" style="max-width:400px">
+      <div class="ftitle" style="font-size:16px">${esc(fmtDate(hl.date))}</div>
+      <div class="hint" style="margin-bottom:10px">Se superponen en el mismo horario — tocá una clase para ver el detalle completo.</div>
+      ${cards.join("")}
+      <div style="display:flex;justify-content:flex-end;margin-top:10px">
+        <button class="chip" data-a="agenda-hour-list-close">Cerrar</button>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -2153,7 +2242,7 @@ function vAgendaEditOverlay(){
       <div class="frow">
         <div class="field"><div class="flabel">Fecha</div><input type="date" data-cf="agenda-edit-date" value="${esc(dateVal)}"></div>
         <div class="field"><div class="flabel">Hora</div><input type="time" data-cf="agenda-edit-time" value="${esc(timeVal)}"></div>
-        <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" min="15" step="15" data-cf="agenda-edit-duration" value="${esc(String(durVal))}"></div>
+        <div class="field" style="max-width:150px"><div class="flabel">Duración</div>${durationFieldHtml(durVal, {dataCf:"agenda-edit-duration"})}</div>
       </div>
       <div class="field" style="margin-top:8px"><div class="flabel">Tema previsto</div><input type="text" data-cf="agenda-edit-topic" value="${esc(ev.topic||"")}" placeholder="Opcional"></div>
       <div class="field" style="margin-top:8px"><div class="flabel">Link de videollamada</div><input type="text" data-cf="agenda-edit-link" value="${esc(linkVal)}" placeholder="Opcional"></div>
@@ -2222,7 +2311,7 @@ function vAgendaEditOverlayGrupal(){
       <div class="frow">
         <div class="field"><div class="flabel">Fecha</div><input type="date" data-cf="agenda-edit-grupal-date" value="${esc(dateVal)}"></div>
         <div class="field"><div class="flabel">Hora</div><input type="time" data-cf="agenda-edit-grupal-time" value="${esc(timeVal)}"></div>
-        <div class="field" style="max-width:120px"><div class="flabel">Duración (min)</div><input type="number" min="15" step="15" data-cf="agenda-edit-grupal-duration" value="${esc(String(durVal))}"></div>
+        <div class="field" style="max-width:150px"><div class="flabel">Duración</div>${durationFieldHtml(durVal, {dataCf:"agenda-edit-grupal-duration"})}</div>
       </div>
       <div class="field" style="margin-top:8px"><div class="flabel">Tema previsto</div><input type="text" data-cf="agenda-edit-grupal-topic" value="${esc(ev.topic||"")}" placeholder="Opcional"></div>
       <div class="field" style="margin-top:8px"><div class="flabel">Link de videollamada</div><input type="text" data-cf="agenda-edit-grupal-link" value="${esc(linkVal)}" placeholder="Opcional"></div>`;
@@ -5439,6 +5528,7 @@ function render(){
   if(state.feedbackOpen) m += vFeedbackOverlay();
   if(state.agendaEdit) m += vAgendaEditOverlay();
   if(state.agendaEditGrupal) m += vAgendaEditOverlayGrupal();
+  if(state.agendaHourList) m += vAgendaHourListOverlay();
   if(state.grupalForm) m += vGrupalForm();
   if(state.finCuatrimestreOpen) m += vFinCuatrimestreOverlay();
   m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;

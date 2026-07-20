@@ -263,18 +263,29 @@
   .share-quick svg{width:16px;height:16px}
   .examresult{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--amber);
               border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:14px}
-  .agenda-event{background:var(--soft);border-radius:8px;padding:var(--agenda-event-pad);margin-bottom:var(--agenda-event-mb);font-size:12.5px}
+  /* .agenda-event ahora también se dibuja en absoluto dentro de las capas de la agenda (paso 169,
+     ver .week-daylayer/.agenda-hour-layer más abajo) — overflow:hidden + box-sizing:border-box
+     para que el padding no se salga de un bloque bajo, pointer-events:auto porque su capa
+     contenedora es pointer-events:none (así el click en el resto del bloque llega a la celda de
+     fondo). .compact es la variante de una sola línea cuando el bloque queda muy bajo para el
+     contenido completo (ver vAgendaEvent/vAgendaEventGrupal en views.js). */
+  .agenda-event{background:var(--soft);border-radius:8px;padding:var(--agenda-event-pad);font-size:12.5px;
+    cursor:pointer;overflow:hidden;box-sizing:border-box;pointer-events:auto}
   .agenda-event.overlap{background:var(--redbg);border:1px solid var(--redline2)}
+  .agenda-event.compact{display:flex;align-items:baseline;gap:5px;white-space:nowrap}
+  .agenda-event.compact .agenda-who-compact{overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:11.5px}
   .agenda-time{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
   .agenda-who{margin-top:2px}
 
-  /* ============ agenda semanal: grilla horaria completa, 7 días × bloques 08-22 (paso 134) —
-     gap:1px + fondo var(--line) en el contenedor dibuja las líneas de la grilla sin bordes por
-     celda; scroll horizontal propio (.week-scroll) para que en mobile los 7 días sigan estando
-     todos ahí (a diferencia de la mensual, que sí oculta días fuera de mes). Reusa vAgendaEvent()
-     tal cual dentro de cada celda — mismo criterio de "lado a lado" que la vista de un día
-     (paso 90, .agenda-hour-slot): flex-wrap con min-width, así que con varias clases a la misma
-     hora conviven si entran o se apilan si no. */
+  /* ============ agenda semanal: grilla horaria completa, 7 días × bloques de una hora, 08-22 por
+     defecto (paso 134) — gap:1px + fondo var(--line) en el contenedor dibuja las líneas de la
+     grilla sin bordes por celda; scroll horizontal propio (.week-scroll) para que en mobile los 7
+     días sigan estando todos ahí (a diferencia de la mensual, que sí oculta días fuera de mes).
+     Paso 169: el alto de cada bloque de hora es SIEMPRE el mismo (antes .week-cell tenía
+     min-height y crecía con el contenido) — .week-cell sólo es fondo/click-target por hora×día;
+     las clases se dibujan en .week-daylayer, una capa position:relative por día que ocupa TODAS
+     las filas de hora (grid-row en span) y posiciona cada clase en absoluto dentro, proporcional
+     a su duración real (ver vAgendaDayEvents en views.js). */
   .week-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;border:1px solid var(--line)}
   .week-grid{display:grid;grid-template-columns:52px repeat(7,minmax(120px,1fr));gap:1px;
     background:var(--line);min-width:892px}
@@ -285,13 +296,12 @@
   .week-head.today .week-headdate{color:var(--accent-dark)}
   .week-hourlabel{background:var(--bg);padding:4px 6px;font-family:var(--mono);font-size:10px;
     color:var(--faint);text-align:right;position:sticky;left:0;z-index:1}
-  .week-cell{background:var(--card);padding:4px;min-height:38px;display:flex;flex-wrap:wrap;
-    gap:6px;align-items:flex-start;position:relative}
+  .week-cell{background:var(--card)}
   .week-cell.today{box-shadow:inset 0 0 0 1px var(--accent)}
   .week-cell.empty{cursor:pointer}
   .week-cell.empty:hover{background:var(--soft)}
-  .week-cell .agenda-event{flex:1 1 130px;min-width:110px;margin-bottom:0;font-size:11.5px}
-  .week-now{position:absolute;left:0;right:0;height:2px;background:var(--accent);border-radius:1px;pointer-events:none}
+  .week-daylayer{position:relative;pointer-events:none;z-index:1}
+  .week-now{position:absolute;left:0;right:0;height:2px;background:var(--accent);border-radius:1px;pointer-events:none;z-index:2}
   /* Disponibilidad del docente (paso 159): en modo lectura, .disp-suggest resalta las celdas
      vacías Y dentro de la disponibilidad declarada (sugeridas para agendar); en modo edición
      (.week-grid.disp-edit, chip "Mi disponibilidad") .disp-available marca las celdas ya pintadas
@@ -305,21 +315,27 @@
   @media (max-width:480px){
     .week-grid{grid-template-columns:44px repeat(7,minmax(96px,1fr));min-width:716px}
     .week-hourlabel{font-size:9px;padding:4px 3px}
-    .week-cell .agenda-event{flex-basis:100%}
   }
 
-  /* ============ agenda de un día: grilla vertical de bloques por hora (paso 90) ============ */
+  /* Chips mínimos de un cluster comprimido (paso 169, más de AGENDA_MAX_COLS clases superpuestas
+     en el mismo bloque) — color de materia + inicial, tocar abre vAgendaHourListOverlay(). */
+  .agenda-compressed{display:flex;align-items:center;gap:3px;flex-wrap:wrap;background:var(--soft);
+    border-radius:6px;padding:3px;cursor:pointer;box-sizing:border-box;pointer-events:auto}
+  .agenda-compressed:hover{background:var(--accent-soft)}
+  .agenda-chip{width:18px;height:18px;border-radius:99px;color:#fff;font-size:9.5px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .agenda-chip-more{font-size:9.5px;color:var(--muted);font-weight:700;align-self:center}
+
+  /* ============ agenda de un día: grilla vertical de bloques por hora (paso 90, mismo criterio de
+     alto fijo + span proporcional + compresión que la semanal desde el paso 169) ============ */
   .agenda-hours{max-height:65vh;overflow-y:auto;border:1px solid var(--line);border-radius:10px;
-    margin-top:10px}
-  .agenda-hour-row{display:flex;border-bottom:1px solid var(--line)}
-  .agenda-hour-row:last-child{border-bottom:none}
-  .agenda-hour-label{flex-shrink:0;width:52px;padding:8px 6px;font-family:var(--mono);font-size:10.5px;
-    color:var(--faint);border-right:1px solid var(--line);background:var(--bg)}
-  .agenda-hour-slot{flex:1;display:flex;flex-wrap:wrap;gap:8px;padding:8px;align-items:stretch;min-width:0}
-  .agenda-hour-slot .agenda-event{flex:1 1 150px;min-width:130px;margin-bottom:0}
+    margin-top:10px;display:grid;grid-template-columns:52px 1fr}
+  .agenda-hour-label{grid-column:1;padding:4px 6px;font-family:var(--mono);font-size:10.5px;
+    color:var(--faint);text-align:right;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg)}
+  .agenda-hour-bg{grid-column:2;background-image:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px 52px);pointer-events:none}
+  .agenda-hour-layer{grid-column:2;position:relative;padding:0 8px;pointer-events:none}
   @media (max-width:480px){
-    .agenda-hour-label{width:44px;font-size:9.5px}
-    .agenda-hour-slot .agenda-event{flex-basis:100%}
+    .agenda-hour-label{font-size:9.5px}
   }
   .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;
                 font-size:10.5px;font-family:var(--mono);text-transform:uppercase;color:var(--faint);text-align:center}
