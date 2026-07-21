@@ -1428,8 +1428,13 @@ function pendingTasksToday(){
       tasks.push({id:`examen-${s.id}`, text:`Recordale a ${s.name} el examen (${d===0?"hoy":`en ${d} día${d===1?"":"s"}`})`,
         kind:"examen", studentId:s.id});
   });
+  // Paso 201: recién de jueves en adelante (weekdayIdx 3=jueves..6=domingo) — un lunes es
+  // demasiado pronto para que le pregunten por la semana que viene. El plazo real (¿quedó
+  // agendada antes de que arranque?) no se mueve, sigue siendo el domingo a la noche — ver
+  // rachaBacklogAyer más abajo, que chequea ese plazo el lunes siguiente y no depende de cuándo
+  // se empieza a MOSTRAR este pendiente, así que no hace falta tocarla.
   const proxLunes = addDays(mondayOfWeek(t),7), proxDomingo = addDays(proxLunes,6);
-  if(alive().some(s=>s.status==="activo") && agendaRangeEvents(proxLunes,proxDomingo).length===0 && !esSemanaCompleta(proxLunes))
+  if(weekdayIdx(t)>=3 && alive().some(s=>s.status==="activo") && agendaRangeEvents(proxLunes,proxDomingo).length===0 && !esSemanaCompleta(proxLunes))
     tasks.push({id:"semana", text:"¿Cerraste la semana que viene? Todavía no tiene ninguna clase agendada", a:"nav-agenda", data:{offset:1}});
   if(shouldShowBackupReminder())
     tasks.push({id:"respaldo", text:`Hace más de ${BACKUP_REMINDER_DAYS} días que no hacés un respaldo`, a:"export", data:{}});
