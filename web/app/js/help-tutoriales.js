@@ -237,6 +237,7 @@ function sectionHelpBtn(id){
 // Índice central (Cuenta → Ayuda, dentro de vCentroAyuda() en views-cuenta.js): salta a cualquier
 // sección sin tener que estar parado ahí. "admin" sólo se ofrece a cuentas de administrador.
 function vTutorialesIndice(){
+  if(state.tourActive) return "";
   const isAdmin = sesIsAdmin(getSes());
   const ids = Object.keys(HELP_SECTIONS).filter(id=>id!=="admin"||isAdmin);
   return `<div class="flabel" style="margin-bottom:6px">Tutoriales</div>
