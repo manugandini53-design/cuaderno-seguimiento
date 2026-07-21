@@ -1053,6 +1053,7 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="toggle-sonidos"){ setSoundsOn(el.dataset.f==="si"); }
   else if(a==="toggle-animaciones"){ setAnimsOn(el.dataset.f==="si"); }
+  else if(a==="toggle-fondo"){ setBgOn(el.dataset.f==="si"); }
   else if(a==="toggle-tu-dia"){ state.catalog.mostrarTuDia=el.dataset.f==="si"; touchCatalog(); return; }
   else if(a==="marcar-recordatorio-examen"){ marcarExamRecordatorioEnviado(el.dataset.id); return; }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }

@@ -57,6 +57,14 @@ function setSoundsOn(on){ localStorage.setItem(SOUNDS_KEY, on?"on":"off"); }
 const ANIM_KEY = "tutoria-anim";
 function animsOn(){ return localStorage.getItem(ANIM_KEY)!=="off"; }
 function setAnimsOn(on){ localStorage.setItem(ANIM_KEY, on?"on":"off"); }
+// Fondo decorativo (paso 178): mismo criterio que ANIM_KEY — preferencia local, por dispositivo,
+// activado por defecto. Sólo alterna una clase en <body> (bg-off) que gatea la regla de
+// background-image en styles.css (::before de .shell) — ver applyBg()/toggle-fondo (events.js).
+const BG_KEY = "tutoria-bg";
+function bgOn(){ return localStorage.getItem(BG_KEY)!=="off"; }
+function applyBg(on){ document.body.classList.toggle("bg-off", !on); }
+function setBgOn(on){ localStorage.setItem(BG_KEY, on?"on":"off"); applyBg(on); }
+applyBg(bgOn()); // igual que el tema/densidad, aplicada de entrada para evitar parpadeo
 const THEME_KEY = "tutoria-theme"; // "light" | "dark" | "system" (default)
 function getTheme(){ return localStorage.getItem(THEME_KEY) || "system"; }
 function applyTheme(theme){

@@ -67,6 +67,12 @@
     --shadow-sm:0 1px 2px rgba(18,25,46,.06); --shadow-md:0 8px 20px -6px rgba(18,25,46,.16);
     --shadow-lg:0 20px 40px -20px rgba(18,25,46,.28); --shadow-accent:0 8px 20px -6px rgba(20,184,166,.45);
     --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+    /* ============ fondo decorativo (paso 178): grilla de renglones + símbolos matemáticos
+       (∫ π √ Σ y un compás) dispersos, como textura de cuaderno detrás de todo el contenido —
+       ver body::before más abajo y body.bg-off para el apagado desde Cuenta → Preferencias
+       (bgOn()/setBgOn() en config.js). Coloreado a mano en --ink de cada tema porque una data-URI
+       de SVG no puede leer variables CSS. ============ */
+    --bg-pattern: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='240'%20height='240'%20viewBox='0%200%20240%20240'%3E%3Cg%20fill='none'%20stroke='rgb(18,25,46)'%20stroke-width='1'%3E%3Cline%20x1='0'%20y1='40'%20x2='240'%20y2='40'/%3E%3Cline%20x1='0'%20y1='80'%20x2='240'%20y2='80'/%3E%3Cline%20x1='0'%20y1='120'%20x2='240'%20y2='120'/%3E%3Cline%20x1='0'%20y1='160'%20x2='240'%20y2='160'/%3E%3Cline%20x1='0'%20y1='200'%20x2='240'%20y2='200'/%3E%3Cline%20x1='30'%20y1='0'%20x2='30'%20y2='240'/%3E%3C/g%3E%3Ctext%20x='55'%20y='33'%20font-family='Georgia,serif'%20font-size='26'%20fill='rgb(18,25,46)'%3E&#8747;%3C/text%3E%3Ctext%20x='150'%20y='71'%20font-family='Georgia,serif'%20font-size='22'%20fill='rgb(18,25,46)'%3E&#960;%3C/text%3E%3Ctext%20x='42'%20y='112'%20font-family='Georgia,serif'%20font-size='20'%20fill='rgb(18,25,46)'%3E&#8730;%3C/text%3E%3Ctext%20x='185'%20y='150'%20font-family='Georgia,serif'%20font-size='24'%20fill='rgb(18,25,46)'%3E&#931;%3C/text%3E%3Cg%20stroke='rgb(18,25,46)'%20stroke-width='1.4'%20fill='none'%3E%3Cline%20x1='105'%20y1='165'%20x2='92'%20y2='197'/%3E%3Cline%20x1='105'%20y1='165'%20x2='118'%20y2='197'/%3E%3Cpath%20d='M97%20178%20Q105%20172%20113%20178'/%3E%3C/g%3E%3Ccircle%20cx='105'%20cy='165'%20r='2'%20fill='rgb(18,25,46)'/%3E%3C/svg%3E");
     /* ============ accesibilidad (paso 75): texto sobre fondos saturados (accent/green/red) —
        #fff no llega a 4.5:1 sobre estos colores en ninguno de los dos temas (son medio-claros
        de por sí), así que un texto bien oscuro anda mejor en los dos sin duplicar el token por
@@ -119,6 +125,7 @@
       --subj-slate-bg:#2B3348; --subj-slate-fg:#CBD5E1; --subj-slate-bd:#475569;
       --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 8px 20px -6px rgba(0,0,0,.45);
       --shadow-lg:0 20px 40px -20px rgba(0,0,0,.6); --shadow-accent:0 8px 20px -6px rgba(45,212,192,.4);
+      --bg-pattern: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='240'%20height='240'%20viewBox='0%200%20240%20240'%3E%3Cg%20fill='none'%20stroke='rgb(237,239,247)'%20stroke-width='1'%3E%3Cline%20x1='0'%20y1='40'%20x2='240'%20y2='40'/%3E%3Cline%20x1='0'%20y1='80'%20x2='240'%20y2='80'/%3E%3Cline%20x1='0'%20y1='120'%20x2='240'%20y2='120'/%3E%3Cline%20x1='0'%20y1='160'%20x2='240'%20y2='160'/%3E%3Cline%20x1='0'%20y1='200'%20x2='240'%20y2='200'/%3E%3Cline%20x1='30'%20y1='0'%20x2='30'%20y2='240'/%3E%3C/g%3E%3Ctext%20x='55'%20y='33'%20font-family='Georgia,serif'%20font-size='26'%20fill='rgb(237,239,247)'%3E&#8747;%3C/text%3E%3Ctext%20x='150'%20y='71'%20font-family='Georgia,serif'%20font-size='22'%20fill='rgb(237,239,247)'%3E&#960;%3C/text%3E%3Ctext%20x='42'%20y='112'%20font-family='Georgia,serif'%20font-size='20'%20fill='rgb(237,239,247)'%3E&#8730;%3C/text%3E%3Ctext%20x='185'%20y='150'%20font-family='Georgia,serif'%20font-size='24'%20fill='rgb(237,239,247)'%3E&#931;%3C/text%3E%3Cg%20stroke='rgb(237,239,247)'%20stroke-width='1.4'%20fill='none'%3E%3Cline%20x1='105'%20y1='165'%20x2='92'%20y2='197'/%3E%3Cline%20x1='105'%20y1='165'%20x2='118'%20y2='197'/%3E%3Cpath%20d='M97%20178%20Q105%20172%20113%20178'/%3E%3C/g%3E%3Ccircle%20cx='105'%20cy='165'%20r='2'%20fill='rgb(237,239,247)'/%3E%3C/svg%3E");
     }
   }
   html.theme-dark{
@@ -153,10 +160,21 @@
     --subj-slate-bg:#2B3348; --subj-slate-fg:#CBD5E1; --subj-slate-bd:#475569;
     --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 8px 20px -6px rgba(0,0,0,.45);
     --shadow-lg:0 20px 40px -20px rgba(0,0,0,.6); --shadow-accent:0 8px 20px -6px rgba(45,212,192,.4);
+    --bg-pattern: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='240'%20height='240'%20viewBox='0%200%20240%20240'%3E%3Cg%20fill='none'%20stroke='rgb(237,239,247)'%20stroke-width='1'%3E%3Cline%20x1='0'%20y1='40'%20x2='240'%20y2='40'/%3E%3Cline%20x1='0'%20y1='80'%20x2='240'%20y2='80'/%3E%3Cline%20x1='0'%20y1='120'%20x2='240'%20y2='120'/%3E%3Cline%20x1='0'%20y1='160'%20x2='240'%20y2='160'/%3E%3Cline%20x1='0'%20y1='200'%20x2='240'%20y2='200'/%3E%3Cline%20x1='30'%20y1='0'%20x2='30'%20y2='240'/%3E%3C/g%3E%3Ctext%20x='55'%20y='33'%20font-family='Georgia,serif'%20font-size='26'%20fill='rgb(237,239,247)'%3E&#8747;%3C/text%3E%3Ctext%20x='150'%20y='71'%20font-family='Georgia,serif'%20font-size='22'%20fill='rgb(237,239,247)'%3E&#960;%3C/text%3E%3Ctext%20x='42'%20y='112'%20font-family='Georgia,serif'%20font-size='20'%20fill='rgb(237,239,247)'%3E&#8730;%3C/text%3E%3Ctext%20x='185'%20y='150'%20font-family='Georgia,serif'%20font-size='24'%20fill='rgb(237,239,247)'%3E&#931;%3C/text%3E%3Cg%20stroke='rgb(237,239,247)'%20stroke-width='1.4'%20fill='none'%3E%3Cline%20x1='105'%20y1='165'%20x2='92'%20y2='197'/%3E%3Cline%20x1='105'%20y1='165'%20x2='118'%20y2='197'/%3E%3Cpath%20d='M97%20178%20Q105%20172%20113%20178'/%3E%3C/g%3E%3Ccircle%20cx='105'%20cy='165'%20r='2'%20fill='rgb(237,239,247)'/%3E%3C/svg%3E");
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
        font-size:14px;line-height:1.45;padding:18px 12px 44px}
+  /* Fondo decorativo (paso 178): capa fija detrás de todo el contenido (z-index negativo, no
+     recibe clicks) — se apaga entera con body.bg-off (toggle "Fondo decorativo" en Cuenta →
+     Preferencias, ver applyBg() en config.js). Opacidad bien baja a propósito: es una textura,
+     no tiene que competir con el contenido real. */
+  body::before{
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background-image:var(--bg-pattern); background-repeat:repeat; background-size:220px 220px;
+    opacity:.05;
+  }
+  body.bg-off::before{ content:none }
   /* body.has-nav: sólo se pinta el nav (sidebar/barra inferior) con sesión activa fuera de
      recovery/informe/contrato (ver render() en views.js) — el padding extra reserva su lugar
      nada más que ahí, así login/informe/contrato quedan centrados sin un hueco vacío. */
@@ -460,11 +478,14 @@
                      border-radius:99px;background:var(--green);color:var(--on-green);font-size:9px;font-weight:700;margin-right:4px;vertical-align:middle}
   .desk-name{font-size:10px;color:var(--muted);margin-top:4px;max-width:56px;white-space:nowrap;
              overflow:hidden;text-overflow:ellipsis}
-  /* Banco vacío (paso 138): mismo esqueleto que uno ocupado (mantiene la grilla prolija), sin
-     color de semáforo ni acción — sólo una silueta sutil punteada. */
+  /* Banco vacío (paso 138, retocado paso 178): mismo esqueleto que uno ocupado (mantiene la
+     grilla prolija), sin color de semáforo ni acción. Antes era un contorno punteado (leía como
+     un placeholder "falta cargar"); ahora un borde sólido suave + sombra interior liviana, para
+     que se lea como un asiento genuinamente vacío del aula, no como un elemento pendiente. Usa
+     variables de tema (--soft/--line/--shadow-ring2/--empty-bg) así se adapta solo en oscuro. */
   .desk-empty{cursor:default}
-  .desk-body.empty{background:none;box-shadow:none;border:1.5px dashed var(--line)}
-  .desk-silhouette{width:20px;height:20px;border-radius:50%;border:1.5px dashed var(--line)}
+  .desk-body.empty{background:var(--soft);box-shadow:inset 0 1px 3px var(--shadow-ring2),inset 0 0 0 1px var(--line);border:none}
+  .desk-silhouette{width:20px;height:20px;border-radius:50%;background:var(--empty-bg);border:1.5px solid var(--line)}
   @media (max-width:480px){
     .desk{width:40px}
     .desk-body{height:30px}

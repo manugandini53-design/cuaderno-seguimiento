@@ -563,10 +563,20 @@ function vCumpleanosBanner(){
   const hoy = cumpleaneros(today());
   const manana = cumpleaneros(addDays(today(),1));
   if(hoy.length===0 && manana.length===0) return "";
-  const fila = (s,cuando)=>`<div class="alert-row">
-    <div class="alert" style="cursor:default"><span class="dot"></span><span class="t">${cuando==="hoy"?"Hoy":"Mañana"} cumple <b>${esc(s.name)}</b></span></div>
-    ${hasPhone(s)?`<a class="wa-quick" title="Enviar saludo por WhatsApp" target="_blank" rel="noopener" href="${waLink(s,waMsgCumple(s))}">${ICON_CHAT}</a>`:""}
-  </div>`;
+  // Mismo mecanismo "Mandar mensaje" que la lista de Alertas (state.alertMsgFor + vAlertMsgPicker,
+  // paso 178) — se distingue con el prefijo "cumple-" para no chocar con el id llano que usan las
+  // alertas del mismo alumno si aparece en las dos listas a la vez.
+  const fila = (s,cuando)=>{
+    const key = "cumple-"+s.id;
+    return `<div style="margin-bottom:6px">
+      <div class="alert-row" style="margin-bottom:0">
+        <div class="alert" style="cursor:default"><span class="dot"></span><span class="t">${cuando==="hoy"?"Hoy":"Mañana"} cumple <b>${esc(s.name)}</b></span></div>
+        ${hasPhone(s)?`<a class="wa-quick" title="Enviar saludo por WhatsApp" target="_blank" rel="noopener" href="${waLink(s,waMsgCumple(s))}">${ICON_CHAT}</a>`:""}
+        <button class="chip" style="margin:0" data-a="toggle-alert-msg" data-id="${key}">Mandar mensaje</button>
+      </div>
+      ${state.alertMsgFor===key?vAlertMsgPicker(s):""}
+    </div>`;
+  };
   return `<div class="formcard">
     <div class="ftitle" style="display:flex;align-items:center;gap:7px"><span class="icon-inline">${ICON_CAKE}</span> Cumpleaños</div>
     ${hoy.map(s=>fila(s,"hoy")).join("")}${manana.map(s=>fila(s,"manana")).join("")}
@@ -3884,6 +3894,13 @@ function vCuenta(){
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="chip ${!animsOn()?"on":""}" data-a="toggle-animaciones" data-f="no">Apagadas</button>
         <button class="chip ${animsOn()?"on":""}" data-a="toggle-animaciones" data-f="si">Activadas</button>
+      </div>
+    </div>
+    <div class="formcard"><div class="ftitle">Fondo decorativo</div>
+      <div class="hint" style="margin-bottom:8px">Una textura sutil de cuaderno (renglones y símbolos matemáticos) detrás de las pantallas, a muy baja opacidad. No afecta la lectura de los datos.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="chip ${!bgOn()?"on":""}" data-a="toggle-fondo" data-f="no">Apagado</button>
+        <button class="chip ${bgOn()?"on":""}" data-a="toggle-fondo" data-f="si">Activado</button>
       </div>
     </div>
     <div class="formcard"><div class="ftitle">Tu día y racha</div>
