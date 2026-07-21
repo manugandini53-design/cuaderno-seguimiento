@@ -323,8 +323,8 @@ function vCobrosCard(){
   const uploading = state.cobrosQrUploading;
   const confirming = state.cobrosQrDeleteConfirm;
   const offline = !navigator.onLine;
-  return vTarifaDefaultCard() + vPacksCatalogoCard() + `<div class="formcard"><div class="ftitle">Cobros</div>
-    <div class="hint" style="margin-bottom:10px">Tus medios de pago, para que cada alumno vea cómo pagarte desde su propio portal — sin API, sin comisiones, sin procesar nada nosotros. Cuando te paguen, registralo como siempre (pestaña Pagos, en la ficha del alumno); esto no cobra ni confirma nada solo.</div>
+  return `<div class="formcard"><div class="ftitle">Medios de pago</div>
+    <div class="hint" style="margin-bottom:10px">Para que cada alumno vea cómo pagarte desde su propio portal — sin API, sin comisiones, sin procesar nada nosotros. Cuando te paguen, registralo como siempre (pestaña Pagos, en la ficha del alumno); esto no cobra ni confirma nada solo.</div>
     <div class="frow">
       <div class="field"><div class="flabel">Alias / CVU</div><input data-cf="cobros-alias" placeholder="tu.alias.mp" value="${esc(c.alias||"")}"></div>
     </div>
@@ -358,15 +358,17 @@ function vCobrosCard(){
   </div>`;
 }
 
-// Cuenta ordenada (paso 142, acordeón real desde el 200): grupos colapsables con mini-índice
-// arriba, en vez de una fila larga de tarjetas sueltas. vCuentaGroup() es el wrapper genérico —
-// todos arrancan CERRADOS y se abre de a UNO solo (mismo patrón que la biblioteca de materiales
-// del paso 174, `state.cuentaOpenGroupId` en vez de un mapa de cerrados por id — acá sólo tiene
-// sentido uno abierto por vez). Lo esencial (con qué cuenta estoy, estado de sync, sincronizar)
-// no vive adentro de ningún grupo: ver vCuentaEssentials(), siempre visible arriba del acordeón.
-// Cada grupo adentro sigue usando los mismos ${xCard()}/formcards de siempre, sin tocar su HTML
-// interno ni sus data-a/data-cf. CUENTA_GROUPS_META es sólo para el mini-índice (id+label cortos)
-// — el título y la descripción largos de cada grupo van directo en su vCuentaGroup().
+// Cuenta ordenada (paso 142, subpestañas reales desde el 202): en vez de un acordeón en el
+// mismo lugar, la barra de arriba (CUENTA_GROUPS_META/vCuentaIndice) son subpestañas de verdad —
+// tocar una reemplaza el contenido de abajo por esa sección ENTERA (nada más colapsado a nivel
+// de sección, `state.cuentaOpenGroupId` guarda cuál está seleccionada, ninguna por defecto).
+// Adentro de una subpestaña, si hay mucho contenido (Cobros, Portal) se usan sub-desplegables
+// propios (vCuentaSub(), cerrados por defecto, uno abierto por vez POR subpestaña —
+// `state.cuentaSubOpen[groupId]`) para no abrumar; el resto de las subpestañas muestran todo
+// entero, sin ningún desplegable extra. Lo esencial (con qué cuenta estoy, estado de sync,
+// sincronizar) no vive adentro de ninguna subpestaña: ver vCuentaEssentials(), siempre visible
+// arriba de todo esto. Cada sección adentro sigue usando los mismos ${xCard()}/formcards de
+// siempre, sin tocar su HTML interno ni sus data-a/data-cf.
 const CUENTA_GROUPS_META = [
   {id:"perfil", label:"Perfil"}, {id:"cobros", label:"Cobros"}, {id:"preferencias", label:"Preferencias"},
   {id:"mensajes", label:"Mensajes"}, {id:"portal", label:"Portal"}, {id:"gruposclase", label:"Grupos"},
@@ -375,12 +377,12 @@ const CUENTA_GROUPS_META = [
 
 function vCuentaIndice(){
   return `<div class="cuenta-indice">${CUENTA_GROUPS_META.map(g=>
-    `<button class="chip" data-a="cuenta-group-jump" data-id="${g.id}">${esc(g.label)}</button>`).join("")}</div>`;
+    `<button class="chip ${state.cuentaOpenGroupId===g.id?"on":""}" data-a="cuenta-tab-select" data-id="${g.id}">${esc(g.label)}</button>`).join("")}</div>`;
 }
 
 // Barra esencial (paso 200): con qué cuenta estoy, estado de sync y "Sincronizar ahora" —
-// siempre visible arriba del acordeón, sin importar qué grupo esté abierto o cerrado. El resto
-// del detalle de la cuenta (admin/profesor, cerrar sesión) sigue en el grupo "Sesión" de abajo.
+// siempre visible arriba de las subpestañas, sin importar cuál esté seleccionada. El resto del
+// detalle de la cuenta (admin/profesor, cerrar sesión) sigue en la subpestaña "Sesión".
 function vCuentaEssentials(){
   const ses=getSes();
   return `<div class="formcard" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
@@ -392,12 +394,32 @@ function vCuentaEssentials(){
   </div>`;
 }
 
+// Subpestaña seleccionada: título + descripción (fijos, no colapsables) y su contenido entero.
+// Ninguna seleccionada todavía: pista para tocar una de arriba, en vez de una pantalla en blanco.
 function vCuentaGroup(id, title, desc, bodyHtml){
-  const open = state.cuentaOpenGroupId===id;
+  if(state.cuentaOpenGroupId!==id) return "";
   return `<div class="cuenta-group" id="cuenta-grp-${id}">
-    <button class="cuenta-group-head" data-a="cuenta-group-toggle" data-id="${id}" aria-expanded="${open}">
+    <div class="cuenta-group-head" style="cursor:default">
       <div><div class="ftitle" style="margin-bottom:2px">${esc(title)}</div>
         <div class="hint">${esc(desc)}</div></div>
+    </div>
+    <div class="cuenta-group-body">${bodyHtml}</div>
+  </div>`;
+}
+function vCuentaVacia(){
+  if(state.cuentaOpenGroupId) return "";
+  return `<div class="hint" style="text-align:center;padding:24px 0">Elegí una sección de arriba para verla entera.</div>`;
+}
+
+// Sub-desplegable DENTRO de una subpestaña (paso 202), sólo para las que tienen mucho contenido
+// (Cobros, Portal) — mismo patrón visual que antes tenía vCuentaGroup a nivel de sección, pero con
+// su propio estado por subpestaña (`state.cuentaSubOpen[groupId]`, un id o null) para no chocar
+// entre secciones distintas. Cerrado por defecto, se abre de a uno por vez.
+function vCuentaSub(groupId, id, title, bodyHtml){
+  const open = (state.cuentaSubOpen&&state.cuentaSubOpen[groupId])===id;
+  return `<div class="cuenta-group" style="margin-bottom:10px">
+    <button class="cuenta-group-head" data-a="cuenta-sub-toggle" data-group="${groupId}" data-id="${id}" aria-expanded="${open}">
+      <div class="ftitle" style="margin-bottom:0">${esc(title)}</div>
       <span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
     </button>
     ${open?`<div class="cuenta-group-body">${bodyHtml}</div>`:""}
@@ -409,9 +431,10 @@ function vCuenta(){
   const pol=cancelPolicyFor();
   const doc=docenteFor();
   return pageHead("Cuenta","Tu cuenta y preferencias",null,
-    "Todo lo tuyo, agrupado — tocá un grupo para abrirlo, o un atajo de abajo para ir directo.") + `
+    "Todo lo tuyo, agrupado — tocá una sección de arriba para verla entera.") + `
   ${vCuentaEssentials()}
   ${vCuentaIndice()}
+  ${vCuentaVacia()}
   ${vCuentaGroup("perfil","Perfil docente","Tus datos y tu foto — se reutilizan en el generador de contratos y en el portal.", `
     ${vAvatarEditor(AVATAR_KEY_DOCENTE, doc.nombre||"Docente", doc.foto, 64)}
     <div class="frow" style="margin-top:14px">
@@ -419,7 +442,10 @@ function vCuenta(){
       <div class="field"><div class="flabel">Teléfono</div><input data-cf="docente-telefono" value="${esc(doc.telefono||"")}"></div>
       <div class="field"><div class="flabel">DNI / CUIT (opcional)</div><input data-cf="docente-dni" value="${esc(doc.dni||"")}"></div>
     </div>`)}
-  ${vCuentaGroup("cobros","Cobros","Alias, links de pago y QR — se muestran en el portal individual de cada alumno.", vCobrosCard())}
+  ${vCuentaGroup("cobros","Cobros","Tarifa, packs, alias, links de pago y QR — se muestran en el portal individual de cada alumno.",
+    vCuentaSub("cobros","tarifa","Tarifa por defecto", vTarifaDefaultCard()) +
+    vCuentaSub("cobros","packs","Packs de catálogo", vPacksCatalogoCard()) +
+    vCuentaSub("cobros","medios","Medios de pago y QR", vCobrosCard()))}
   ${vCuentaGroup("preferencias","Preferencias","Tema, color, densidad, sonidos, escala de objetivos, cancelaciones, recordatorios y avisos.", `
     <div class="formcard"><div class="ftitle">Apariencia</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -501,9 +527,14 @@ function vCuenta(){
     vPortalCard()+
     `<div class="formcard"><div class="ftitle">Cobros del portal</div>
       <div class="hint" style="margin-bottom:10px">Alias, links de pago y QR — lo que cada alumno ve en su portal individual, junto a su saldo pendiente.</div>
-      <button class="chip" data-a="cuenta-group-jump" data-id="cobros">Ir a Cobros</button>
+      <button class="chip" data-a="cuenta-tab-select" data-id="cobros">Ir a Cobros</button>
     </div>`+
-    vReservaModoCard()+vCancelarClaseCard()+vPortalAvisosCard()+vPortalLlavesAlumnosCard()+vPortalGruposCard()+vPortalPreviewCard())}
+    vCuentaSub("portal","reserva","Cómo te piden clases", vReservaModoCard())+
+    vCuentaSub("portal","cancelar","Cancelar una clase", vCancelarClaseCard())+
+    vCuentaSub("portal","avisos","Avisos", vPortalAvisosCard())+
+    vCuentaSub("portal","llaves","Llaves por alumno", vPortalLlavesAlumnosCard())+
+    vCuentaSub("portal","grupos","Llaves grupales", vPortalGruposCard())+
+    vCuentaSub("portal","preview","Ver como alumno", vPortalPreviewCard()))}
   ${vCuentaGroup("gruposclase","Grupos de clase","Quiénes integran cada clase grupal (intensivos, grupitos de 2-3) — para no re-elegirlos cada vez. Distinto de las llaves grupales de portal, de arriba.", vGruposClaseCard())}
   ${vCuentaGroup("datos","Datos y respaldos","Copias automáticas, retención y la papelera de alumnos/materias borrados.", `
     <div class="formcard"><div class="ftitle">Respaldos automáticos</div>

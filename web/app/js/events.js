@@ -336,17 +336,15 @@ document.addEventListener("click", (e)=>{
     state.backupsLoaded=false; state.backupsError=""; loadBackups();
     state.portalLoaded=false; state.portalError=""; state.portalCopyMsg=""; loadPortal();
     state.portalGrupoEditing=null; state.portalGrupoDraftAlumnos=[]; state.portalGrupoError="";
-    // Deep links (paso 200): un atajo del resto de la app a un grupo puntual de Cuenta (papelera,
-    // "Activá tu portal" del onboarding, etc.) llega con data-group y abre SÓLO ese grupo, sin
-    // tocar el último grupo abierto si el acceso fue genérico (nav lateral, mini-avatar).
+    // Deep links (paso 200, subpestañas desde el 202): un atajo del resto de la app a una
+    // subpestaña puntual de Cuenta (papelera, "Activá tu portal" del onboarding, etc.) llega con
+    // data-group y selecciona SÓLO esa subpestaña, sin tocar la última abierta si el acceso fue
+    // genérico (nav lateral, mini-avatar) — ahí no se especifica ninguna, se respeta la de antes.
     const gid = el.dataset.group;
     if(gid){
       state.cuentaOpenGroupId=gid;
       render();
-      setTimeout(()=>{
-        const t=document.getElementById("cuenta-grp-"+gid);
-        if(t) t.scrollIntoView({behavior:"smooth", block:"start"});
-      },0);
+      window.scrollTo({top:0, behavior:"smooth"});
       return;
     }
   }
@@ -1136,22 +1134,23 @@ document.addEventListener("click", (e)=>{
     window.location.href=mailto;
     return;
   }
-  // Cuenta ordenada (paso 142, acordeón real desde el 200): abrir/cerrar un grupo colapsable
-  // (sólo uno abierto por vez, `state.cuentaOpenGroupId`), o saltar a uno desde el mini-índice
-  // (que además lo abre si estaba cerrado, para no llevar a un lugar vacío).
-  else if(a==="cuenta-group-toggle"){
-    const id=el.dataset.id;
-    state.cuentaOpenGroupId = state.cuentaOpenGroupId===id ? null : id;
-  }
-  else if(a==="cuenta-group-jump"){
-    const id=el.dataset.id;
-    state.cuentaOpenGroupId=id;
+  // Cuenta ordenada (paso 142, subpestañas reales desde el 202): tocar una subpestaña de la
+  // barra de arriba (o un atajo interno, como "Ir a Cobros" desde Portal) reemplaza el contenido
+  // entero de abajo por esa sección (`state.cuentaOpenGroupId`) — nunca dos abiertas a la vez, y
+  // ninguna queda "colapsada en el lugar": scrollea arriba de todo para que se lea desde el título.
+  else if(a==="cuenta-tab-select"){
+    state.cuentaOpenGroupId=el.dataset.id;
     render();
-    setTimeout(()=>{
-      const t=document.getElementById("cuenta-grp-"+id);
-      if(t) t.scrollIntoView({behavior:"smooth", block:"start"});
-    },0);
+    window.scrollTo({top:0, behavior:"smooth"});
     return;
+  }
+  // Sub-desplegable DENTRO de una subpestaña con mucho contenido (Cobros, Portal) — un id abierto
+  // por vez, guardado por subpestaña (`state.cuentaSubOpen[groupId]`) para no chocar entre secciones.
+  else if(a==="cuenta-sub-toggle"){
+    const g=el.dataset.group, id=el.dataset.id;
+    const openMap={...(state.cuentaSubOpen||{})};
+    openMap[g] = openMap[g]===id ? null : id;
+    state.cuentaSubOpen=openMap;
   }
   else if(a==="toggle-sonidos"){ setSoundsOn(el.dataset.f==="si"); }
   else if(a==="toggle-animaciones"){ setAnimsOn(el.dataset.f==="si"); }
