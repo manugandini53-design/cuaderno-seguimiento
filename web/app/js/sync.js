@@ -993,6 +993,13 @@ function buildAlumnoBlock(s, reservaModo){
     // completa) en vez de sumar un checkbox nuevo en la ficha.
     block.proximasClases = proximasClasesFor(s);
   }
+  // tarifaClase (paso 196): sólo si hace falta — el portal calcula la deuda ESTIMADA de una clase
+  // publicada en proximasClases/misClases que ya terminó (comparando contra la hora real de quien
+  // mira el portal, no la de este publish) sin esperar a que el docente vuelva a sincronizar. Nunca
+  // con modalidad "mensual" (no genera deuda por clase suelta, ver clasesEstimadasFor en helpers.js).
+  if((share.proximaClase || reservaModo==="directa") && hasPagos(s) && s.modalidad!=="mensual"){
+    block.tarifaClase = {modalidad:s.modalidad, tarifa:Number(s.tarifa)||0};
+  }
   if(share.tareas){
     const last=[...(s.sessions||[])].filter(c=>!isAusente(c)).sort((a,b)=>b.date.localeCompare(a.date))[0];
     block.tarea = last ? {date:last.date, nota:last.note||""} : null;

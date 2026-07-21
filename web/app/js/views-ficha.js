@@ -267,26 +267,49 @@ function vRegistrarClaseCard(s){
   return vClasePasadaForm(s);
 }
 
+// Ocurrencias agendadas ya terminadas y sin registrar para precargar el form (paso 196) — vacío
+// si el docente eligió "registrar otra clase" (state.sessionManualEntry, flujo manual de siempre).
+// La seleccionada es la de state.sessionPrefillOcurrenciaDate si matchea alguna, si no la más
+// reciente (última del array, que viene ordenado ascendente) — así entrar por agenda-log/"Registrar"
+// (que ya vienen con una fecha puntual) cae directo en esa, y entrar genérico (FAB, pestaña Clases)
+// cae en la más reciente sin tener que elegir.
+function ocurrenciasPendientesForm(s){
+  if(state.sessionManualEntry) return {list:[], sel:null};
+  const list = clasesSinRegistrarFor(s);
+  if(!list.length) return {list, sel:null};
+  const sel = list.find(c=>c.date===state.sessionPrefillOcurrenciaDate) || list[list.length-1];
+  return {list, sel};
+}
 function vClasePasadaForm(s){
   const estado = state.sessionEstado||"dada";
   const motivo = state.sessionAusenteMotivo||"aviso_tiempo";
   const cobraSugerida = state.sessionAusenteCobra!=null ? state.sessionAusenteCobra : ausenciaCobraSugerida(motivo);
   const packActivo = estado==="dada" ? packClasesActivo(s) : null;
+  const {list:pendientes, sel:ocurrencia} = ocurrenciasPendientesForm(s);
+  const fechaDefault = (ocurrencia&&ocurrencia.date) || state.sessionPrefillDate || today();
+  const topicDefault = (ocurrencia&&ocurrencia.topic) || "";
+  const duracionDefault = (ocurrencia&&ocurrencia.duration) || 60;
   return `<div class="formcard"><div class="ftitle">Clase pasada (30 segundos, apenas termina)</div>
+    ${pendientes.length>1 ? `<div class="field" style="margin-bottom:8px"><div class="flabel">¿Cuál clase?</div>
+      <select data-cf="select-clase-pendiente">
+        ${pendientes.map(c=>`<option value="${esc(c.date)}" ${c.date===ocurrencia.date?"selected":""}>${fmtDate(c.date)} ${esc(c.time)} (${c.duration} min)</option>`).join("")}
+      </select></div>` : ""}
+    ${pendientes.length ? `<div class="hint" style="margin-bottom:8px">Precargada de tu agenda — ${pendientes.length>1?"elegí otra arriba o ":""}<b style="cursor:pointer;text-decoration:underline" data-a="registrar-clase-manual">registrá otra clase</b> en su lugar.</div>`
+      : (state.sessionManualEntry && clasesSinRegistrarFor(s).length ? `<div class="hint" style="margin-bottom:8px"><b style="cursor:pointer;text-decoration:underline" data-a="registrar-clase-agendada">Volver a la clase agendada</b></div>` : "")}
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <button class="chip ${estado==="dada"?"on":""}" data-a="set-session-estado" data-f="dada">Dada</button>
       <button class="chip ${estado==="ausente"?"on":""}" data-a="set-session-estado" data-f="ausente">Ausente</button>
     </div>
     ${packActivo?`<div class="hint" style="margin-bottom:8px">Pack activo: quedan <b>${packActivo.restantes} de ${packActivo.total}</b> clases — al guardar se descuenta una sola, no hace falta cobrar esta clase aparte.</div>`:""}
     <div class="frow">
-      <div class="field"><div class="flabel">Fecha</div><input type="date" id="c-date" max="${today()}" value="${esc(state.sessionPrefillDate||today())}" data-enter="save-session"></div>
+      <div class="field"><div class="flabel">Fecha</div><input type="date" id="c-date" max="${today()}" value="${esc(fechaDefault)}" data-enter="save-session"></div>
       ${estado==="dada" ? `
-      <div class="field"><div class="flabel">Tema principal</div><select id="c-topic" data-enter="save-session">${topicOptionsHtml(s,"")}</select></div>
+      <div class="field"><div class="flabel">Tema principal</div><select id="c-topic" data-enter="save-session">${topicOptionsHtml(s,topicDefault)}</select></div>
       <div class="field"><div class="flabel">¿Trajo la tarea?</div><select id="c-tarea" data-enter="save-session">
         <option value="sd">—</option><option value="hecha">Hecha</option>
         <option value="intentada">Intentada</option><option value="no">No hecha</option></select></div>
       <div class="field" style="max-width:150px"><div class="flabel">Duración</div>
-        ${durationFieldHtml(60, {id:"c-duration", dataEnter:"save-session"})}</div>
+        ${durationFieldHtml(duracionDefault, {id:"c-duration", dataEnter:"save-session"})}</div>
       ${s.modalidad==="hora" ? `<div class="field" style="max-width:150px"><div class="flabel">Monto (opcional)</div>
         <input type="number" min="0" id="c-monto" placeholder="Auto: tarifa × horas" data-enter="save-session"></div>` : ""}` : `
       <div class="field"><div class="flabel">Motivo</div><select data-cf="session-ausente-motivo">
@@ -535,10 +558,27 @@ function vFichaPagos(s){
     ${hasPagos(s)&&s.modalidad==="mensual"?vPagosMensuales(s):""}
     ${!hasPagos(s)?`<div class="hint" style="margin-top:8px">Cargá una tarifa y elegí una modalidad para empezar a llevar el cobro de este alumno.</div>`:""}
   </div>`;
+  h += vClasesSinRegistrarCard(s);
   h += vSeniaCard(s);
   h += vRecibosCard(s);
   h += vTarifaHistorialCard(s);
   return h;
+}
+
+// "Sin registrar" (paso 196): clases agendadas ya terminadas todavía sin registrar — deuda
+// ESTIMADA a la tarifa vigente (clasesEstimadasFor en helpers.js), claramente separada de la deuda
+// firme de arriba (clases ya registradas sin cobrar). Desaparece sola al registrar la clase.
+function vClasesSinRegistrarCard(s){
+  const list = clasesEstimadasFor(s);
+  if(!list.length) return "";
+  return `<div class="formcard"><div class="ftitle">Sin registrar</div>
+    <div class="hint" style="margin-bottom:8px">Ya terminaron pero todavía no las registraste — estimadas a tu tarifa vigente, no son deuda firme hasta que las registres.</div>
+    ${list.map(c=>`<div class="log">
+      <div class="d">${fmtDate(c.date)} ${esc(c.time)}</div>
+      <div class="body">${fmtMoney(c.monto)} <span class="hint">a confirmar</span></div>
+      <button class="chip" data-a="agenda-log" data-id="${s.id}" data-date="${c.date}">Registrar</button>
+    </div>`).join("")}
+  </div>`;
 }
 
 // Pack de clases prepago (paso 158) — sólo para modalidad "clase"/"hora" (nunca "mensual", ver el

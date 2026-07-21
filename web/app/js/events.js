@@ -411,6 +411,10 @@ document.addEventListener("click", (e)=>{
     state.selId=el.dataset.id; state.view="detalle"; state.tab="clases";
     state.sessionPrefillDate=el.dataset.date; state.confirmDel=false; state.fichaError="";
     state.registrarClaseTipo="pasada";
+    // paso 196: "Registrar"/"Registrar esta clase" ya apuntan a una ocurrencia agendada puntual —
+    // cae directo en ESA (ocurrenciasPendientesForm en views-ficha.js la matchea por fecha), sin
+    // pasar por el flujo manual.
+    state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=el.dataset.date;
   }
   else if(a==="agenda-event-open"){
     state.agendaEdit={studentId:el.dataset.studentId, kind:el.dataset.kind, sourceId:el.dataset.sourceId, origDate:el.dataset.origDate};
@@ -432,6 +436,7 @@ document.addEventListener("click", (e)=>{
     state.selId=ev.studentId; state.view="detalle"; state.tab="clases";
     state.sessionPrefillDate=ev.date; state.confirmDel=false; state.fichaError="";
     state.registrarClaseTipo="pasada";
+    state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=ev.date;
   }
   else if(a==="agenda-edit-scope-solo"){
     const ev=findAgendaEditEvent(state.agendaEdit); if(!ev || !state.agendaEditPending) return;
@@ -1178,6 +1183,7 @@ document.addEventListener("click", (e)=>{
     state.view="detalle"; state.selId=el.dataset.id; state.tab=el.dataset.tab||"resumen"; state.confirmDel=false;
     state.simTimer=null; state.simPrefillNote=""; state.fichaError=""; state.sessionPrefillDate="";
     state.registrarClaseTipo=null;
+    state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=null;
     // Llave a mano (paso 139): carga el portal en segundo plano al abrir la ficha (si no estaba
     // cargado ya) para que el indicador de llave del header (vLlaveBadge) tenga con qué pintarse
     // sin obligar a pasar por Cuenta primero.
@@ -1212,7 +1218,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="fab-new-student"){ state.fabOpen=false; state.showNew=true; state.newStudentError=""; state.newStudentAdvancedOpen=false; state.newStudentSeniaActiva=false; state.newStudentTarifaOverride=false; }
   else if(a==="fab-new-clase"){
     state.fabOpen=false;
-    if(sel()){ state.tab="clases"; state.sessionPrefillDate=today(); state.confirmDel=false; state.fichaError=""; state.registrarClaseTipo="pasada"; }
+    if(sel()){ state.tab="clases"; state.sessionPrefillDate=today(); state.confirmDel=false; state.fichaError=""; state.registrarClaseTipo="pasada"; state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=null; }
     else state.fabPick={target:"clases"};
   }
   else if(a==="fab-new-pago"){
@@ -1228,7 +1234,7 @@ document.addEventListener("click", (e)=>{
     const target=(state.fabPick&&state.fabPick.target)||"resumen";
     state.fabPick=null;
     state.view="detalle"; state.selId=el.dataset.id; state.tab=target; state.confirmDel=false; state.fichaError="";
-    if(target==="clases"){ state.sessionPrefillDate=today(); state.registrarClaseTipo="pasada"; }
+    if(target==="clases"){ state.sessionPrefillDate=today(); state.registrarClaseTipo="pasada"; state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=null; }
   }
   else if(a==="cancel-new"){ state.showNew=false; state.newStudentError=""; }
   else if(a==="new-advanced-toggle"){
@@ -1314,6 +1320,7 @@ document.addEventListener("click", (e)=>{
   else if(a.startsWith("tab-")){
     state.tab=a.slice(4); state.confirmDel=false; state.fichaError=""; state.sessionPrefillDate=""; state.editSessionTopicId=null;
     state.registrarClaseTipo=null;
+    state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=null;
     if(state.tab==="portal" && !state.portalLoaded){ state.portalError=""; loadPortal(); }
   }
   else if(a==="goto-subject-materials"){
@@ -1508,8 +1515,16 @@ document.addEventListener("click", (e)=>{
     const sid=el.dataset.id, st=state.students.find(x=>x.id===sid); if(!st) return;
     update(sid,{tagIds:(st.tagIds||[]).filter(id=>id!==el.dataset.tag)}); return;
   }
-  else if(a==="set-registrar-clase-tipo"){ state.registrarClaseTipo=el.dataset.f; render(); return; }
+  else if(a==="set-registrar-clase-tipo"){
+    state.registrarClaseTipo=el.dataset.f;
+    if(el.dataset.f==="pasada"){ state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=null; }
+    render(); return;
+  }
   else if(a==="registrar-clase-back"){ state.registrarClaseTipo=null; render(); return; }
+  // "Sin registrar" (paso 196): el link chico de vClasePasadaForm alterna entre la ocurrencia
+  // agendada precargada y el flujo manual de siempre (para una clase extra que no está en agenda).
+  else if(a==="registrar-clase-manual"){ state.sessionManualEntry=true; render(); return; }
+  else if(a==="registrar-clase-agendada"){ state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=null; render(); return; }
   // Formulario de clase grupal (paso 157) — un único state.grupalForm reusado desde tres
   // entradas (ficha, Agenda, "Registrar esta clase" sobre una ocurrencia ya agendada), ver el
   // comentario grande de vGrupalForm()/vGrupalFormBody() en views-ficha.js.
@@ -1606,7 +1621,7 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="save-session" && s){
     const date=document.getElementById("c-date").value; if(!date) return;
-    state.sessionPrefillDate="";
+    state.sessionPrefillDate=""; state.sessionManualEntry=false; state.sessionPrefillOcurrenciaDate=null;
     const note=document.getElementById("c-note").value;
     if((state.sessionEstado||"dada")==="ausente"){
       const motivo=state.sessionAusenteMotivo||"aviso_tiempo";
@@ -2496,6 +2511,7 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf==="pagos-month"){ state.pagosMonth=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="pagos-export-period"){ state.pagosExportPeriod=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="session-ausente-motivo"){ state.sessionAusenteMotivo=cf.value; state.sessionAusenteCobra=null; render(); return; }
+  if(cf && cf.dataset.cf==="select-clase-pendiente"){ state.sessionPrefillOcurrenciaDate=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="tarifa-ajuste-modo"){ tarifaAjusteState().modo=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="tarifa-ajuste-valor"){ tarifaAjusteState().valor=cf.value; render(); return; }
   if(cf && cf.dataset.cf==="tarifa-ajuste-redondeo"){ tarifaAjusteState().redondeo=cf.value; render(); return; }

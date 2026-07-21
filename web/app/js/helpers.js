@@ -129,6 +129,7 @@ let state = { students:[], catalog:defaultCatalog(), ownerUid:null, editSubjectI
               pagosMonth:null,
               informePeriod:"3m", informeImgBusy:false,
               agendaWeekOffset:0, sessionPrefillDate:"",
+              sessionManualEntry:false, sessionPrefillOcurrenciaDate:null,
               agendaViewMode:"semana", agendaMonthOffset:0, agendaSelectedDay:null, agendaQuickAddOpen:false,
               agendaGridQuick:null, agendaDispEdit:false,
               puntualCancelAskId:null, cobrosBannerOpen:false, registrarClaseTipo:null,
@@ -1297,6 +1298,12 @@ function parseAvisoTarget(v){
 // por origen (paso 171: el portal necesita explicar de dónde sale el saldo, no sólo el total) —
 // lo usa también el mensaje de WhatsApp de recordatorio de pago, que tiene sentido mandar apenas
 // hay algo pendiente y no recién cuando ya se hizo tarde.
+// Deuda FIRME únicamente (clases ya registradas sin cobrar, mensualidad, señas) — la deuda
+// ESTIMADA (paso 196, clases agendadas ya terminadas y sin registrar todavía) queda deliberadamente
+// afuera de acá: es sólo una estimación hasta que se registre de verdad, así que no debe inflar el
+// total que usan la celebración de "quedó al día" (events.js), los avisos de WhatsApp ni el
+// filtro "debe"/"al día" de Estudiantes. Se muestra sumada aparte, con su propio renglón, donde
+// haga falta (ficha → Pagos, Pagos → Resumen, portal) — ver clasesEstimadasFor más abajo.
 function pendienteDesgloseFor(s){
   let clase=0, mensual=0, senia=0;
   if(hasPagos(s)){
@@ -1309,6 +1316,27 @@ function pendienteDesgloseFor(s){
 function pendienteTotalFor(s){
   const d=pendienteDesgloseFor(s);
   return d.clase+d.mensual+d.senia;
+}
+// Clases agendadas (habituales o puntuales) ya terminadas pero sin clase registrada ese día — base
+// de "Registrar sobre lo agendado" (paso 196): el form de "Clase pasada" arranca precargado con la
+// más reciente, y de acá sale también la deuda ESTIMADA (clasesEstimadasFor más abajo). Mismo
+// criterio de "sin registrar" que pendingTasksToday (studentHasSessionOnDate, por día completo, no
+// por ocurrencia puntual). Ventana acotada, ver CLASE_ESTIMADA_LOOKBACK_DIAS en config.js.
+function clasesSinRegistrarFor(s){
+  if(s.status!=="activo") return [];
+  const from = addDays(today(), -CLASE_ESTIMADA_LOOKBACK_DIAS);
+  return agendaRangeEvents(from, today())
+    .filter(e=>e.studentId===s.id && eventoYaTermino(e) && !studentHasSessionOnDate(s.id, e.date))
+    .map(e=>({date:e.date, time:e.time, duration:Number(e.duration)||60, topic:e.topic||"", subjectId:e.subjectId}))
+    .sort((a,b)=>(a.date+" "+a.time).localeCompare(b.date+" "+b.time));
+}
+// Deuda ESTIMADA (paso 196): de las clases sin registrar de arriba, sólo cuenta para modalidad
+// "clase"/"hora" (mensual cobra fijo por mes, no genera deuda por clase suelta) — monto a la
+// tarifa VIGENTE del alumno (no hay forma de saber la de cuando pasó la clase sin registrarla, y es
+// sólo una estimación hasta que se registre de verdad). Desaparece sola al registrar la clase.
+function clasesEstimadasFor(s){
+  if(!hasPagos(s) || s.modalidad==="mensual") return [];
+  return clasesSinRegistrarFor(s).map(c=>({...c, monto: montoSesion(s, {duration:c.duration, monto:null})}));
 }
 // Últimas clases dictadas, sólo modalidad "clase"/"hora" (mensual no se cobra clase por clase, no
 // tiene sentido un pie "pagada/pendiente" por clase ahí) — pie del historial del portal (paso

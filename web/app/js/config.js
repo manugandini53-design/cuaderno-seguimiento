@@ -52,6 +52,11 @@ const FEEDBACK_TIPOS = [
 // en sync.js) cuando les queda menos de PORTAL_LINK_TTL_DAYS-PORTAL_LINK_RENEW_AFTER_DAYS de vida.
 const PORTAL_LINK_TTL_DAYS = 30;
 const PORTAL_LINK_RENEW_AFTER_DAYS = 20;
+// Deuda ESTIMADA (paso 196): ventana hacia atrás para buscar clases agendadas ya terminadas y sin
+// registrar (ver clasesSinRegistrarFor en helpers.js) — acotada porque agendaRangeEvents proyecta
+// horarios habituales sin fecha de inicio, así que ir más atrás generaría "clases" sintéticas de
+// antes de que el horario existiera.
+const CLASE_ESTIMADA_LOOKBACK_DIAS = 21;
 const PORTAL_RENEW_CHECK_KEY = "tutoria-portal-renew-check-date"; // fecha (YYYY-MM-DD) del último chequeo de renovación — uno por día, por dispositivo y namespaceada por uid (paso 194)
 // Sonidos discretos (paso 143): preferencia local del dispositivo, mismo criterio que THEME_KEY
 // más abajo (no viaja en el catalog sincronizado — un dispositivo compartido/de aula puede querer

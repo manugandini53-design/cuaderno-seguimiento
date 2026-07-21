@@ -36,7 +36,12 @@ function vPagosResumen(){
 
   const rows = alive().filter(hasPagos).map(s=>({s, r:pagoResumen(s,mk)}));
   const seniaRes = pagosSeniaResumen(mk);
-  if(rows.length===0 && seniaRes.rows.length===0)
+  // "Sin registrar" (paso 196): sólo tiene sentido mirando el mes actual — son clases ya
+  // terminadas AHORA, no un corte histórico del mes elegido arriba.
+  const sinRegistrar = mk===currentMonthKey()
+    ? alive().filter(s=>s.status==="activo").flatMap(s=>clasesEstimadasFor(s).map(c=>({s,c})))
+    : [];
+  if(rows.length===0 && seniaRes.rows.length===0 && sinRegistrar.length===0)
     return h + emptyState(ICON_WALLET, "Todavía no hay nada para cobrar acá",
       "Cargá una tarifa o activá la seña desde la pestaña «Pagos» de cada alumno para que aparezcan los cobros de este mes.",
       `<button class="btn btn-primary" data-a="nav-lista">Ir a Estudiantes</button>`);
@@ -77,6 +82,16 @@ function vPagosResumen(){
       <div class="d">${fmtDate(p.date)}</div>
       <div class="body">${esc(s.name)}${s.subject?` <span class="hint">· ${esc(s.subject)}</span>`:""}</div>
       <span class="chip" style="color:${SENIA_ESTADO_META[p.seniaEstado].fg};border-color:${SENIA_ESTADO_META[p.seniaEstado].fg};flex-shrink:0">${fmtMoney(p.seniaMonto)} · ${SENIA_ESTADO_META[p.seniaEstado].label}</span>
+    </div>`).join("");
+  }
+
+  if(sinRegistrar.length){
+    h += `<div class="stitle">Sin registrar</div>
+    <div class="hint" style="margin-bottom:8px">Clases ya terminadas que todavía no registraste — estimadas a tarifa vigente, no son deuda firme hasta que las registres.</div>`;
+    h += [...sinRegistrar].sort((a,b)=>b.c.date.localeCompare(a.c.date)).map(({s,c})=>`<div class="log">
+      <div class="d">${fmtDate(c.date)}</div>
+      <div class="body">${esc(s.name)} <span class="hint">· ${fmtMoney(c.monto)} a confirmar</span></div>
+      <button class="chip" data-a="agenda-log" data-id="${s.id}" data-date="${c.date}">Registrar</button>
     </div>`).join("");
   }
   return h;

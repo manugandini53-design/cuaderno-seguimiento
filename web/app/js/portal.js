@@ -227,6 +227,31 @@ function historialClasesHtml(list){
     list.map(c=>`<div class="pvalue">${fmtDiaLocal(c.date)} — <span style="color:${c.cobrada?"var(--subj-green-fg)":"var(--red-fg)"}">${c.cobrada?"Pagada ✓":"Pendiente"}</span></div>`).join("") +
     `</div>`;
 }
+// Deuda ESTIMADA en vivo (paso 196): de las clases ya publicadas en proximasClases/misClases que
+// ya terminaron — comparado contra la hora real de quien mira el portal, no la del último publish
+// del docente, así que aparece sin esperar a que el docente vuelva a sincronizar. alumno.tarifaClase
+// sólo viaja cuando hace falta (ver buildAlumnoBlock en sync.js); sin ella no hay nada que estimar
+// (modalidad "mensual" nunca la manda: no genera deuda por clase suelta).
+function claseYaTerminoPortal(c){
+  const inicio = new Date(c.date+"T"+(c.time||"00:00")+":00");
+  const fin = new Date(inicio.getTime() + (Number(c.duration)||60)*60000);
+  return fin <= new Date();
+}
+function montoEstimadoPortal(tarifaClase, duration){
+  return tarifaClase.modalidad==="hora" ? Math.round(tarifaClase.tarifa*(Number(duration)||60)/60) : tarifaClase.tarifa;
+}
+function clasesEstimadasPortal(alumno){
+  if(!alumno.tarifaClase) return [];
+  const vistos = new Set();
+  const out = [];
+  [...(alumno.proximasClases||[]), ...(alumno.misClases||[])].forEach(c=>{
+    const key = c.date+"|"+c.time;
+    if(vistos.has(key) || !claseYaTerminoPortal(c)) return;
+    vistos.add(key);
+    out.push({date:c.date, monto: montoEstimadoPortal(alumno.tarifaClase, c.duration)});
+  });
+  return out.sort((a,b)=>a.date.localeCompare(b.date));
+}
 // Pagos (paso 141): sólo con llave individual — pendiente es SIEMPRE del propio alumno (nunca de
 // otro, ver buildAlumnoBlock en sync.js) y "cobros" es el bloque de medios de pago del docente
 // (alias/links/QR, ver publicarPortal en sync.js), que el backend (portal_publico()) sólo debe
@@ -234,14 +259,22 @@ function historialClasesHtml(list){
 // Paso 171: cuando hay deuda, esta tarjeta se ubica arriba de todo (ver showPortal) y se destaca
 // con ".deuda" — antes el alumno podía no enterarse de que debía nada hasta abrir "Pagos".
 function pagosHtml(alumno, cobros, nombreDocente){
-  if(typeof alumno.pendiente!=="number" && !cobros) return "";
-  const debe = alumno.pendiente>0;
+  const estimadas = clasesEstimadasPortal(alumno);
+  const totalEstimadas = estimadas.reduce((a,c)=>a+c.monto,0);
+  if(typeof alumno.pendiente!=="number" && !cobros && !estimadas.length) return "";
+  const total = (Number(alumno.pendiente)||0) + totalEstimadas;
+  const debe = total>0;
   let h = `<div class="card${debe?" deuda":""}"><div class="ctitle">${debe?"Tenés pagos pendientes":"Pagos"}</div>`;
   h += `<div class="prow"><div class="plabel">${debe?"Total pendiente":"Pendiente"}</div>`;
   h += debe
-    ? `<div class="pvalue" style="color:var(--red-fg);font-size:19px;font-weight:700">${fmtMoneyPortal(alumno.pendiente)}</div>${pendienteDesgloseHtml(alumno.pendienteDesglose)}`
+    ? `<div class="pvalue" style="color:var(--red-fg);font-size:19px;font-weight:700">${fmtMoneyPortal(total)}</div>${pendienteDesgloseHtml(alumno.pendienteDesglose)}`
     : `<div class="pempty">Estás al día ✓</div>`;
   h += `</div>`;
+  if(estimadas.length){
+    h += `<div class="prow"><div class="plabel">A confirmar</div>` +
+      estimadas.map(c=>`<div class="pvalue">Clase del ${esc(DIAS_CORTOS[weekdayIdxLocal(c.date)].toLowerCase())} ${Number(c.date.slice(8,10))} — a confirmar por tu docente <span class="pmeta">${fmtMoneyPortal(c.monto)}</span></div>`).join("") +
+    `</div>`;
+  }
   if(cobros){
     h += `<div class="prow"><div class="plabel">Formas de pagarle a ${esc(nombreDocente||"tu profesor")}</div>`;
     const btns=[];
