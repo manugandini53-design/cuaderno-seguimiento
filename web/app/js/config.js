@@ -138,6 +138,9 @@ function setDensity(d){ localStorage.setItem(DENSITY_KEY, d); applyDensity(d); }
 applyDensity(getDensity()); // igual que el tema, aplicada de entrada para evitar parpadeo
 const RELEASES_API = "https://api.github.com/repos/entreclases/entreclases.github.io/releases/latest";
 const DOWNLOADS_URL = "https://entreclases.github.io/#usala";
+// Mail de contacto institucional (paso 183) — único lugar del que lo lee el app; la landing, el
+// portal y terminos.html no comparten este archivo, así que repiten el mismo string literal.
+const CONTACT_EMAIL = "contacto.entreclases@gmail.com";
 // Backend de sincronización: un único proyecto Supabase para todos los usuarios de la app.
 // La anon key es pública por diseño — la seguridad la dan las políticas RLS de la tabla
 // `cuaderno` (cada cuenta solo puede leer/escribir su propia fila; ver el repo cuaderno-supabase).

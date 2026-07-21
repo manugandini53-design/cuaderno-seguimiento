@@ -50,7 +50,7 @@ function vCuentaEnRevision(estado){
     </div>
     <div class="formcard">
       ${rechazado
-        ? `<div style="font-size:13.5px;margin-bottom:10px">No pudimos aprobar tu cuenta en Entreclases. Si te parece que es un error, escribinos a <a href="mailto:manugandini53@gmail.com">manugandini53@gmail.com</a>.</div>`
+        ? `<div style="font-size:13.5px;margin-bottom:10px">No pudimos aprobar tu cuenta en Entreclases. Si te parece que es un error, escribinos a <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</div>`
         : `<div style="font-size:13.5px;margin-bottom:10px">Ya recibimos tu registro. Falta que un administrador apruebe tu cuenta — normalmente el mismo día. Te avisamos por correo apenas esté lista.</div>`}
       <button class="primary" style="width:100%;margin-left:0" data-a="estado-refrescar" ${state.estadoChecking?"disabled":""}>${state.estadoChecking?"Revisando…":"Ya me avisaron, revisar de nuevo"}</button>
       <button class="chip" style="margin-top:10px;border:none;background:none;padding:2px 0;color:var(--muted)" data-a="auth-logout">Cerrar sesión</button>
