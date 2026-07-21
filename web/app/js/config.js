@@ -181,6 +181,15 @@ function usaBackendDev(){
 const IS_BACKEND_DEV = usaBackendDev();
 const SUPA_URL = IS_BACKEND_DEV ? SUPA_DEV.url : SUPA_PROD.url;
 const SUPA_ANON_KEY = IS_BACKEND_DEV ? SUPA_DEV.anonKey : SUPA_PROD.anonKey;
+// Cartelito de backend de desarrollo: inyectado directo al DOM (no depende de render()) para que
+// se vea en CUALQUIER pantalla, incluida la de login/registro — que es justo donde más hace falta
+// para no confundirse de backend si algo falla ahí.
+if(IS_BACKEND_DEV && document.body){
+  const badge = document.createElement("div");
+  badge.textContent = "⚙ backend de desarrollo";
+  badge.style.cssText = "position:fixed;bottom:10px;right:10px;z-index:9999;background:#F59E0B;color:#3D2B04;border-radius:8px;padding:4px 8px;font-size:11px;font-family:sans-serif;pointer-events:none";
+  document.body.appendChild(badge);
+}
 // Materiales por materia: bucket privado de Storage, carpetas materiales/{uid}/{subjectId}/{archivo}.
 // El aislamiento entre usuarios lo dan las políticas RLS del bucket (ver cuaderno-supabase),
 // no el código de acá — el cliente nunca arma una ruta con un uid que no sea el propio.
@@ -216,7 +225,7 @@ const PLAN_META = {
 };
 const PLAN_FEATURES = {};
 function tienePlan(feature){ return true; }
-const APP_VERSION = "2.5.1";
+const APP_VERSION = "2.5.2";
 // Modo demo (paso 82): ?demo=1 carga un cuaderno ficticio en memoria (ver buildDemoData() en
 // helpers.js), sin cuenta, sin sync y sin tocar localStorage ni el backend — ver el guard de
 // save() en helpers.js y el de ensureToken() en auth.js, y el gate de render() en views-core.js.
