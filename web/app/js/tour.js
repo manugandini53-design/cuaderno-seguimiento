@@ -136,9 +136,23 @@ function removeTourOverlay(){
   if(el) el.remove();
 }
 
+// Cualquier modal/overlay propio de la app (paso 132/77/141/147/…) se pinta con z-index 50
+// (ver .overlay en styles.css), bien por debajo del tour (9990) — sin este chequeo, el mask
+// del tour quedaba ENCIMA del modal de "Nuevo estudiante" y lo volvía inusable (sólo
+// "Saltar"/"Omitir" respondían, ni un campo del formulario). Mientras alguno de éstos esté
+// abierto, el tour se hace a un lado del todo (ni mask ni tarjeta) y vuelve a aparecer solo
+// en el próximo render una vez que el usuario lo cierra (completando la acción o cancelando).
+function tourBlockingOverlayOpen(){
+  return !!(state.showNew || state.searchOpen || state.fabPick || state.qrOverlay ||
+    state.shareOverlay || state.envioOverlay || state.feedbackOpen || state.agendaEdit ||
+    state.agendaEditGrupal || state.agendaHourList || state.agendaSolicitudOpen ||
+    state.grupalForm || state.finCuatrimestreOpen);
+}
+
 function renderTourOverlay(){
   removeTourOverlay();
   if(!state.tourActive) return;
+  if(tourBlockingOverlayOpen()) return;
   const idx=state.catalog.tourStep||0;
   const step=TOUR_STEPS[idx];
   if(!step){ tourFinish(); return; }
@@ -149,8 +163,16 @@ function renderTourOverlay(){
   const vw=window.innerWidth, vh=window.innerHeight;
   const reduced = (typeof prefersReducedMotion==="function") && prefersReducedMotion();
 
-  let masksHtml;
+  // Sin target definido (sólo el paso de bienvenida) → tarjeta centrada con mask completo,
+  // es un modal de verdad, no hay nada de la app detrás para tapar. Con target definido pero
+  // que TODAVÍA no está en el DOM (agenda antes de elegir un día, clase antes de "Clase
+  // pasada"…) → NADA de mask: el paso está esperando que el usuario llegue ahí interactuando
+  // con la página real, así que taparla entera sería el mismo bug que el de los modales
+  // (ver tourBlockingOverlayOpen) — sólo la tarjeta, sin bloquear un solo píxel de atrás.
+  const noTargetDefined = !step.target;
+  let masksHtml, blocking;
   if(rect && rect.width>0 && rect.height>0){
+    blocking=true;
     const pad=6;
     const x1=Math.max(0,rect.left-pad), y1=Math.max(0,rect.top-pad);
     const x2=Math.min(vw,rect.right+pad), y2=Math.min(vh,rect.bottom+pad);
@@ -159,15 +181,19 @@ function renderTourOverlay(){
       <div class="tour-mask" style="top:${y1}px;left:0;width:${x1}px;height:${Math.max(0,y2-y1)}px"></div>
       <div class="tour-mask" style="top:${y1}px;left:${x2}px;width:${Math.max(0,vw-x2)}px;height:${Math.max(0,y2-y1)}px"></div>
       <div class="tour-ring${reduced?"":" tour-ring-pulse"}" style="top:${y1}px;left:${x1}px;width:${x2-x1}px;height:${y2-y1}px"></div>`;
-  } else {
+  } else if(noTargetDefined){
+    blocking=true;
     masksHtml = `<div class="tour-mask" style="top:0;left:0;width:100%;height:100%"></div>`;
+  } else {
+    blocking=false;
+    masksHtml = "";
   }
 
   const total=TOUR_STEPS.length, isLast = idx===total-1;
   const canSkipStep = !!step.wait;
   const el=document.createElement("div");
   el.id="tour-overlay"; el.className="tour-overlay no-print";
-  el.setAttribute("role","dialog"); el.setAttribute("aria-modal","true");
+  el.setAttribute("role","dialog"); el.setAttribute("aria-modal", blocking?"true":"false");
   el.innerHTML = `${masksHtml}
     <div class="tour-card" id="tour-card">
       <div class="tour-progress">Paso ${idx+1} de ${total}</div>
@@ -181,15 +207,24 @@ function renderTourOverlay(){
       </div>
     </div>`;
   document.body.appendChild(el);
-  positionTourCard(rect && rect.width>0 && rect.height>0 ? rect : null);
+  positionTourCard(rect && rect.width>0 && rect.height>0 ? rect : null, noTargetDefined);
 }
 
-function positionTourCard(rect){
+// centered=true sólo para el paso de bienvenida (sin target, tarjeta de modal centrada). Sin
+// target encontrado pero CON target definido (esperando a que el usuario llegue ahí) va a una
+// esquina en vez del centro — no hay mask acá (ver renderTourOverlay), así que el centro de la
+// pantalla suele ser justo lo que el usuario necesita tocar (ej.: el calendario de la agenda).
+function positionTourCard(rect, centered){
   const card=document.getElementById("tour-card"); if(!card) return;
   const vw=window.innerWidth, vh=window.innerHeight;
-  if(!rect){
+  if(!rect && centered){
     card.style.top="50%"; card.style.left="50%"; card.style.transform="translate(-50%,-50%)";
     card.style.width=Math.min(360,vw-24)+"px";
+    return;
+  }
+  if(!rect){
+    card.style.width=Math.min(320,vw-24)+"px";
+    card.style.right="12px"; card.style.bottom="calc(12px + env(safe-area-inset-bottom))";
     return;
   }
   const cw=Math.min(320,vw-24);
