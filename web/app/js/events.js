@@ -936,11 +936,34 @@ document.addEventListener("click", (e)=>{
   }
   else if(a==="portal-publicar"){ publicarPortal(); return; }
   else if(a==="reserva-modo-set"){ setReservaModo(el.dataset.f); return; }
+  else if(a==="bloqueo-instantaneo-set"){ setBloqueoInstantaneo(el.dataset.f==="si"); return; }
   else if(a==="huecos-modo-set"){ setHuecosModo(el.dataset.f); return; }
   else if(a==="cancelar-clase-toggle"){ toggleCancelarClase(el.dataset.f==="si"); return; }
   else if(a==="solicitud-aceptar"){ aceptarSolicitudClase(el.dataset.id); return; }
   else if(a==="solicitud-rechazar"){ rechazarSolicitudClase(el.dataset.id); return; }
-  else if(a==="reserva-directa-ok"){ descartarReservaDirecta(el.dataset.id); return; }
+  // "Responder sin confirmar" un pedido de clase (paso 199): reveal-in-place del mini-panel con
+  // las tres salidas rápidas — mismo criterio que el resto de la app (ver comentario grande en
+  // vSolicitudPedidoAccionesHtml, views-tablero.js).
+  else if(a==="solicitud-responder-toggle"){
+    const id=el.dataset.id;
+    state.solicitudResponder = (state.solicitudResponder && String(state.solicitudResponder.id)===String(id)) ? null : {id};
+  }
+  else if(a==="solicitud-responder-plantilla"){ responderSolicitudClase(el.dataset.id, "Ese horario está ocupado"); return; }
+  else if(a==="solicitud-responder-enviar"){
+    const id=el.dataset.id;
+    const input=document.getElementById("solicitud-responder-texto-"+id);
+    responderSolicitudClase(id, input?input.value:"");
+    return;
+  }
+  else if(a==="solicitud-responder-rechazar"){ responderSolicitudClase(el.dataset.id, ""); return; }
+  else if(a==="solicitud-resuelta-listo"){ descartarSolicitudResuelta(); return; }
+  // Bloque "Pedido de clase" de la Agenda (paso 199, ver vAgendaSolicitudEvent/vAgendaSolicitudOverlay
+  // en views-agenda.js) — mismo patrón open/close/noop que el resto de los popovers de agenda.
+  else if(a==="agenda-solicitud-open"){
+    state.agendaSolicitudOpen=el.dataset.id; state.solicitudResponder=null;
+  }
+  else if(a==="agenda-solicitud-close"){ state.agendaSolicitudOpen=null; state.solicitudResponder=null; }
+  else if(a==="agenda-solicitud-noop"){ return; }
   else if(a==="aviso-add"){
     const texto=(document.getElementById("aviso-texto").value||"").trim(); if(!texto) return;
     const target=parseAvisoTarget(document.getElementById("aviso-target").value);

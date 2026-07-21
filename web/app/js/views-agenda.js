@@ -50,7 +50,7 @@ function vAgendaSemana(){
     return h;
   }
 
-  const events = markOverlaps(collapseGrupalEvents(agendaWeekEvents(weekStart)));
+  const events = markOverlaps(collapseGrupalEvents(agendaWeekEvents(weekStart).concat(solicitudesPedidoEventsFor(weekStart, weekEnd))));
   if(events.length===0 && !state.agendaDispEdit){
     h += `<div class="hint" style="margin-bottom:10px">Sin clases agendadas esta semana — clickeá un bloque de la grilla para programar una.</div>`;
   }else if(events.length>0){
@@ -141,7 +141,9 @@ function vAgendaDayEvents(list, date, startHour){
       const height = Math.max(26, (e.duration/60)*AGENDA_ROW_H - 2);
       const posStyle = `position:absolute;top:${top.toFixed(1)}px;height:${height.toFixed(1)}px;left:${(ci*colW).toFixed(2)}%;width:${colW.toFixed(2)}%`;
       const compact = height<46;
-      return e.kind==="grupal" ? vAgendaEventGrupal(e,date,posStyle,compact) : vAgendaEvent(e,date,posStyle,compact);
+      if(e.kind==="grupal") return vAgendaEventGrupal(e,date,posStyle,compact);
+      if(e.kind==="solicitud") return vAgendaSolicitudEvent(e,posStyle,compact);
+      return vAgendaEvent(e,date,posStyle,compact);
     }).join("");
   }).join("");
 }
@@ -232,7 +234,7 @@ function vAgendaMes(){
 }
 
 function vAgendaDayDetail(date){
-  const events = markOverlaps(collapseGrupalEvents(agendaRangeEvents(date,date))).sort((a,b)=>a.time.localeCompare(b.time));
+  const events = markOverlaps(collapseGrupalEvents(agendaRangeEvents(date,date).concat(solicitudesPedidoEventsFor(date,date)))).sort((a,b)=>a.time.localeCompare(b.time));
   let h = `<div class="formcard">
     <div class="ftitle">${esc(fmtDate(date))}${date===today()?" · hoy":""}</div>`;
   h += events.length===0 ? `<div class="empty">Sin clases este día.</div>`
@@ -326,6 +328,50 @@ function vAgendaEventGrupal(e, date, posStyle, compact){
     ${past && already ? `<div class="hint" style="color:var(--status-activo-fg)">Ya registrada</div>` : ""}
     ${past && !already ? `<button class="chip" style="margin-top:6px" data-a="agenda-event-grupal-open" data-grupo-id="${e.grupoId}" data-kind="${e.sourceKind}" data-orig-date="${e.origDate||e.date}">Registrar esta clase</button>` : ""}
     ${!past && e.link ? `<a class="chip" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(e.link)}">Entrar a la clase</a>` : ""}
+  </div>`;
+}
+
+// Bloque de un pedido de clase pendiente (paso 199) en la grilla — mismo lugar que una clase real,
+// pero con estilo propio (fondo punteado, sin color de materia) para que se note a simple vista
+// que todavía no está agendado. Tocarlo abre vAgendaSolicitudOverlay() para resolverlo ahí mismo
+// (Aceptar/Responder), sin tener que ir hasta el Tablero.
+function vAgendaSolicitudEvent(e, posStyle, compact){
+  const style = `${posStyle||""};border-left:3px dashed var(--muted);background:var(--soft)`;
+  if(compact){
+    return `<div class="agenda-event compact" style="${style}" data-a="agenda-solicitud-open" data-id="${e.solicitudId}">
+      <span class="agenda-time">${esc(e.time)}</span><span class="agenda-who-compact">Pedido: ${esc(e.studentName)}</span>
+    </div>`;
+  }
+  return `<div class="agenda-event" style="${style}" data-a="agenda-solicitud-open" data-id="${e.solicitudId}">
+    <div class="agenda-time">${esc(e.time)} <span class="hint">pedido de clase</span></div>
+    <div class="agenda-who" style="display:flex;align-items:center;gap:5px">${e.subjectId?subjectDot(e.subjectId):""} <b>${esc(e.studentName)}</b>${e.subject?` <span class="hint">· ${esc(e.subject)}</span>`:""}</div>
+    <div class="hint">Pendiente de confirmación — tocá para resolver</div>
+  </div>`;
+}
+
+// Popover para resolver un pedido de clase desde la Agenda (paso 199) — mismas acciones que la
+// fila del Tablero (vSolicitudPedidoAccionesHtml en views-tablero.js), sin duplicar esa lógica.
+// Sigue mostrando el panel de "Responder" o el resultado con WhatsApp (state.solicitudResuelta) si
+// corresponde, hasta que el docente lo cierra o lo descarta.
+function vAgendaSolicitudOverlay(){
+  const id = state.agendaSolicitudOpen; if(!id) return "";
+  const sol = (state.solicitudesClase||[]).find(x=>String(x.id)===String(id));
+  const resuelta = state.solicitudResuelta && String(state.solicitudResuelta.id)===String(id) ? state.solicitudResuelta : null;
+  if(!sol && !resuelta){ state.agendaSolicitudOpen=null; return ""; }
+  const studentId = sol ? sol.studentId : resuelta.studentId;
+  const s = state.students.find(x=>x.id===studentId);
+  return `<div class="overlay" data-a="agenda-solicitud-close">
+    <div class="modal" data-a="agenda-solicitud-noop" style="max-width:400px">
+      <div class="ftitle" style="font-size:16px">Pedido de clase</div>
+      <div class="hint" style="margin-bottom:10px">
+        <b>${esc(s?s.name:"Alumno eliminado")}</b>${sol?` — ${esc(fmtDate(sol.fecha))} a las ${esc(sol.hora)}`:""}
+        ${sol && sol.nota?`<div class="note">«${esc(sol.nota)}»</div>`:""}
+      </div>
+      ${sol ? vSolicitudPedidoAccionesHtml(sol, s) : vSolicitudResueltaHtml(resuelta, s)}
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="chip" data-a="agenda-solicitud-close">Cerrar</button>
+      </div>
+    </div>
   </div>`;
 }
 

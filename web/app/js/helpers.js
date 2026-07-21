@@ -114,7 +114,7 @@ let state = { students:[], catalog:defaultCatalog(), ownerUid:null, editSubjectI
               pendingConfirmEmail:null, confirmStatus:"idle", confirmError:"",
               reportMsg:"", reportStatus:"idle", reportError:"",
               reportes:[], reportFilter:"pendiente", reportesLoaded:false, reportesError:"",
-              solicitudesClase:[], reservasDirectas:[],
+              solicitudesClase:[], solicitudResponder:null, solicitudResuelta:null, agendaSolicitudOpen:null,
               panelTab:"reportes", users:[], usersLoaded:false, usersError:"",
               metricas:[], altas:[], actividadLoaded:false, actividadError:"", actividadMode:"dia",
               metricasHorarias:[], metricasHorariasLoaded:false, metricasHorariasError:"",
@@ -528,6 +528,7 @@ function load(){
     const d=buildDemoData();
     state.students=d.students; state.catalog=d.catalog;
     state.portal=d.portal; state.portalLoaded=true; state.portalError="";
+    state.solicitudesClase=d.solicitudesClase;
     return;
   }
   const uid_ = sesUid();
@@ -1740,6 +1741,22 @@ function editPuntualClase(studentId, puntualId, patch){
   update(studentId,{clasesPuntuales});
 }
 function agendaWeekEvents(weekStart){ return agendaRangeEvents(weekStart, addDays(weekStart,6)); }
+// Pedidos de clase pendientes (paso 199) como eventos sintéticos de agenda — para que "Pedido de
+// clase — Ana, 18:00" aparezca en la grilla semanal/día igual que una clase real (kind:"solicitud",
+// duración fija de 60min sólo a efectos de dibujarlo con un alto razonable, no es la duración de
+// ninguna clase todavía). Sólo tipo "pedido" con estado "pedida" — cancelaciones y legado "directa"
+// (siempre ya resueltas) no van acá, esas siguen viviendo sólo en la tarjeta del Tablero. Alumnos
+// borrados se saltean (no hay ficha a la que ir si se toca el bloque).
+function solicitudesPedidoEventsFor(fromDate, toDate){
+  return (state.solicitudesClase||[])
+    .filter(sol=>(sol.tipo||"pedido")==="pedido" && sol.estado==="pedida" && sol.fecha>=fromDate && sol.fecha<=toDate)
+    .map(sol=>{
+      const s = state.students.find(x=>x.id===sol.studentId);
+      if(!s) return null;
+      return {kind:"solicitud", solicitudId:sol.id, studentId:s.id, studentName:s.name,
+        subject:s.subject, subjectId:s.subjectId, date:sol.fecha, time:sol.hora, duration:60, nota:sol.nota||""};
+    }).filter(Boolean);
+}
 // Qué exportar a .ics (paso 110): el mismo período que se está viendo en Agenda — la semana
 // actual (con su offset) o la grilla completa del mes elegido — para que el botón "Exportar a
 // mi calendario" siempre coincida con lo que hay en pantalla. label sirve para el nombre del
@@ -1822,22 +1839,38 @@ function toggleSemanaCompleta(weekStart){
   touchCatalog();
 }
 
-/* ============ "Cómo reservan tus alumnos" (paso 173) ============
-   Reemplaza al simple on/off de "Pedir una clase" (paso 160) por tres modos, guardados en
-   state.portal.publicado.reservaModo: "apagado" (nada), "confirmar" (el flujo de siempre: el
-   alumno pide un hueco y el docente lo acepta/rechaza a mano) o "directa" (nuevo: el alumno toca
-   un hueco y la clase queda agendada al toque, orden de llegada real vía la RPC atómica
-   reservar_clase_portal(), ver 026_reserva_directa.sql en cuaderno-supabase). pedirClaseHabilitado
+/* ============ "Cómo reservan tus alumnos" (pasos 160/173/199) ============
+   Un solo modo activable, guardado en state.portal.publicado.reservaModo: "apagado" (nada) o
+   "confirmar" (el alumno pide un hueco con una nota opcional y SIEMPRE queda "pendiente de
+   confirmación" — el docente lo acepta, que agenda la clase, o responde sin confirmar, ver
+   aceptarSolicitudClase()/responderSolicitudClase() en sync.js). "directa" es un valor LEGADO
+   (paso 173, "Reservan directo": agendaba la clase sola al tocar un hueco) — ya no se puede elegir
+   desde Cuenta → Portal, pero un portal configurado antes del paso 199 puede seguir teniéndolo
+   guardado, así que se resuelve como "confirmar" (nunca vuelve a agendar solo). pedirClaseHabilitado
    se sigue escribiendo en paralelo (true sólo si reservaModo==="confirmar") sólo por compatibilidad
    con un portal.js viejo que quedó en el caché HTTP del navegador de algún alumno — resolveReservaModo()
    es la única fuente de verdad del lado del cliente, cae a ese campo viejo si reservaModo nunca se
-   escribió (portal configurado antes de este paso). */
+   escribió (portal configurado antes del paso 160). */
 function resolveReservaModo(publicado){
   if(!publicado) return "apagado";
+  if(publicado.reservaModo==="directa") return "confirmar"; // legado paso 173
   if(publicado.reservaModo) return publicado.reservaModo;
   return publicado.pedirClaseHabilitado ? "confirmar" : "apagado";
 }
 function reservaModoFor(){ return resolveReservaModo(state.portal && state.portal.publicado); }
+// "Bloquear el horario apenas lo piden" (paso 199): sub-toggle de "confirmar" — si está activo, el
+// hueco se saca de publicado.huecos apenas alguien lo pide (orden de llegada real, mismo mecanismo
+// atómico que tenía el viejo modo "directa"), así nadie más lo puede pedir mientras el docente no
+// resuelve; si el docente lo rechaza, vuelve solo al próximo recálculo (nunca se agendó nada). Si
+// está apagado (default), el hueco queda visible y más de un alumno puede pedirlo — el docente elige
+// a mano entre los pedidos. El valor legado "directa" siempre bloqueaba al instante, así que cuenta
+// como bloqueoInstantaneo=true aunque el docente nunca haya tocado este sub-toggle nuevo.
+function resolveBloqueoInstantaneo(publicado){
+  if(!publicado) return false;
+  if(typeof publicado.bloqueoInstantaneo==="boolean") return publicado.bloqueoInstantaneo;
+  return publicado.reservaModo==="directa";
+}
+function bloqueoInstantaneoFor(){ return resolveBloqueoInstantaneo(state.portal && state.portal.publicado); }
 
 /* ============ "Qué horarios ven tus alumnos" (paso 198) ============
    Guardado en publicado.huecosModo: "libres" (default, ausente = libres) sólo ofrece celdas sin
@@ -2452,7 +2485,7 @@ function clearAccountState(){
   state.recursos=null; state.recursosLoaded=false; state.recursosError="";
   state.backups=[]; state.backupsLoaded=false; state.backupsError="";
   state.materialesList=[]; state.materialesLoaded=false; state.materialesError="";
-  state.solicitudesClase=[]; state.reservasDirectas=[];
+  state.solicitudesClase=[]; state.solicitudResponder=null; state.solicitudResuelta=null; state.agendaSolicitudOpen=null;
 }
 
 /* ============ búsqueda global (paso 72): alumnos, materias y materiales por nombre, todo
@@ -3099,20 +3132,29 @@ function buildDemoData(){
   // Valentina (ver portalShare de cada una más arriba) y una llave grupal para Análisis
   // Matemático I con Lucía, Camila y Nicolás — todo simulado en memoria, sin fila real en
   // Supabase (ver los guards IS_DEMO de fetchPortalRow()/loadPortal()/publicarPortal() en
-  // sync.js, que hacen que esto se lea y "edite" sin pegarle nunca a la red). "Reserva directa"
-  // (paso 173) arranca encendida con los huecos de la disponibilidad de arriba y la clase puntual
-  // de Lucía como ejemplo de "Tu clase" en su agenda semanal — huecosLibresProximos14Dias() y
-  // proximasClasesFor() se recalculan en vivo desde este mismo catalog/students, no hay nada
-  // hardcodeado acá aparte de la disponibilidad.
+  // sync.js, que hacen que esto se lea y "edite" sin pegarle nunca a la red). "Pueden pedir clases"
+  // (paso 199) arranca encendido con bloqueoInstantaneo activo y los huecos de la disponibilidad
+  // de arriba, más la clase puntual de Lucía como ejemplo de "Tu clase" en su agenda semanal —
+  // huecosLibresProximos14Dias() y proximasClasesFor() se recalculan en vivo desde este mismo
+  // catalog/students, no hay nada hardcodeado acá aparte de la disponibilidad.
   const portal = {
     token:"DEMOPORTAL1", habilitado:true, draftNombre:"Prof. Demo",
-    publicado:{nombre:"Prof. Demo", reservaModo:"directa", huecos:huecosLibresProximos14Dias(),
+    publicado:{nombre:"Prof. Demo", reservaModo:"confirmar", bloqueoInstantaneo:true, huecos:huecosLibresProximos14Dias(),
       alumnos:{ [lucia.id]:{misClases:proximasClasesFor(lucia)}, [valentina.id]:{misClases:proximasClasesFor(valentina)} }},
     tokensAlumnos:{ "DEMOALUM001":lucia.id, "DEMOALUM002":valentina.id },
     tokensGrupos:{ "DEMOGRUPO01":{materiaId:"demo-am1", alumnos:students.filter(s=>s.subjectId==="demo-am1" && !s.deleted).map(s=>s.id)} },
   };
 
+  // Un pedido pendiente de ejemplo (paso 199): Valentina pidió un horario y todavía espera que el
+  // docente lo acepte o responda — para que se vea el flujo completo en la demo, tanto en la
+  // tarjeta del Tablero como en el bloque de la Agenda (ver vSolicitudesClaseCard/vAgendaSolicitudEvent).
+  const solicitudesClase = [
+    {id:"demo-sol-1", studentId:valentina.id, fecha:addDays(today(),4), hora:"17:00",
+      nota:"¿Podemos repasar derivadas antes del parcial?", tipo:"pedido", estado:"pedida",
+      kind:null, sourceId:null, createdAt:Date.now()},
+  ];
+
   normalizeCatalogUnits(catalog); // por si algo (ej. la materia de la papelera, arriba) quedó con units sin normalizar
   normalizeCatalogCareers(catalog, students);
-  return { students, catalog, portal };
+  return { students, catalog, portal, solicitudesClase };
 }

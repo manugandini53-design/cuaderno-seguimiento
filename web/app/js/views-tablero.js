@@ -109,59 +109,87 @@ function vTuDia(){
   </div>`;
 }
 
-/* ============ solicitudes de clase pedidas o canceladas desde el portal (pasos 160 y 172) ============
+/* ============ solicitudes de clase pedidas o canceladas desde el portal (pasos 160/172, con
+   confirmación siempre obligatoria desde el 199) ============
    state.solicitudesClase se refresca en cada heartbeat (~5min con la pestaña visible, ver
    refreshSolicitudesClase() en sync.js) y al resolver una a mano — siempre las "pedida" nada
    más (ya resueltas no vuelven a aparecer acá). Dos tipos mezclados en la misma lista, distinguidos
-   por sol.tipo: "pedido" (aceptar agenda una clasePuntual de 60 min, editable después en la
-   ficha) o "cancelacion" (aceptar cancela esa ocurrencia puntual/recurrente de siempre, ver
-   aceptarSolicitudClase en sync.js); rechazar pide un motivo opcional con prompt() nativo, mismo
-   criterio ya usado en la app para textos cortos puntuales (ver "+ nueva carrera"). */
+   por sol.tipo: "pedido" (Aceptar agenda una clasePuntual de 60 min, editable después en la ficha,
+   o Responder deja el pedido rechazado con un mensaje opcional para el alumno — ver
+   vSolicitudPedidoAccionesHtml más abajo) o "cancelacion" (Aceptar cancela esa ocurrencia
+   puntual/recurrente de siempre, Rechazar pide un motivo opcional con prompt() nativo — sin
+   cambios sobre el paso 172). El mismo bloque de acciones se reusa desde la Agenda (ver
+   vAgendaSolicitudOverlay en views-agenda.js) para resolver un pedido tocándolo ahí directo. */
 function vSolicitudesClaseCard(){
   const list = state.solicitudesClase||[];
   if(list.length===0) return "";
   return `<div class="formcard">
     <div class="ftitle">Solicitudes de clase (portal)</div>
-    <div class="hint" style="margin-bottom:10px">Pedidos y avisos de cancelación mandados por alumnos desde su portal — aceptá o rechazá con un motivo opcional.</div>
-    ${list.map(vSolicitudClaseRow).join("")}
+    <div class="hint" style="margin-bottom:10px">Pedidos y avisos de cancelación mandados por alumnos desde su portal — un pedido queda pendiente hasta que lo aceptás o le respondés; una cancelación, hasta que la aceptás o rechazás.</div>
+    ${list.map(sol=>vSolicitudClaseRow(sol)).join("")}
   </div>`;
 }
 
 function vSolicitudClaseRow(sol){
   const s = state.students.find(x=>x.id===sol.studentId);
   const esCancel = sol.tipo==="cancelacion";
-  return `<div class="log" style="align-items:flex-start">
+  const acciones = esCancel
+    ? `<div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${s?`<button class="chip" data-a="solicitud-aceptar" data-id="${sol.id}">Aceptar (cancelar clase)</button>`:""}
+        <button class="chip" data-a="solicitud-rechazar" data-id="${sol.id}">Rechazar</button>
+      </div>`
+    : vSolicitudPedidoAccionesHtml(sol, s);
+  return `<div class="log" style="align-items:flex-start;flex-wrap:wrap">
     <div class="body"><b>${esc(s?s.name:"Alumno eliminado")}</b> ${esCancel?"avisó que no puede ir a la clase del":"pidió"} ${fmtDate(sol.fecha)}${esCancel?"":" a las "+esc(sol.hora)}
       ${esCancel?` <span class="pill" style="color:var(--status-desaprobo-fg);background:var(--redbg)">Cancelación</span>`:""}
       ${sol.nota?`<div class="note">«${esc(sol.nota)}»</div>`:""}
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${s?`<button class="chip" data-a="solicitud-aceptar" data-id="${sol.id}">${esCancel?"Aceptar (cancelar clase)":"Aceptar"}</button>`:""}
-      <button class="chip" data-a="solicitud-rechazar" data-id="${sol.id}">Rechazar</button>
-    </div>
+    ${acciones}
   </div>`;
 }
 
-/* ============ avisos de "Reserva directa" (paso 173) ============
-   A diferencia de vSolicitudesClaseCard de arriba, estas ya están aplicadas (la clase quedó
-   agendada sola, ver reservar_clase_portal() en cuaderno-supabase) — no hay nada que
-   aceptar/rechazar, sólo un aviso descartable ("Ok, listo") para que el docente se entere.
-   state.reservasDirectas se refresca junto a state.solicitudesClase (mismo heartbeat, ver
-   refreshSolicitudesClase en sync.js). */
-function vReservasDirectasCard(){
-  const list = state.reservasDirectas||[];
-  if(list.length===0) return "";
-  return `<div class="formcard">
-    <div class="ftitle">Reservas nuevas (portal)</div>
-    ${list.map(r=>{
-      const s = state.students.find(x=>x.id===r.studentId);
-      return `<div class="log" style="align-items:flex-start">
-        <div class="body"><b>${esc(s?s.name:"Alumno eliminado")}</b> reservó ${fmtDate(r.fecha)} a las ${esc(r.hora)}
-          <span class="pill" style="color:var(--status-activo-fg);background:var(--greenbg)">Agendada</span>
-        </div>
-        <button class="chip" data-a="reserva-directa-ok" data-id="${r.id}">Ok, listo</button>
-      </div>`;
-    }).join("")}
+// Acciones de un pedido de clase ("pedido"/legado "directa" sin resolver, paso 199): "Aceptar"
+// agenda la clase de siempre; "Responder" abre un mini-panel con las tres salidas rápidas — mismo
+// patrón de reveal-in-place que el "No puedo ir" del portal (ver wireCancelUi en portal.js), sin
+// overlay ni navegar a ningún lado. Si el alumno ya no existe, no hay a quién responderle ni
+// agendarle nada — sólo se puede descartar. Reusado también desde el popover de Agenda
+// (vAgendaSolicitudOverlay), por eso no asume que está dentro de la tarjeta del Tablero.
+function vSolicitudPedidoAccionesHtml(sol, s){
+  if(!s) return `<button class="chip" data-a="solicitud-responder-rechazar" data-id="${sol.id}">Descartar</button>`;
+  const resuelta = state.solicitudResuelta && String(state.solicitudResuelta.id)===String(sol.id) ? state.solicitudResuelta : null;
+  if(resuelta) return vSolicitudResueltaHtml(resuelta, s);
+  const abierto = state.solicitudResponder && String(state.solicitudResponder.id)===String(sol.id);
+  let h = `<div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="chip" data-a="solicitud-aceptar" data-id="${sol.id}">Aceptar</button>
+    <button class="chip ${abierto?"on":""}" data-a="solicitud-responder-toggle" data-id="${sol.id}">Responder</button>
+  </div>`;
+  if(abierto){
+    h += `<div style="width:100%;margin-top:8px;padding:10px;background:var(--soft);border-radius:9px">
+      <button class="chip" data-a="solicitud-responder-plantilla" data-id="${sol.id}">Ese horario está ocupado</button>
+      <div class="frow" style="margin-top:8px;align-items:flex-end">
+        <div class="field" style="flex:1;min-width:180px"><div class="flabel">Mensaje corto (opcional)</div>
+          <input type="text" id="solicitud-responder-texto-${sol.id}" maxlength="200" placeholder="Ej: ¿Puede ser a las 16?"></div>
+        <button class="chip" data-a="solicitud-responder-enviar" data-id="${sol.id}" style="margin-bottom:2px">Enviar</button>
+      </div>
+      <button class="chip" data-a="solicitud-responder-rechazar" data-id="${sol.id}" style="margin-top:8px">Rechazar sin mensaje</button>
+    </div>`;
+  }
+  return h;
+}
+
+// Después de "Responder" con plantilla/mensaje propio (nunca sin mensaje: ahí no hay nada que
+// mostrarle al alumno ni mandar por WhatsApp, se descarta directo — ver responderSolicitudClase en
+// sync.js): deja el texto a la vista con el botón de WhatsApp a mano (mismo texto, por si el
+// docente quiere mandárselo directo además de que ya le quedó visible en su portal) hasta tocar
+// "Listo".
+function vSolicitudResueltaHtml(resuelta, s){
+  const wa = (s && hasPhone(s)) ? `<a class="chip" target="_blank" rel="noopener" href="${waLink(s, resuelta.texto)}">Mandar por WhatsApp</a>` : "";
+  return `<div style="width:100%">
+    <div class="note">Le respondiste: «${esc(resuelta.texto)}»</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+      ${wa}
+      <button class="chip" data-a="solicitud-resuelta-listo">Listo</button>
+    </div>
   </div>`;
 }
 
@@ -270,7 +298,6 @@ function vTablero(){
   h += vBackupReminder();
   h += vCumpleanosBanner();
   h += vTuDia();
-  h += vReservasDirectasCard();
   h += vSolicitudesClaseCard();
 
   h += `<div class="hoy-grid">${vHoyClasesHoy()}${vHoyCobrar()}${vHoyProximo()}</div>`;

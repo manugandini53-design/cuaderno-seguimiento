@@ -763,17 +763,39 @@ async function togglePortalHabilitado(next){
     render();
   }
 }
-// "Cómo reservan tus alumnos" (paso 173): reemplaza al on/off de "Pedir una clase" (paso 160,
-// togglePedirClase) por un selector de tres modos — instantáneo (mismo patrón optimista de
-// siempre) y con el mismo efecto secundario sobre huecos: al pasar a "confirmar" o "directa"
-// recalcula y publica los huecos ya mismo (no hace falta esperar al próximo "Publicar cambios");
-// al apagar, los vacía para que el portal deje de ofrecerlos al toque. pedirClaseHabilitado se
-// sigue escribiendo en paralelo por compatibilidad (ver resolveReservaModo() en helpers.js).
+// "Cómo reservan tus alumnos" (pasos 160/173, simplificado en el 199): on/off de "Pueden pedir
+// clases" — instantáneo (mismo patrón optimista de siempre) y con el mismo efecto secundario sobre
+// huecos: al activar recalcula y publica los huecos ya mismo (no hace falta esperar al próximo
+// "Publicar cambios"); al apagar, los vacía para que el portal deje de ofrecerlos al toque.
+// pedirClaseHabilitado se sigue escribiendo en paralelo por compatibilidad (ver resolveReservaModo()
+// en helpers.js). modo sólo puede ser "apagado"/"confirmar" de acá en más — "directa" (paso 173)
+// queda como valor legado que ya no se puede volver a elegir desde acá, ver el sub-toggle
+// bloqueoInstantaneo (setBloqueoInstantaneo() más abajo) para lo que lo reemplaza.
 async function setReservaModo(modo){
   if(!state.portal || reservaModoFor()===modo) return;
   const prevPublicado=state.portal.publicado;
   const huecos=modo==="apagado"?[]:huecosLibresProximos14Dias();
   const publicado={...state.portal.publicado, reservaModo:modo, pedirClaseHabilitado:modo==="confirmar", huecos};
+  state.portal.publicado=publicado; render();
+  if(IS_DEMO) return;
+  try{
+    const {uid_, h}=await fetchPortalRow("publicado");
+    await patchPortalRow(uid_, h, {publicado});
+  }catch(e){
+    state.portal.publicado=prevPublicado;
+    state.portalError = !navigator.onLine ? "Sin conexión a internet." : "No se pudo actualizar. Probá de nuevo.";
+    render();
+  }
+}
+// "Bloquear el horario apenas lo piden" (paso 199): sub-toggle de "confirmar" — mismo patrón
+// optimista que setReservaModo. No cambia CUÁLES huecos hay (por eso no toca publicado.huecos acá,
+// a diferencia de setReservaModo/setHuecosModo) — sólo si un pedido nuevo los saca de la lista al
+// toque (pedir_clase_portal() en cuaderno-supabase) o quedan visibles para que más de un alumno
+// pida el mismo horario y el docente elija a mano.
+async function setBloqueoInstantaneo(on){
+  if(!state.portal || bloqueoInstantaneoFor()===on) return;
+  const prevPublicado=state.portal.publicado;
+  const publicado={...state.portal.publicado, bloqueoInstantaneo:on};
   state.portal.publicado=publicado; render();
   if(IS_DEMO) return;
   try{
@@ -851,7 +873,10 @@ async function maybeSyncHuecosPortal(uid_, s){
 // cancelaciones): cada docente ve sólo las propias (RLS por user_id) — se refresca en cada
 // heartbeat (~5min con la pestaña visible, ver maybeHeartbeat) y al resolver una a mano, mismo
 // criterio que refreshReportesBadge() pero acá sí trae las filas enteras (no sólo un conteo)
-// porque el Tablero necesita mostrarlas, no sólo avisar que hay algo pendiente.
+// porque el Tablero/Agenda necesitan mostrarlas, no sólo avisar que hay algo pendiente. Desde el
+// paso 199 un pedido ("pedido") nunca llega ya confirmado — el legado "directa" (paso 173, ya
+// agendado de entrada) no vuelve a generarse, pero si quedó alguna fila vieja sin resolver ("pedida"
+// de antes de este paso) se muestra igual que un pedido común, mismo Aceptar/Responder.
 async function refreshSolicitudesClase(){
   if(IS_DEMO || !getSes()) return;
   try{
@@ -860,44 +885,20 @@ async function refreshSolicitudesClase(){
     const r=await fetch(SUPA_URL+"/rest/v1/solicitudes_clase?select=id,student_id,fecha,hora,nota,tipo,kind,source_id,created_at&estado=eq.pedida&order=created_at.asc", {headers:h});
     if(!r.ok) return;
     const rows=await r.json();
+    const prevLen=(state.solicitudesClase||[]).length;
     state.solicitudesClase=rows.map(x=>({id:x.id, studentId:x.student_id, fecha:x.fecha, hora:x.hora, nota:x.nota||"",
       tipo:x.tipo||"pedido", kind:x.kind||null, sourceId:x.source_id||null, createdAt:x.created_at}));
-  }catch(e){ /* silencioso, se reintenta en el próximo heartbeat */ }
-  // Reservas directas (paso 173): ya están aplicadas (estado="confirmada" desde que se insertan,
-  // ver reservar_clase_portal() en 026_reserva_directa.sql), así que no comparten lista con las de
-  // arriba (que necesitan aceptar/rechazar) — acá se trae nada más que las que el docente todavía
-  // no descartó ("vista"=false), como aviso simple en el Tablero.
-  try{
-    const s=await ensureToken();
-    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access};
-    const r=await fetch(SUPA_URL+"/rest/v1/solicitudes_clase?select=id,student_id,fecha,hora,created_at&tipo=eq.directa&vista=eq.false&order=created_at.desc", {headers:h});
-    if(r.ok){
-      const rows=await r.json();
-      state.reservasDirectas=rows.map(x=>({id:x.id, studentId:x.student_id, fecha:x.fecha, hora:x.hora, createdAt:x.created_at}));
-      // Festejo de la PRIMERA reserva directa recibida jamás (paso 179): flag de una sola vez en
-      // localStorage (no en catalog.updatedAt — no hace falta que viaje entre dispositivos, y así
-      // restaurar un respaldo viejo no lo revive). No es "la primera fila de este heartbeat" sino
-      // literalmente la primera vez que este dispositivo ve alguna reserva directa.
-      if(rows.length>0 && localStorage.getItem(nsKey(FIRST_RESERVA_KEY))!=="1"){
-        localStorage.setItem(nsKey(FIRST_RESERVA_KEY),"1");
-        if(typeof fireConfetti==="function") fireConfetti({colors:RESERVA_CONFETTI, n:36, duration:900});
-        if(typeof soundReserva==="function") soundReserva();
-      }
+    // Festejo del PRIMER pedido recibido jamás (paso 179, adaptado en el 199 — antes festejaba la
+    // primera reserva directa auto-aplicada, ahora el primer pedido pendiente): flag de una sola vez
+    // en localStorage (no en catalog.updatedAt — no hace falta que viaje entre dispositivos, y así
+    // restaurar un respaldo viejo no lo revive).
+    if(prevLen===0 && rows.length>0 && localStorage.getItem(nsKey(FIRST_RESERVA_KEY))!=="1"){
+      localStorage.setItem(nsKey(FIRST_RESERVA_KEY),"1");
+      if(typeof fireConfetti==="function") fireConfetti({colors:RESERVA_CONFETTI, n:36, duration:900});
+      if(typeof soundReserva==="function") soundReserva();
     }
   }catch(e){ /* silencioso, se reintenta en el próximo heartbeat */ }
   render();
-}
-// Descarta un aviso de reserva directa del Tablero (paso 173) — no hay "aceptar/rechazar", la
-// clase ya está agendada; esto sólo apaga el aviso (vista=true), mismo patrón optimista que
-// rechazarSolicitudClase.
-async function descartarReservaDirecta(id){
-  state.reservasDirectas=(state.reservasDirectas||[]).filter(x=>String(x.id)!==String(id));
-  render();
-  try{
-    const s=await ensureToken();
-    const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json", Prefer:"return=minimal"};
-    await fetch(SUPA_URL+"/rest/v1/solicitudes_clase?id=eq."+encodeURIComponent(id), {method:"PATCH", headers:h, body:JSON.stringify({vista:true})});
-  }catch(e){ /* silencioso: se puede reintentar, y de última vuelve a aparecer en el próximo refresh */ }
 }
 async function patchSolicitudClase(id, patch){
   const s=await ensureToken();
@@ -906,12 +907,16 @@ async function patchSolicitudClase(id, patch){
     body:JSON.stringify({...patch, resuelta_at:new Date().toISOString()})});
 }
 // Aceptar: si es un pedido de clase, agenda una clasePuntual de siempre (addPuntualClase, 60 min
-// por defecto — editable después en la ficha, el pedido del portal no incluye duración); si es
-// una cancelación (paso 172), aplica exactamente lo mismo que cancelar esa ocurrencia a mano
-// desde la Agenda — applyCancelacion() (clase puntual, respeta la política de señas) o
-// cancelHorarioOccurrence() (ocurrencia de horario recurrente, sólo esa fecha vía exceptions). El
-// hueco de "pedir clase" queda ocupado solo en el próximo recálculo (maybeSyncHuecosPortal en el
-// siguiente sync, o al tocar "Publicar cambios") — una cancelación no toca huecos.
+// por defecto — editable después en la ficha, el pedido del portal no incluye duración); si el
+// alumno tiene mail con recordatorios activos, le llega el aviso normal solo (recordatorio_clases,
+// cron server-side, no hace falta disparar nada acá). Si es una cancelación (paso 172), aplica
+// exactamente lo mismo que cancelar esa ocurrencia a mano desde la Agenda — applyCancelacion()
+// (clase puntual, respeta la política de señas) o cancelHorarioOccurrence() (ocurrencia de horario
+// recurrente, sólo esa fecha vía exceptions). Un pedido aceptado también actualiza el portal al
+// toque (paso 199): republishAlumnoBlock() para que "Confirmada ✓"/"Tu clase" aparezcan sin
+// esperar a "Publicar cambios", y maybeSyncHuecosPortal() para que el hueco quede ocupado (si
+// bloqueoInstantaneo ya lo había sacado de la lista, esto lo deja consistente igual; si no, recién
+// ahora se saca, porque recién ahora existe la clase de verdad). Una cancelación no toca huecos.
 async function aceptarSolicitudClase(id){
   const sol=(state.solicitudesClase||[]).find(x=>String(x.id)===String(id)); if(!sol) return;
   const s=state.students.find(x=>x.id===sol.studentId);
@@ -926,22 +931,65 @@ async function aceptarSolicitudClase(id){
     msg = warning?"Clase agendada — "+warning:"Clase agendada con "+s.name+".";
   }
   state.solicitudesClase=(state.solicitudesClase||[]).filter(x=>String(x.id)!==String(id));
+  if(state.agendaSolicitudOpen && String(state.agendaSolicitudOpen)===String(id)) state.agendaSolicitudOpen=null;
   render();
   toast(msg, "ok");
   try{
     await patchSolicitudClase(id, {estado:"confirmada"});
     if(sol.tipo!=="cancelacion"){
       const sess=await ensureToken();
+      await republishAlumnoBlock(s.id);
       maybeSyncHuecosPortal(jwtSub(sess.access), sess);
     }
   }catch(e){ /* silencioso: el cambio ya quedó aplicado localmente y sincroniza igual */ }
 }
+// Rechazar sin más (cancelaciones, paso 172): motivo libre por prompt() nativo, sin cambios sobre
+// el criterio de siempre. Un pedido de clase (paso 199) usa responderSolicitudClase() en cambio,
+// que ofrece las tres salidas rápidas (plantilla/mensaje propio/sin mensaje) en vez de un prompt().
 async function rechazarSolicitudClase(id){
   const sol=(state.solicitudesClase||[]).find(x=>String(x.id)===String(id)); if(!sol) return;
   const motivo=(prompt("Motivo (opcional):")||"").trim();
   state.solicitudesClase=(state.solicitudesClase||[]).filter(x=>String(x.id)!==String(id));
+  if(state.agendaSolicitudOpen && String(state.agendaSolicitudOpen)===String(id)) state.agendaSolicitudOpen=null;
   render();
   try{ await patchSolicitudClase(id, {estado:"rechazada", motivo}); }catch(e){ /* silencioso */ }
+}
+// "Responder sin confirmar" un pedido de clase (paso 199): deja estado="rechazada" con "motivo" —
+// el mismo campo que portal_publico() YA le muestra al alumno desde el paso 160 (no hace falta
+// columna nueva) — con una de tres salidas: plantilla fija ("Ese horario está ocupado"), texto
+// corto que escribe el docente, o vacío (rechazo sin mensaje). Con texto, la fila no desaparece
+// todavía: pasa a mostrar "Le respondiste: …" con el botón de WhatsApp a mano (mismo texto, por si
+// el docente quiere mandárselo directo) hasta que toca "Listo" (descartarSolicitudResuelta) — sin
+// texto no hay nada que mostrarle al alumno ni mandar por WhatsApp, así que se descarta directo,
+// mismo criterio que rechazarSolicitudClase. republishAlumnoBlock()/maybeSyncHuecosPortal(): mismo
+// motivo que en aceptarSolicitudClase — si bloqueoInstantaneo había sacado el hueco de la lista, lo
+// devuelve solo (nunca se agendó nada).
+async function responderSolicitudClase(id, texto){
+  const sol=(state.solicitudesClase||[]).find(x=>String(x.id)===String(id)); if(!sol) return;
+  const limpio=(texto||"").trim();
+  state.solicitudResponder=null;
+  if(limpio){
+    state.solicitudResuelta={id:sol.id, studentId:sol.studentId, texto:limpio};
+  }else{
+    state.solicitudesClase=(state.solicitudesClase||[]).filter(x=>String(x.id)!==String(id));
+    if(state.agendaSolicitudOpen && String(state.agendaSolicitudOpen)===String(id)) state.agendaSolicitudOpen=null;
+  }
+  render();
+  try{
+    await patchSolicitudClase(id, {estado:"rechazada", motivo:limpio});
+    const sess=await ensureToken();
+    await republishAlumnoBlock(sol.studentId);
+    maybeSyncHuecosPortal(jwtSub(sess.access), sess);
+  }catch(e){ /* silencioso */ }
+}
+// Descarta la fila de un pedido ya respondido con mensaje (ver responderSolicitudClase) después de
+// que el docente vio el botón de WhatsApp — recién ahí sale de la lista de pendientes.
+function descartarSolicitudResuelta(){
+  const id = state.solicitudResuelta && state.solicitudResuelta.id;
+  state.solicitudesClase=(state.solicitudesClase||[]).filter(x=>String(x.id)!==String(id));
+  if(state.agendaSolicitudOpen && String(state.agendaSolicitudOpen)===String(id)) state.agendaSolicitudOpen=null;
+  state.solicitudResuelta=null;
+  render();
 }
 // Avisos del portal (paso 105): mensajes cortos con fecha y destino ("todos"/una materia/un
 // alumno puntual) que el docente publica desde Cuenta → Portal, guardados en
@@ -1024,7 +1072,7 @@ function buildAlumnoBlock(s, reservaModo){
   // publicada en proximasClases/misClases que ya terminó (comparando contra la hora real de quien
   // mira el portal, no la de este publish) sin esperar a que el docente vuelva a sincronizar. Nunca
   // con modalidad "mensual" (no genera deuda por clase suelta, ver clasesEstimadasFor en helpers.js).
-  if((share.proximaClase || reservaModo==="directa") && hasPagos(s) && s.modalidad!=="mensual"){
+  if((share.proximaClase || reservaModo==="confirmar") && hasPagos(s) && s.modalidad!=="mensual"){
     block.tarifaClase = {modalidad:s.modalidad, tarifa:Number(s.tarifa)||0};
   }
   if(share.tareas){
@@ -1034,14 +1082,14 @@ function buildAlumnoBlock(s, reservaModo){
   if(share.avance){
     block.avance = unitsFor(s).map(u=>({unidad:u.nombre, estado:(s.topics||{})[u.nombre]||"pendiente"}));
   }
-  // misClases (paso 173, "reserva directa"): a diferencia de proximasClases de arriba, NO es
-  // opt-in por checkbox — es parte funcional de la agenda semanal del portal (el alumno necesita
-  // ver sus propias clases junto a los huecos libres para que esa agenda sea "su semana completa",
-  // no sólo huecos), así que se publica siempre que el docente tenga la reserva directa activada,
-  // sin depender de "Compartir con el portal" en la ficha. reservar_clase_portal() (RPC atómica)
-  // también la actualiza directo en publicado, para que una reserva nueva aparezca sin esperar a
-  // que el docente vuelva a tocar "Publicar cambios".
-  if(reservaModo==="directa") block.misClases = proximasClasesFor(s);
+  // misClases (pasos 173/199): a diferencia de proximasClases de arriba, NO es opt-in por checkbox
+  // — es parte funcional de la agenda semanal del portal (el alumno necesita ver sus propias
+  // clases junto a los huecos libres para que esa agenda sea "su semana completa", no sólo
+  // huecos), así que se publica siempre que "Pueden pedir clases" esté activo, sin depender de
+  // "Compartir con el portal" en la ficha. republishAlumnoBlock() (ver aceptarSolicitudClase/
+  // responderSolicitudClase en este archivo) la actualiza al aceptar un pedido, para que la clase
+  // nueva aparezca sin esperar a que el docente vuelva a tocar "Publicar cambios".
+  if(reservaModo==="confirmar") block.misClases = proximasClasesFor(s);
   return block;
 }
 // Arma lo que ve quien entra con la llave GRUPAL de una materia (paso 94): biblioteca de esa
@@ -1141,6 +1189,9 @@ async function publicarPortal(){
     // viejo en caché (ver resolveReservaModo() en helpers.js) — reservaModo (paso 173) ya es la
     // fuente de verdad.
     const pedirClaseHabilitado=reservaModo==="confirmar";
+    // bloqueoInstantaneo (paso 199): sub-toggle de "confirmar", ver resolveBloqueoInstantaneo() en
+    // helpers.js — se re-escribe tal cual acá para que un "Publicar cambios" nunca lo pierda.
+    const bloqueoInstantaneo=resolveBloqueoInstantaneo(state.portal.publicado);
     const huecos=reservaModo!=="apagado"?huecosLibresProximos14Dias():[];
     // Texto de la política de cancelación (paso 172): un solo campo a nivel de "publicado", mismo
     // criterio que cobros/fotoDocente — el portal (standalone) no tiene acceso a state.catalog,
@@ -1152,7 +1203,7 @@ async function publicarPortal(){
     // no de un alumno puntual.
     const promos=packsCatalogoFor().filter(p=>p.mostrarPortal).map(p=>
       ({nombre:p.nombre||"Pack", cantidad:Number(p.cantidad)||0, precio:Number(p.precio)||0, vigenciaTexto:p.vigenciaTexto||""}));
-    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros, pedirClaseHabilitado, huecos, cancelPolicyTexto, reservaModo, promos};
+    const publicado={...state.portal.publicado, nombre:(state.portal.draftNombre||"").trim(), biblioteca, alumnos, grupos, fotoDocente, cobros, pedirClaseHabilitado, huecos, cancelPolicyTexto, reservaModo, bloqueoInstantaneo, promos};
     const h={apikey:SUPA_ANON_KEY, Authorization:"Bearer "+s.access, "Content-Type":"application/json"};
     await patchPortalRow(uid_, h, {publicado});
     state.portal.publicado=publicado;

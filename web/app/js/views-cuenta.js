@@ -626,32 +626,45 @@ function vPortalCard(){
 }
 
 
-// "Cómo reservan tus alumnos" (paso 173): reemplaza al simple on/off de "Pedir una clase" (paso
-// 160) por tres modos (chips) — apagado por defecto, "Me piden y yo confirmo" (el flujo de
-// siempre) o "Reservan directo" (nuevo: orden de llegada real, sin que el docente tenga que
-// aceptar nada, ver reservar_clase_portal() en cuaderno-supabase). Ambos modos con hueco dependen
-// de la disponibilidad declarada (ver "Mi disponibilidad" en Agenda, paso 159); si no hay ninguna,
-// huecosLibresProximos14Dias() siempre da vacío, así que se lo advierte acá antes de activar. El
-// cambio de modo es instantáneo (setReservaModo en sync.js), no depende de "Publicar cambios" de
-// la tarjeta de arriba — eso sí hace falta para que una llave individual ya generada empiece a
-// mostrar "Tu clase" en la agenda semanal (misClases, ver buildAlumnoBlock en sync.js).
+// "Cómo reservan tus alumnos" (pasos 160/173, simplificado en el 199): un solo on/off — "Pueden
+// pedir clases (con tu confirmación)" — en vez de los tres modos de antes. Toda reserva pasa
+// SIEMPRE por tu confirmación: un alumno pide un hueco con una nota opcional y el pedido queda
+// "Pendiente de confirmación" hasta que vos lo aceptás (se agenda solo) o le respondés sin
+// confirmar, desde las solicitudes del Tablero o tocándolo directo en la Agenda. El sub-toggle
+// "Bloquear el horario apenas lo piden" es lo único que distinguía al viejo "Reservan directo": si
+// está activo, ese hueco deja de ofrecerse a los demás apenas alguien lo pide (orden de llegada
+// real); si está apagado, el hueco sigue visible y más de un alumno puede pedirlo — elegís vos
+// entre los pedidos. Depende de la disponibilidad declarada (ver "Mi disponibilidad" en Agenda,
+// paso 159); si no hay ninguna, huecosLibresProximos14Dias() siempre da vacío, así que se lo
+// advierte acá antes de activar. El cambio es instantáneo (setReservaModo/setBloqueoInstantaneo en
+// sync.js), no depende de "Publicar cambios" de la tarjeta de arriba — eso sí hace falta para que
+// una llave individual ya generada empiece a mostrar "Tu clase" en la agenda semanal (misClases,
+// ver buildAlumnoBlock en sync.js).
 function vReservaModoCard(){
   if(!state.portalLoaded || !state.portal) return "";
   const modo = reservaModoFor();
   const disp = disponibilidadFor();
   let h = `<div class="formcard"><div class="ftitle">Cómo reservan tus alumnos</div>
-    <div class="hint" style="margin-bottom:10px">Con su llave individual, un alumno ve tus huecos libres de los próximos 14 días (según tu disponibilidad declarada en Agenda). "Me piden y yo confirmo": pide un hueco con una nota opcional y vos lo aceptás (se agenda solo) o lo rechazás, desde las solicitudes del Tablero. "Reservan directo": toca un hueco y la clase queda agendada al toque, orden de llegada — no hace falta que hagas nada.</div>`;
+    <div class="hint" style="margin-bottom:10px">Con su llave individual, un alumno ve tus huecos libres de los próximos 14 días (según tu disponibilidad declarada en Agenda) y puede pedir uno con una nota opcional. El pedido SIEMPRE queda pendiente de tu confirmación — nunca se agenda solo — y lo resolvés desde las solicitudes del Tablero o tocándolo en la Agenda.</div>`;
   if(disp.length===0 && modo!=="apagado"){
     h += `<div class="hint" style="margin-bottom:10px">Todavía no declaraste tu disponibilidad — andá a Agenda → "Mi disponibilidad" para marcar tus huecos semanales (si no, no hay ningún hueco para ofrecer).</div>`;
   }
   h += `<div style="display:flex;gap:8px;flex-wrap:wrap">
     <button class="chip ${modo==="apagado"?"on":""}" data-a="reserva-modo-set" data-f="apagado">Apagado</button>
-    <button class="chip ${modo==="confirmar"?"on":""}" data-a="reserva-modo-set" data-f="confirmar">Me piden y yo confirmo</button>
-    <button class="chip ${modo==="directa"?"on":""}" data-a="reserva-modo-set" data-f="directa">Reservan directo (orden de llegada)</button>
+    <button class="chip ${modo==="confirmar"?"on":""}" data-a="reserva-modo-set" data-f="confirmar">Pueden pedir clases (con tu confirmación)</button>
   </div>`;
   if(modo!=="apagado"){
+    const bloqueo = bloqueoInstantaneoFor();
     const huecosModo = huecosModoFor();
     h += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
+      <div class="flabel" style="margin-bottom:8px">Bloquear el horario apenas lo piden</div>
+      <div class="hint" style="margin-bottom:8px">Con esto activado, ese hueco deja de ofrecerse a otros alumnos apenas alguien lo pide (orden de llegada real) — si le respondés sin confirmar, vuelve a estar libre solo. Apagado, el hueco sigue visible y puede llegar más de un pedido para el mismo horario.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="chip ${!bloqueo?"on":""}" data-a="bloqueo-instantaneo-set" data-f="no">Apagado</button>
+        <button class="chip ${bloqueo?"on":""}" data-a="bloqueo-instantaneo-set" data-f="si">Activado</button>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--soft)">
       <div class="flabel" style="margin-bottom:8px">Qué horarios ven tus alumnos</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="chip ${huecosModo==="libres"?"on":""}" data-a="huecos-modo-set" data-f="libres">Solo horarios libres (sin clase asignada)</button>

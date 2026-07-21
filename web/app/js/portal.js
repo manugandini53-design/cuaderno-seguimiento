@@ -421,147 +421,118 @@ function avisosHtml(list){
     <div class="avisofecha">${fmtDiaLocal(a.fecha)}</div>
   </div>`).join("");
 }
-// "Pedir una clase" (paso 160): sólo existe con llave individual y sólo si el docente activó
-// "Permitir que pidan clases" en Cuenta → Portal — en ese caso res.huecos es un array (posiblemente
-// vacío); si el docente lo tiene apagado, portal_publico() ni siquiera manda la clave "huecos"
-// (queda undefined), así que esta sección no se muestra. res.alumno.solicitudes trae los últimos
-// pedidos de ESTE alumno (más recientes primero) para mostrar su estado al refrescar la página —
-// no hay actualización en vivo, es la misma limitación que ya tiene el resto del portal (sin
-// sesión ni websockets, sólo lo que trajo portal_publico() al cargar).
-function solicitudEstadoLabel(estado){
-  if(estado==="confirmada") return {texto:"Confirmada", color:"var(--subj-green-fg)"};
-  if(estado==="rechazada") return {texto:"Rechazada", color:"var(--red-fg)"};
-  return {texto:"Pedida", color:"var(--muted)"};
+// "Reservá una clase" (pasos 160/173, unificados en el 199): sólo existe con llave individual y
+// sólo si el docente activó "Pueden pedir clases" en Cuenta → Portal — en ese caso res.huecos es
+// un array (posiblemente vacío); si lo tiene apagado, portal_publico() ni siquiera manda la clave
+// "huecos" (queda undefined/null), así que esta sección no se muestra. Se dibuja como una agenda
+// semanal (agrupada por día, mismo criterio que "Tu clase" de siempre): cada hueco libre es un
+// botón que, al tocarlo, abre un popup de confirmación en el lugar — CON fecha/hora/duración y la
+// política de cancelación si el docente cargó una — y nada se manda hasta tocar "Confirmar". El
+// pedido SIEMPRE queda "Pendiente de confirmación" (nunca se agenda solo, ver pedir_clase_portal()
+// en 030_pedido_confirmacion.sql) hasta que el docente lo acepta (pasa a "Confirmada ✓") o
+// responde sin confirmar (el texto de la respuesta, si el docente escribió uno, se ve acá mismo).
+// res.alumno.solicitudes trae los últimos pedidos de ESTE alumno (más recientes primero) para
+// mostrar su estado al refrescar la página — no hay actualización en vivo, es la misma limitación
+// que ya tiene el resto del portal (sin sesión ni websockets, sólo lo que trajo portal_publico()
+// al cargar).
+function solicitudesPedidoFor(alumno){
+  return ((alumno && alumno.solicitudes) || []).filter(s=>(s.tipo||"pedido")!=="cancelacion");
 }
-function pedirClaseHtml(alumno, huecos){
-  if(!Array.isArray(huecos)) return "";
-  let h = `<div class="card"><div class="ctitle">Pedir una clase</div>`;
-  // sólo "pedido" acá — las de tipo "cancelacion" (paso 172) se muestran en su propia clase,
-  // dentro de "Próximas clases" (ver solicitudCancelFor), no mezcladas con "Tus pedidos".
-  const solicitudes = ((alumno && alumno.solicitudes) || []).filter(s=>(s.tipo||"pedido")==="pedido");
-  if(solicitudes.length){
-    h += `<div class="prow"><div class="plabel">Tus pedidos</div>` + solicitudes.map(s=>{
-      const est = solicitudEstadoLabel(s.estado);
-      return `<div class="pvalue">${fmtDiaLocal(s.fecha)} ${esc(s.hora)} — <b style="color:${est.color}">${est.texto}</b>${s.motivo?` <span class="pmeta">(${esc(s.motivo)})</span>`:""}</div>`;
-    }).join("") + `</div>`;
-  }
-  if(huecos.length===0){
-    return h + `<div class="pempty">No hay horarios libres por ahora — probá más tarde.</div></div>`;
-  }
-  h += `<div class="prow"><div class="plabel">Elegí un horario</div>
-    <select id="pedir-clase-select" class="pinput">
-      ${huecos.map(hu=>`<option value="${esc(hu.date)}|${esc(hu.time)}">${fmtDiaLocal(hu.date)} — ${esc(hu.time)}</option>`).join("")}
-    </select></div>
-    <div class="prow"><div class="plabel">¿Qué querés ver? (opcional)</div>
-      <textarea id="pedir-clase-nota" class="pinput" maxlength="300" placeholder="Ej: derivadas, repaso del parcial…" rows="2"></textarea></div>
-    <button type="button" class="dl" id="pedir-clase-btn">Pedir esta clase</button>
-    <div id="pedir-clase-msg" class="pmeta" style="margin-top:6px"></div>
-  </div>`;
-  return h;
+function pedidoEstadoHtml(sol){
+  if(sol.estado==="confirmada") return `<span class="rmine" style="color:var(--subj-green-fg)">${esc(sol.hora)} — Confirmada ✓</span>`;
+  if(sol.estado==="rechazada") return `<span class="rmine" style="color:var(--red-fg)">${esc(sol.hora)} — ${sol.motivo?esc(sol.motivo):"No disponible"}</span>`;
+  return `<span class="rmine">${esc(sol.hora)} — Pendiente de confirmación</span>`;
 }
-// Día corto para la agenda semanal de "reserva directa" (paso 173) — mismo orden 0=Lunes..6=Domingo
-// que weekdayIdx() en helpers.js; duplicado acá porque portal.js es standalone y no lo carga
-// (mismo criterio que SUPA_URL/SUPA_ANON_KEY más arriba).
+// Día corto para la agenda semanal de reserva (paso 173) — mismo orden 0=Lunes..6=Domingo que
+// weekdayIdx() en helpers.js; duplicado acá porque portal.js es standalone y no lo carga (mismo
+// criterio que SUPA_URL/SUPA_ANON_KEY más arriba).
 const DIAS_CORTOS = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
 function weekdayIdxLocal(ds){ return (new Date(ds+"T12:00:00").getDay()+6)%7; }
-// "Reserva directa" (paso 173): evolución de "Pedir una clase" — en vez de elegir un hueco de un
-// <select> y esperar que el docente confirme, cada hueco es un botón que agenda la clase al toque
-// (reservar_clase_portal(), RPC atómica con orden de llegada real: si dos alumnos tocan el mismo
-// hueco casi a la vez, el segundo recibe "se acaba de ocupar"). Agrupados por día para que se vea
-// como una semana — alumno.misClases (siempre presente en este modo, ver buildAlumnoBlock en
-// sync.js, no depende del opt-in "Compartir con el portal" de la ficha) se mezcla en el mismo día
-// para que el alumno vea también SUS clases ya agendadas ("Tu clase"), no sólo los huecos libres.
-function reservaDirectaHtml(alumno, huecos){
+function reservaHtml(alumno, huecos){
+  if(!Array.isArray(huecos)) return "";
+  const solicitudes = solicitudesPedidoFor(alumno);
   const porDia = new Map();
-  const ensure = d => { if(!porDia.has(d)) porDia.set(d, {libres:[], mias:[]}); return porDia.get(d); };
-  (huecos||[]).forEach(hu=>ensure(hu.date).libres.push(hu.time));
+  const ensure = d => { if(!porDia.has(d)) porDia.set(d, {libres:[], mias:[], pedidas:[]}); return porDia.get(d); };
+  huecos.forEach(hu=>ensure(hu.date).libres.push(hu.time));
   (alumno.misClases||[]).forEach(c=>ensure(c.date).mias.push(c.time));
+  solicitudes.forEach(sol=>ensure(sol.fecha).pedidas.push(sol));
   const dias = [...porDia.keys()].sort();
-  let h = `<div class="card"><div class="ctitle">Reservá una clase</div>`;
+  let h = `<div class="card"><div class="ctitle">Reservá una clase</div>
+    <div class="pmeta" style="margin-bottom:8px">Tocá un horario libre para pedirlo — queda pendiente hasta que tu profesor lo confirme.</div>`;
   if(dias.length===0){
     return h + `<div class="pempty">No hay horarios libres por ahora — probá más tarde.</div></div>`;
   }
   h += `<div class="rsem">` + dias.map(d=>{
     const info = porDia.get(d);
     const libresHtml = [...info.libres].sort().map(t=>
-      `<button type="button" class="dl rslot" data-a="reserva-directa-slot" data-fecha="${esc(d)}" data-hora="${esc(t)}">${esc(t)}</button>`).join("");
+      `<button type="button" class="dl rslot" data-a="reserva-slot-pick" data-fecha="${esc(d)}" data-hora="${esc(t)}">${esc(t)}</button>`).join("");
     const miasHtml = [...info.mias].sort().map(t=>`<span class="rmine">Tu clase ${esc(t)}</span>`).join("");
+    const pedidasHtml = [...info.pedidas].sort((a,b)=>a.hora.localeCompare(b.hora)).map(pedidoEstadoHtml).join("");
     return `<div class="rsemday">
       <div class="rsemdate">${esc(DIAS_CORTOS[weekdayIdxLocal(d)])} ${fmtDiaLocal(d)}</div>
-      <div class="rsemslots">${libresHtml}${miasHtml}${(!info.libres.length && !info.mias.length)?'<span class="pempty">—</span>':""}</div>
+      <div class="rsemslots">${libresHtml}${miasHtml}${pedidasHtml}${(!info.libres.length && !info.mias.length && !info.pedidas.length)?'<span class="pempty">—</span>':""}</div>
     </div>`;
   }).join("") + `</div>
-    <div id="reserva-directa-msg" class="pmeta" style="margin-top:8px"></div>`;
+    <div id="reserva-confirm-area"></div>
+    <div id="reserva-msg" class="pmeta" style="margin-top:8px"></div>`;
   return h + `</div>`;
 }
-function reservaDirectaErrorMsg(err){
-  if(err==="rate_limit") return "Ya reservaste el máximo de clases por hoy — probá de nuevo mañana.";
-  if(err==="disabled") return "Tu profesor desactivó la reserva directa por ahora.";
-  if(err==="slot_unavailable") return "Ese horario se acaba de ocupar — elegí otro.";
-  return "No se pudo reservar — probá de nuevo.";
-}
-function wireReservaDirecta(llave){
-  const slots = document.querySelectorAll('[data-a="reserva-directa-slot"]');
-  if(!slots.length) return;
-  const msg = document.getElementById("reserva-directa-msg");
-  const lockSlots = (lock)=>slots.forEach(b=>b.disabled=lock);
-  slots.forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
-      lockSlots(true);
-      if(msg) msg.textContent = "Reservando…";
-      try{
-        const r = await fetch(SUPA_URL+"/rest/v1/rpc/reservar_clase_portal", {
-          method:"POST",
-          headers:{apikey:SUPA_ANON_KEY, Authorization:"Bearer "+SUPA_ANON_KEY, "Content-Type":"application/json"},
-          body: JSON.stringify({llave, p_fecha:btn.dataset.fecha, p_hora:btn.dataset.hora}),
-        });
-        if(!r.ok) throw new Error("error "+r.status);
-        const res = await r.json();
-        if(!res || !res.ok){
-          if(msg) msg.textContent = reservaDirectaErrorMsg(res&&res.error);
-          lockSlots(false);
-          return;
-        }
-        if(msg) msg.textContent = "¡Reservada! Ya quedó agendada.";
-        setTimeout(()=>init(), 1200); // recarga el portal para mostrar la clase nueva como "Tu clase"
-      }catch(e){
-        if(msg) msg.textContent = "No se pudo reservar — probá de nuevo.";
-        lockSlots(false);
-      }
-    });
-  });
-}
-function pedirClaseErrorMsg(err){
+function reservaErrorMsg(err){
   if(err==="rate_limit") return "Ya pediste el máximo de clases por hoy — probá de nuevo mañana.";
   if(err==="disabled") return "Tu profesor desactivó los pedidos de clase por ahora.";
-  if(err==="slot_unavailable") return "Ese horario ya no está libre — elegí otro.";
+  if(err==="slot_unavailable") return "Ese horario se acaba de pedir — elegí otro.";
   return "No se pudo enviar el pedido — probá de nuevo.";
 }
-function wirePedirClase(llave){
-  const btn = document.getElementById("pedir-clase-btn");
-  if(!btn) return;
-  btn.addEventListener("click", async ()=>{
-    const sel = document.getElementById("pedir-clase-select");
-    const nota = document.getElementById("pedir-clase-nota");
-    const msg = document.getElementById("pedir-clase-msg");
-    const [fecha, hora] = (sel.value||"").split("|");
-    if(!fecha || !hora) return;
-    btn.disabled = true; msg.textContent = "Enviando…";
-    try{
-      const r = await fetch(SUPA_URL+"/rest/v1/rpc/pedir_clase", {
-        method:"POST",
-        headers:{apikey:SUPA_ANON_KEY, Authorization:"Bearer "+SUPA_ANON_KEY, "Content-Type":"application/json"},
-        body: JSON.stringify({llave, p_fecha:fecha, p_hora:hora, p_nota:(nota.value||"").trim()}),
+// Popup de confirmación (paso 199): reveal-in-place bajo la grilla (mismo criterio que el panel de
+// "No puedo ir", ver wireCancelUi más abajo) — nada se manda al tocar un hueco, sólo se muestra el
+// detalle + la política de cancelación (si hay) con Confirmar/Cancelar. Sólo uno abierto a la vez
+// (reemplaza el contenido de #reserva-confirm-area).
+function wireReserva(llave, politica){
+  const slots = document.querySelectorAll('[data-a="reserva-slot-pick"]');
+  if(!slots.length) return;
+  const area = document.getElementById("reserva-confirm-area");
+  const msg = document.getElementById("reserva-msg");
+  slots.forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const fecha = btn.dataset.fecha, hora = btn.dataset.hora;
+      if(msg) msg.textContent = "";
+      area.innerHTML = `<div class="cancel-panel">
+        <div class="pvalue">¿Confirmás pedir la clase del ${esc(fmtDiaLocal(fecha))}, ${esc(hora)} (1 hora)?</div>
+        ${politica?`<div class="pmeta" style="margin:6px 0">Ojo: ${esc(politica)}</div>`:""}
+        <textarea class="pinput" id="reserva-nota" maxlength="300" placeholder="¿Qué querés ver? (opcional)" rows="2" style="margin-top:6px"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button type="button" class="dl" data-a="reserva-confirmar">Confirmar pedido</button>
+          <button type="button" class="dl" data-a="reserva-cancelar">Cancelar</button>
+        </div>
+      </div>`;
+      area.querySelector('[data-a="reserva-cancelar"]').addEventListener("click", ()=>{ area.innerHTML=""; });
+      area.querySelector('[data-a="reserva-confirmar"]').addEventListener("click", async ()=>{
+        const nota = document.getElementById("reserva-nota");
+        const confirmarBtn = area.querySelector('[data-a="reserva-confirmar"]');
+        const cancelarBtn = area.querySelector('[data-a="reserva-cancelar"]');
+        confirmarBtn.disabled = true; cancelarBtn.disabled = true;
+        area.querySelector(".pvalue").textContent = "Enviando…";
+        try{
+          const r = await fetch(SUPA_URL+"/rest/v1/rpc/pedir_clase_portal", {
+            method:"POST",
+            headers:{apikey:SUPA_ANON_KEY, Authorization:"Bearer "+SUPA_ANON_KEY, "Content-Type":"application/json"},
+            body: JSON.stringify({llave, p_fecha:fecha, p_hora:hora, p_nota:(nota.value||"").trim()}),
+          });
+          if(!r.ok) throw new Error("error "+r.status);
+          const res = await r.json();
+          if(!res || !res.ok){
+            area.innerHTML = "";
+            if(msg) msg.textContent = reservaErrorMsg(res&&res.error);
+            return;
+          }
+          area.innerHTML = `<div class="pmeta">¡Pedido enviado! Quedó pendiente de confirmación.</div>`;
+          setTimeout(()=>init(), 1200); // recarga el portal para mostrar el pedido como "Pendiente de confirmación"
+        }catch(e){
+          area.innerHTML = "";
+          if(msg) msg.textContent = "No se pudo enviar el pedido — probá de nuevo.";
+        }
       });
-      if(!r.ok) throw new Error("error "+r.status);
-      const res = await r.json();
-      if(!res || !res.ok){ msg.textContent = pedirClaseErrorMsg(res&&res.error); btn.disabled=false; return; }
-      msg.textContent = "¡Pedido enviado! Tu profesor te va a confirmar pronto.";
-      setTimeout(()=>init(), 1200); // recarga el portal para mostrar el pedido en "Tus pedidos"
-    }catch(e){
-      msg.textContent = "No se pudo enviar el pedido — probá de nuevo.";
-      btn.disabled = false;
-    }
+    });
   });
 }
 function showPortal(res, llave){
@@ -581,6 +552,7 @@ function showPortal(res, llave){
   // standalone y no tiene la paleta de colores/iniciales de la app principal para armar un
   // fallback consistente).
   const fotoDocente = res.data && res.data.fotoDocente && res.data.fotoDocente.url;
+  let politica = ""; // se completa más abajo si hay llave de alumno — la necesita wireReserva() al final
   let h = `<h1 style="display:flex;align-items:center;gap:10px">${fotoDocente?`<img src="${esc(fotoDocente)}" alt="" class="docente-foto">`:""}<span>${esc(titulo)}</span></h1>`;
   h += avisosHtml(avisos);
   // Llave de alumno: su bloque personal va primero, arriba de lo general (biblioteca/links) —
@@ -594,15 +566,15 @@ function showPortal(res, llave){
     // cancelarClaseHabilitado (paso 172): default true si un portal_publico() viejo ni siquiera
     // manda la clave (cache previa a este paso) — arranca encendido, a diferencia de pedirClaseHabilitado.
     const cancelarHabilitado = res.cancelarClaseHabilitado!==false;
-    const politica = (res.data && res.data.cancelPolicyTexto) || "";
+    politica = (res.data && res.data.cancelPolicyTexto) || "";
     const personal = personalHtml(res.alumno, cancelarHabilitado, politica);
-    // reservaModo (paso 173): "directa" muestra la agenda semanal con reserva al toque;
-    // "confirmar" (o su ausencia — portal_publico() viejo en caché sin este campo, ver
-    // pedirClaseHabilitado más abajo) muestra el <select> de siempre (paso 160); "apagado" no
-    // muestra nada (huecos llega null, y ambas funciones ya devuelven "" en ese caso).
+    // reservaModo (pasos 160/173/199): "apagado" no muestra nada (huecos llega null); cualquier
+    // otro valor (incluido el legado "directa", ya resuelto a "confirmar" del lado del backend)
+    // muestra la agenda semanal de reservaHtml() — un portal_publico() viejo en caché que todavía
+    // no mande "reservaModo" cae en pedirClaseHabilitado, mismo criterio de siempre.
     const modo = res.reservaModo || (res.pedirClaseHabilitado ? "confirmar" : "apagado");
     h += (debe ? pagos + personal : personal + pagos) +
-      (modo==="directa" ? reservaDirectaHtml(res.alumno, res.huecos) : pedirClaseHtml(res.alumno, res.huecos));
+      (modo!=="apagado" ? reservaHtml(res.alumno, res.huecos) : "");
   }
   // Llave grupal: próximas clases/exámenes del grupo, antes de la biblioteca — mismo criterio
   // que el bloque personal, es lo más "de esta llave puntual" frente a lo genérico de abajo.
@@ -633,8 +605,7 @@ function showPortal(res, llave){
       }).catch(()=>{});
     });
   }
-  wirePedirClase(llave);
-  wireReservaDirecta(llave);
+  wireReserva(llave, politica);
   wireCancelUi(llave);
 }
 

@@ -1047,6 +1047,7 @@ function render(){
   if(state.agendaEdit) m += vAgendaEditOverlay();
   if(state.agendaEditGrupal) m += vAgendaEditOverlayGrupal();
   if(state.agendaHourList) m += vAgendaHourListOverlay();
+  if(state.agendaSolicitudOpen) m += vAgendaSolicitudOverlay();
   if(state.grupalForm) m += vGrupalForm();
   if(state.finCuatrimestreOpen) m += vFinCuatrimestreOverlay();
   m += `<div class="footer">La app funciona siempre, con o sin internet. Con sincronización activa, los cambios se combinan solos entre tus dispositivos.</div>`;
