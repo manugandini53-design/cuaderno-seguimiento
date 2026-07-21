@@ -34,6 +34,13 @@ function scheduleSync(){ clearTimeout(syncTimer); syncTimer=setTimeout(syncNow,4
 // abierta, sin cambios locales ni remotos). force=true (botón "Sincronizar ahora") se salta
 // ese atajo y siempre baja la data completa, igual que antes.
 async function syncNow(force){
+  // Modo demo (IS_DEMO): nunca sincroniza — save() ya se saltea la red (ver su comentario), pero
+  // a syncNow() le faltaba este guard. Sin él, si en OTRA pestaña del mismo navegador había una
+  // sesión real logueada (la cookie de sesión es del origen entero, no por pestaña), esta
+  // función igual encontraba esa sesión con getSes(), y como state.ownerUid nunca se setea en
+  // demo (load() no lo toca), la guarda anti-fusión de más abajo no la frenaba: pisaba el
+  // state.students/catalog sintético de la demo con el cuaderno real de esa cuenta.
+  if(IS_DEMO) return;
   const ses=getSes();
   if(!ses){ setStatus("idle"); return; }
   // Paso 177: una cuenta pendiente/rechazada no tiene nada que sincronizar todavía (RLS de
