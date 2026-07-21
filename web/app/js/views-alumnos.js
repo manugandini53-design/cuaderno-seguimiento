@@ -357,7 +357,7 @@ function vTrashFootLink(){
   const total = state.students.filter(s=>s.deleted).length + (state.catalog.trash||[]).filter(t=>t.type==="subject").length;
   if(!total) return "";
   return `<div style="margin-top:16px;text-align:right">
-    <button data-a="nav-cuenta" style="background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+    <button data-a="nav-cuenta" data-group="datos" style="background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
       font-size:12px;color:var(--faint);padding:4px 2px">
       ${ICON_TRASH.replace('stroke-width="2"','stroke-width="1.8" width="13" height="13"')} Papelera (${total})
     </button>

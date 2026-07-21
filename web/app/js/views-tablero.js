@@ -13,7 +13,7 @@ const ONBOARDING_STEPS = [
     done:()=>alive().some(s=>!s.sample)},
   {label:"Registrá una clase", action:"nav-lista",
     done:()=>alive().some(s=>!s.sample && (s.sessions||[]).length>0)},
-  {label:"Activá tu portal", action:"nav-cuenta",
+  {label:"Activá tu portal", action:"nav-cuenta", group:"portal",
     done:()=>!!(state.portal && state.portal.habilitado)},
 ];
 
@@ -25,7 +25,7 @@ function vTips(){
     <div style="flex:1">
       <div class="ftitle" style="margin-bottom:8px">Primeros pasos</div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        ${steps.map(s=>`<button class="tip-step ${s.ok?"done":""}" data-a="${s.action}">
+        ${steps.map(s=>`<button class="tip-step ${s.ok?"done":""}" data-a="${s.action}" ${s.group?`data-group="${s.group}"`:""}>
           <span class="tip-step-check">${s.ok?ICON_CHECK.replace('stroke="white"','stroke="currentColor"'):""}</span>
           <span>${esc(s.label)}</span>
         </button>`).join("")}

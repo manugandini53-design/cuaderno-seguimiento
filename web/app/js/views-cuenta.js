@@ -358,12 +358,15 @@ function vCobrosCard(){
   </div>`;
 }
 
-// Cuenta ordenada (paso 142): grupos colapsables con mini-índice arriba, en vez de una fila larga
-// de tarjetas sueltas. vCuentaGroup() es el wrapper genérico (abierto por defecto — colapsar es
-// sólo para ordenar la vista, nunca para esconder algo que no se pueda encontrar, ver el mini-
-// índice); cada grupo adentro sigue usando los mismos ${xCard()}/formcards de siempre, sin tocar
-// su HTML interno ni sus data-a/data-cf. CUENTA_GROUPS_META es sólo para el mini-índice (id+label
-// cortos) — el título y la descripción largos de cada grupo van directo en su vCuentaGroup().
+// Cuenta ordenada (paso 142, acordeón real desde el 200): grupos colapsables con mini-índice
+// arriba, en vez de una fila larga de tarjetas sueltas. vCuentaGroup() es el wrapper genérico —
+// todos arrancan CERRADOS y se abre de a UNO solo (mismo patrón que la biblioteca de materiales
+// del paso 174, `state.cuentaOpenGroupId` en vez de un mapa de cerrados por id — acá sólo tiene
+// sentido uno abierto por vez). Lo esencial (con qué cuenta estoy, estado de sync, sincronizar)
+// no vive adentro de ningún grupo: ver vCuentaEssentials(), siempre visible arriba del acordeón.
+// Cada grupo adentro sigue usando los mismos ${xCard()}/formcards de siempre, sin tocar su HTML
+// interno ni sus data-a/data-cf. CUENTA_GROUPS_META es sólo para el mini-índice (id+label cortos)
+// — el título y la descripción largos de cada grupo van directo en su vCuentaGroup().
 const CUENTA_GROUPS_META = [
   {id:"perfil", label:"Perfil"}, {id:"cobros", label:"Cobros"}, {id:"preferencias", label:"Preferencias"},
   {id:"mensajes", label:"Mensajes"}, {id:"portal", label:"Portal"}, {id:"gruposclase", label:"Grupos"},
@@ -375,15 +378,29 @@ function vCuentaIndice(){
     `<button class="chip" data-a="cuenta-group-jump" data-id="${g.id}">${esc(g.label)}</button>`).join("")}</div>`;
 }
 
+// Barra esencial (paso 200): con qué cuenta estoy, estado de sync y "Sincronizar ahora" —
+// siempre visible arriba del acordeón, sin importar qué grupo esté abierto o cerrado. El resto
+// del detalle de la cuenta (admin/profesor, cerrar sesión) sigue en el grupo "Sesión" de abajo.
+function vCuentaEssentials(){
+  const ses=getSes();
+  return `<div class="formcard" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:13.5px">Conectado como <b>${esc(ses?ses.email:"")}</b></div>
+      <div class="hint">${syncStatusText()}</div>
+    </div>
+    <button class="chip" data-a="sync-now">Sincronizar ahora</button>
+  </div>`;
+}
+
 function vCuentaGroup(id, title, desc, bodyHtml){
-  const closed = !!(state.cuentaGroupsClosed && state.cuentaGroupsClosed[id]);
+  const open = state.cuentaOpenGroupId===id;
   return `<div class="cuenta-group" id="cuenta-grp-${id}">
-    <button class="cuenta-group-head" data-a="cuenta-group-toggle" data-id="${id}" aria-expanded="${!closed}">
+    <button class="cuenta-group-head" data-a="cuenta-group-toggle" data-id="${id}" aria-expanded="${open}">
       <div><div class="ftitle" style="margin-bottom:2px">${esc(title)}</div>
         <div class="hint">${esc(desc)}</div></div>
-      <span class="faq-caret ${closed?"":"open"}">${ICON_CHEVRON}</span>
+      <span class="faq-caret ${open?"open":""}">${ICON_CHEVRON}</span>
     </button>
-    ${closed?"":`<div class="cuenta-group-body">${bodyHtml}</div>`}
+    ${open?`<div class="cuenta-group-body">${bodyHtml}</div>`:""}
   </div>`;
 }
 
@@ -392,7 +409,8 @@ function vCuenta(){
   const pol=cancelPolicyFor();
   const doc=docenteFor();
   return pageHead("Cuenta","Tu cuenta y preferencias",null,
-    "Todo lo tuyo, agrupado — tocá un grupo para abrirlo/cerrarlo, o un atajo de abajo para ir directo.") + `
+    "Todo lo tuyo, agrupado — tocá un grupo para abrirlo, o un atajo de abajo para ir directo.") + `
+  ${vCuentaEssentials()}
   ${vCuentaIndice()}
   ${vCuentaGroup("perfil","Perfil docente","Tus datos y tu foto — se reutilizan en el generador de contratos y en el portal.", `
     ${vAvatarEditor(AVATAR_KEY_DOCENTE, doc.nombre||"Docente", doc.foto, 64)}

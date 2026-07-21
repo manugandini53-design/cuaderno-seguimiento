@@ -336,6 +336,19 @@ document.addEventListener("click", (e)=>{
     state.backupsLoaded=false; state.backupsError=""; loadBackups();
     state.portalLoaded=false; state.portalError=""; state.portalCopyMsg=""; loadPortal();
     state.portalGrupoEditing=null; state.portalGrupoDraftAlumnos=[]; state.portalGrupoError="";
+    // Deep links (paso 200): un atajo del resto de la app a un grupo puntual de Cuenta (papelera,
+    // "Activá tu portal" del onboarding, etc.) llega con data-group y abre SÓLO ese grupo, sin
+    // tocar el último grupo abierto si el acceso fue genérico (nav lateral, mini-avatar).
+    const gid = el.dataset.group;
+    if(gid){
+      state.cuentaOpenGroupId=gid;
+      render();
+      setTimeout(()=>{
+        const t=document.getElementById("cuenta-grp-"+gid);
+        if(t) t.scrollIntoView({behavior:"smooth", block:"start"});
+      },0);
+      return;
+    }
   }
   else if(a==="nav-catalog"){ state.view="catalog"; state.selId=null; state.editSubjectId=null; state.editPackId=null; state.catConfirmDelId=null; state.editUnitId=null; state.editSubunitId=null; state.editCareerId=null; }
   else if(a==="nav-pagos"){ state.view="pagos"; state.selId=null; if(!state.pagosMonth) state.pagosMonth=currentMonthKey(); }
@@ -1123,19 +1136,16 @@ document.addEventListener("click", (e)=>{
     window.location.href=mailto;
     return;
   }
-  // Cuenta ordenada (paso 142): abrir/cerrar un grupo colapsable, o saltar a uno desde el
-  // mini-índice (que además lo abre si estaba cerrado, para no llevar a un lugar vacío).
+  // Cuenta ordenada (paso 142, acordeón real desde el 200): abrir/cerrar un grupo colapsable
+  // (sólo uno abierto por vez, `state.cuentaOpenGroupId`), o saltar a uno desde el mini-índice
+  // (que además lo abre si estaba cerrado, para no llevar a un lugar vacío).
   else if(a==="cuenta-group-toggle"){
     const id=el.dataset.id;
-    const closed={...(state.cuentaGroupsClosed||{})};
-    closed[id] = !closed[id];
-    state.cuentaGroupsClosed=closed;
+    state.cuentaOpenGroupId = state.cuentaOpenGroupId===id ? null : id;
   }
   else if(a==="cuenta-group-jump"){
     const id=el.dataset.id;
-    const closed={...(state.cuentaGroupsClosed||{})};
-    delete closed[id];
-    state.cuentaGroupsClosed=closed;
+    state.cuentaOpenGroupId=id;
     render();
     setTimeout(()=>{
       const t=document.getElementById("cuenta-grp-"+id);
