@@ -369,11 +369,13 @@ function vCobrosBanner(){
 
 function vCobroItemRow(s,i){
   if(i.kind==="clase") return `<div class="note">${esc(fmtDate(i.date))} · ${fmtMoney(i.monto)}
-    <button class="chip" style="margin-left:6px" data-a="cobro-marcar-clase" data-sid="${s.id}" data-id="${i.sessionId}">Marcar cobrada</button></div>`;
+    <button class="chip" style="margin-left:6px" data-a="cobro-marcar-clase" data-sid="${s.id}" data-id="${i.sessionId}">✓ Marcar cobrada</button></div>`;
+  // paso 197: mismo check rápido que Pagos → Resumen (pagos-check-pendiente) en vez de mandar a
+  // "Ver en Pagos" a registrar el pago a mano.
   if(i.kind==="mensual") return `<div class="note">Mensualidad de ${esc(monthLabel(currentMonthKey()))} · ${fmtMoney(i.monto)} pendiente
-    <button class="chip" style="margin-left:6px" data-a="nav-pagos">Ver en Pagos</button></div>`;
+    <button class="chip" style="margin-left:6px" data-a="pagos-check-pendiente" data-id="${s.id}" data-mk="${currentMonthKey()}">✓ Marcar pagada</button></div>`;
   return `<div class="note">Seña de la clase del ${esc(fmtDate(i.date))} · ${fmtMoney(i.monto)}
-    <button class="chip" style="margin-left:6px" data-a="toggle-senia-estado" data-sid="${s.id}" data-id="${i.puntualId}">Marcar cobrada</button></div>`;
+    <button class="chip" style="margin-left:6px" data-a="toggle-senia-estado" data-sid="${s.id}" data-id="${i.puntualId}">✓ Marcar cobrada</button></div>`;
 }
 
 // Festejo transitorio al marcar "Aprobó" (paso 162) — mismo patrón que vGoalClosure/goalCelebrate,

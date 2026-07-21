@@ -64,11 +64,14 @@ function vPagosResumen(){
     h += `<div class="stitle">Por alumno</div>`;
     h += sorted.map(({s,r})=>{
       const showSubject = nameCount[normName(s.name)]>1;
-      return `<button class="row" data-a="open" data-id="${s.id}">
+      return `<div class="row">
+        <button class="row-click" data-a="open" data-id="${s.id}">
         <div class="main"><div class="name">${esc(s.name)}${showSubject?` <span class="hint">· ${esc(s.subject||"materia s/d")}</span>`:""}</div>
         <div class="sub">${(s.modalidad==="clase"||s.modalidad==="hora")?`${r.clases} clase${r.clases===1?"":"s"} dada${r.clases===1?"":"s"}`:"mensual"} · cobrado ${fmtMoney(r.cobrado)}</div></div>
         <div class="right"><span style="color:${r.pendiente?"var(--red)":"var(--green)"};font-weight:600">${r.pendiente?fmtMoney(r.pendiente)+" pendiente":"al día"}</span></div>
-      </button>`;
+        </button>
+        ${r.pendiente>0?`<button class="chip" title="Marcar todo como pagado" aria-label="Marcar todo como pagado" data-a="pagos-check-pendiente" data-id="${s.id}" data-mk="${mk}">✓</button>`:""}
+      </div>`;
     }).join("");
   }
 

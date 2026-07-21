@@ -498,15 +498,14 @@ function vFichaClases(s){
         : `<span style="font-weight:600">${esc(c.topic||"Clase")}</span>
            <button class="iconbtn" data-a="session-topic-rename-start" data-id="${c.id}" title="Editar tema" aria-label="Editar tema">${ICON_EDIT}</button>`}
       <span class="tareatag">${c.duration!=null&&c.duration!==""?Math.round(c.duration)+" min":"60 min (asumido)"}</span>
-      ${s.modalidad==="hora"?`<span class="tareatag">${fmtMoney(montoSesion(s,c))}${c.monto!=null&&c.monto!==""?" (manual)":""}</span>`:""}
       ${c.tarea&&c.tarea!=="sd"?`<span class="tareatag" style="color:${TAREA_META[c.tarea].fg}">tarea: ${TAREA_META[c.tarea].label}</span>`:""}
       ${c.grupoClaseId?`<span class="tareatag" title="${esc((c.grupoClaseMiembros||[]).map(x=>x.name).join(", "))}">Clase grupal (${(c.grupoClaseMiembros||[]).length})</span>`:""}
-      ${c.packClaseId?`<span class="tareatag">Pack de clases</span>`:""}
       ${c.note?`<div class="note">${esc(c.note)}</div>`:""}
       ${c.objetivo?`<div class="note goaltag"><span class="icon-inline">${ICON_TARGET}</span> ${esc(c.objetivo)}${c.objetivoResult
         ? ` <span style="color:${OBJETIVO_META[c.objetivoResult.estado].fg}">· <span class="icon-inline">${OBJETIVO_ICONS[c.objetivoResult.estado]}</span> ${OBJETIVO_META[c.objetivoResult.estado].label}${c.objetivoResult.pct!=null?` (${c.objetivoResult.pct}%)`:""}</span>`
         : ` <span class="hint">· sin evaluar todavía</span>`}</div>` : ""}</div>
-      ${cobraPorClase&&!c.packClaseId?`<button class="chip ${c.cobrada?"on":""}" data-a="toggle-cobrada" data-id="${c.id}">${c.cobrada?"Cobrada":"Pendiente"}</button>`:""}
+      ${cobraPorClase?`<button class="chip" data-a="tab-pagos" title="Ver el cobro en Pagos"
+          style="${c.packClaseId?"":c.cobrada?"color:var(--status-activo-fg);border-color:var(--status-activo-fg)":"color:var(--status-desaprobo-fg);border-color:var(--status-desaprobo-fg)"}">${c.packClaseId?"Pack":c.cobrada?"Cobrada":"Pendiente"}</button>`:""}
       <button class="del" data-a="del-session" data-id="${c.id}" title="Borrar" aria-label="Borrar">×</button></div>`;
       }).join("");
   h += vHorariosCard(s);
@@ -558,11 +557,28 @@ function vFichaPagos(s){
     ${hasPagos(s)&&s.modalidad==="mensual"?vPagosMensuales(s):""}
     ${!hasPagos(s)?`<div class="hint" style="margin-top:8px">Cargá una tarifa y elegí una modalidad para empezar a llevar el cobro de este alumno.</div>`:""}
   </div>`;
+  h += vClasesPagosCard(s);
   h += vClasesSinRegistrarCard(s);
   h += vSeniaCard(s);
   h += vRecibosCard(s);
   h += vTarifaHistorialCard(s);
   return h;
+}
+
+// Cobro por clase (paso 197): antes vivía en la pestaña «Clases», duplicado a medias con acá —
+// ahora el monto y el toggle cobrada/pendiente viven sólo acá; «Clases» deja sólo un indicador
+// chico que linkea a esta pestaña (ver vFichaClases).
+function vClasesPagosCard(s){
+  if(!hasPagos(s) || (s.modalidad!=="clase" && s.modalidad!=="hora")) return "";
+  const sorted=[...s.sessions].filter(c=>!isAusente(c)).sort((a,b)=>b.date.localeCompare(a.date));
+  if(!sorted.length) return "";
+  return `<div class="formcard"><div class="ftitle">Cobro por clase</div>
+    ${sorted.map(c=>`<div class="log">
+      <div class="d">${fmtDate(c.date)}</div>
+      <div class="body">${esc(c.topic||"Clase")} · ${c.packClaseId ? `<span class="tareatag">Pack de clases</span>` : fmtMoney(montoSesion(s,c))+(c.monto!=null&&c.monto!==""?" (manual)":"")}</div>
+      ${c.packClaseId ? "" : `<button class="chip ${c.cobrada?"on":""}" data-a="toggle-cobrada" data-id="${c.id}">${c.cobrada?"Cobrada":"Pendiente"}</button>`}
+    </div>`).join("")}
+  </div>`;
 }
 
 // "Sin registrar" (paso 196): clases agendadas ya terminadas todavía sin registrar — deuda

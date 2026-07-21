@@ -1750,11 +1750,16 @@ document.addEventListener("click", (e)=>{
   else if(a==="cobros-toggle"){ state.cobrosBannerOpen = !state.cobrosBannerOpen; }
   else if(a==="cobro-marcar-clase"){
     const sid=el.dataset.sid, st=state.students.find(x=>x.id===sid); if(!st) return;
-    const sessionEl = st.sessions.find(x=>x.id===el.dataset.id);
+    const sessionEl = st.sessions.find(x=>x.id===el.dataset.id); if(!sessionEl) return;
+    const prevPendiente=pendienteTotalFor(st);
+    const prevSessions=st.sessions, prevRecibos=st.recibos||[];
     const sessions = st.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:true}:x);
-    const r = crearRecibo(st,{tipo:"clase", concepto:`Clase del ${fmtDate(sessionEl?sessionEl.date:today())}`, monto:Number(st.tarifa)||0});
-    update(sid,{sessions, recibos:[...(st.recibos||[]), r]});
-    toast("Clase marcada como cobrada", "ok", null, {label:"Ver recibo", run:()=>{ state.selId=sid; state.reciboId=r.id; state.view="recibo"; }});
+    const r = crearRecibo(st,{tipo:"clase", concepto:`Clase del ${fmtDate(sessionEl.date)}`, monto:montoSesion(st,sessionEl)});
+    update(sid,{sessions, recibos:[...prevRecibos, r]});
+    toast("Clase marcada como cobrada", "ok", ()=>{ update(sid,{sessions:prevSessions, recibos:prevRecibos}); toast("Deshecho"); }, {label:"Ver recibo", run:()=>{ state.selId=sid; state.reciboId=r.id; state.view="recibo"; }});
+    if(typeof animateCounters==="function") animateCounters();
+    const st2=state.students.find(x=>x.id===sid);
+    if(st2 && prevPendiente>0 && pendienteTotalFor(st2)<=0){ fireConfetti(); soundCobro(); }
     return;
   }
   else if(a==="toggle-resumen-semanal"){ setResumenSemanal(el.dataset.f==="si"); return; }
@@ -1884,6 +1889,43 @@ document.addEventListener("click", (e)=>{
     const st2=state.students.find(x=>x.id===s.id);
     if(st2 && prevPendiente>0 && pendienteTotalFor(st2)<=0){ fireConfetti(); soundCobro(); }
     // Festejo de "Tu día" en cero (paso 179) — sólo si no festejamos ya arriba por la deuda.
+    else if(prevTareas>0 && pendingTasksToday().length===0){ fireConfetti({colors:TUDIA_CONFETTI}); soundHito(); }
+    return;
+  }
+  // "Marcar todo como pagado" (paso 197): check rápido desde Pagos → Resumen, sin abrir la ficha —
+  // mensual registra un pago por el pendiente exacto (mismo criterio que save-pago); clase/hora
+  // marca cobrada cada clase pendiente del mes (respeta packs y ausencias, mismo filtro que
+  // pagoResumen). Con undo (restaura sessions/pagos/recibos tal cual estaban) por si se toca mal.
+  else if(a==="pagos-check-pendiente"){
+    const sid=el.dataset.id, mk=el.dataset.mk;
+    const st=state.students.find(x=>x.id===sid); if(!st) return;
+    const r=pagoResumen(st,mk); if(!r || r.pendiente<=0) return;
+    const prevPendiente=pendienteTotalFor(st);
+    const prevTareas=pendingTasksToday().length;
+    const prevSessions=st.sessions, prevPagos=st.pagos||[], prevRecibos=st.recibos||[];
+    let patch, toastMsg;
+    if(st.modalidad==="mensual"){
+      const date=today();
+      const pagos=[...prevPagos,{id:uid(),date,amount:r.pendiente}];
+      const rec=crearRecibo(st,{tipo:"mensual", concepto:`Mensualidad ${monthLabel(mk)}`, monto:r.pendiente, date, saldo:0});
+      patch={pagos, recibos:[...prevRecibos, rec]};
+      toastMsg="Mensualidad marcada como pagada";
+    }else{
+      const pendientesIds=new Set(prevSessions.filter(c=>monthKeyOf(c.date)===mk && !isAusente(c) && !c.packClaseId && !c.cobrada).map(c=>c.id));
+      const recibos=[...prevRecibos];
+      const sessions=prevSessions.map(c=>{
+        if(!pendientesIds.has(c.id)) return c;
+        recibos.push(crearRecibo(st,{tipo:"clase", concepto:`Clase del ${fmtDate(c.date)}`, monto:montoSesion(st,c)}));
+        return {...c, cobrada:true};
+      });
+      patch={sessions, recibos};
+      toastMsg=`${pendientesIds.size} clase${pendientesIds.size===1?"":"s"} marcada${pendientesIds.size===1?"":"s"} como cobrada${pendientesIds.size===1?"":"s"}`;
+    }
+    update(sid, patch);
+    toast(toastMsg, "ok", ()=>{ update(sid,{sessions:prevSessions, pagos:prevPagos, recibos:prevRecibos}); toast("Deshecho"); });
+    if(typeof animateCounters==="function") animateCounters();
+    const st2=state.students.find(x=>x.id===sid);
+    if(st2 && prevPendiente>0 && pendienteTotalFor(st2)<=0){ fireConfetti(); soundCobro(); }
     else if(prevTareas>0 && pendingTasksToday().length===0){ fireConfetti({colors:TUDIA_CONFETTI}); soundHito(); }
     return;
   }
