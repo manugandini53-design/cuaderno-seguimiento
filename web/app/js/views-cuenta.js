@@ -7,33 +7,67 @@ function vAuth(){
   const lockMs = isLogin ? loginLockRemainingMs() : 0;
   const locked = lockMs>0;
   const mainAction = isLogin?"auth-login":"auth-signup";
-  return `<div style="max-width:360px;margin:64px auto 0">
-    <div style="text-align:center;margin-bottom:20px">
-      <div class="logo-mark" style="margin:0 auto 12px">${ICON_CHECK}</div>
-      <div class="eyebrow">Clases particulares</div>
-      <h1 style="font-size:22px">Entreclases</h1>
-      <div style="font-size:12.5px;color:var(--muted);margin-top:4px">Vos enseñás, del resto nos ocupamos.</div>
-    </div>
-    <div class="formcard">
-      <div class="tabs" style="margin-bottom:14px">
+  const acceptedTerms = !!state.authAcceptedTerms;
+  return `<div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-card-head">
+        <div class="logo-mark" style="margin:0 auto 12px">${ICON_CHECK}</div>
+        <div class="eyebrow">Clases particulares</div>
+        <h1 class="auth-title">${isLogin?"Bienvenido de nuevo":"Creá tu cuenta"}</h1>
+        <div class="auth-sub">${isLogin?"Ingresá para seguir con tus alumnos.":"Vos enseñás, del resto nos ocupamos."}</div>
+      </div>
+      <div class="tabs auth-tabs">
         ${tabbtn("auth-mode-login",isLogin,"Iniciar sesión")}
         ${tabbtn("auth-mode-signup",!isLogin,"Crear cuenta")}
       </div>
-      <div class="field"><div class="flabel">Correo</div>
-        <input id="auth-email" type="email" autocomplete="username" list="remembered-emails" value="${esc(emailVal)}" data-enter="${mainAction}" ${locked?"disabled":""}>
+      <div class="field auth-field">
+        <div class="flabel">Correo</div>
+        <div class="auth-input-wrap">
+          <span class="auth-input-icon">${ICON_MAIL}</span>
+          <input id="auth-email" class="auth-input" type="email" placeholder="tu@mail.com" autocomplete="username" list="remembered-emails" value="${esc(emailVal)}" data-enter="${mainAction}" ${locked?"disabled":""}>
+        </div>
         <datalist id="remembered-emails">${remembered.map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
       </div>
-      <div class="field" style="margin-top:8px"><div class="flabel">Contraseña${isLogin?"":" (mínimo 6 caracteres)"}</div>
-        <input id="auth-pass" type="password" autocomplete="${isLogin?"current-password":"new-password"}" data-enter="${mainAction}" ${locked?"disabled":""}></div>
-      ${isLogin?"":`<label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:12.5px;color:var(--muted);cursor:pointer">
-        <input id="auth-accept-terms" type="checkbox" style="margin-top:2px;flex-shrink:0" ${locked?"disabled":""}>
-        <span>Leí y acepto los <a href="../terminos.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">términos y la política de privacidad</a>.</span>
-      </label>`}
-      <button class="primary" style="margin:14px 0 0;margin-left:0;width:100%" data-a="${mainAction}" ${locked?"disabled":""}>${isLogin?"Iniciar sesión":"Crear cuenta"}</button>
-      ${isLogin?`<button class="chip" style="margin-top:10px;border:none;background:none;padding:2px 0;color:var(--muted)" data-a="auth-forgot" ${locked?"disabled":""}>¿Olvidaste tu contraseña?</button>`:""}
+      <div class="field auth-field" style="margin-top:12px">
+        <div class="flabel">Contraseña${isLogin?"":" (mínimo 6 caracteres)"}</div>
+        <div class="auth-input-wrap">
+          <span class="auth-input-icon">${ICON_LOCK}</span>
+          <input id="auth-pass" class="auth-input auth-input-pass" type="password" placeholder="••••••••" autocomplete="${isLogin?"current-password":"new-password"}" data-enter="${mainAction}" ${locked?"disabled":""}>
+          <button type="button" class="auth-pass-toggle" data-a="auth-toggle-pass" aria-label="Mostrar contraseña" tabindex="-1">${ICON_EYE}</button>
+        </div>
+      </div>
+      ${isLogin?"":`<label class="auth-terms-row">
+        <input id="auth-accept-terms" type="checkbox" ${acceptedTerms?"checked":""} ${locked?"disabled":""}>
+        <span>Leí y acepto los <button type="button" class="linklike" data-a="terminos-open">términos y la política de privacidad</button>.</span>
+      </label>
+      <div class="auth-tester-note">
+        ${esc(ACTIVE_TESTER_NOTE)}
+        <div class="auth-tester-fine">${esc(ACTIVE_TESTER_FINE_PRINT)}</div>
+      </div>`}
+      <button class="primary auth-submit" data-a="${mainAction}" ${locked?"disabled":""}>${isLogin?"Iniciar sesión":"Crear cuenta"}</button>
+      ${isLogin?`<button class="chip auth-forgot" data-a="auth-forgot" ${locked?"disabled":""}>¿Olvidaste tu contraseña?</button>`:""}
       <div class="hint" id="authMsg" style="margin-top:10px;min-height:16px${locked?";color:var(--status-desaprobo-fg)":""}">${locked?esc("Demasiados intentos. Probá de nuevo en "+fmtLockRemaining(lockMs)+"."):""}</div>
+      <div class="auth-trust">Gratis durante la beta · Hecho en Argentina 🇦🇷</div>
     </div>
-  </div>`;
+  </div>${state.showTerminosModal?vTerminosModal():""}`;
+}
+
+// Modal de términos (paso 202): iframe a terminos.html en vez de duplicar el texto legal acá
+// adentro (necesita frame-src 'self' en la CSP, ver index.html) — nunca más un target=_blank
+// que quedaba escondido detrás del login. "Acepto" tilda el checkbox del formulario y cierra;
+// el link a la página completa (target=_blank) queda de secundario en el pie.
+function vTerminosModal(){
+  return `<div class="overlay" data-a="terminos-close"><div class="modal modal-terminos" data-a="terminos-modal-noop">
+    <div class="terminos-modal-head">
+      <div class="ftitle">Términos y política de privacidad</div>
+      <button class="terminos-modal-close" data-a="terminos-close" aria-label="Cerrar">${ICON_X}</button>
+    </div>
+    <div class="terminos-modal-body"><iframe src="../terminos.html" title="Términos y política de privacidad de Entreclases"></iframe></div>
+    <div class="terminos-modal-foot">
+      <a class="chip" href="../terminos.html" target="_blank" rel="noopener">Abrir en una pestaña nueva ↗</a>
+      <button class="primary" style="margin-left:0" data-a="terminos-accept">Acepto</button>
+    </div>
+  </div></div>`;
 }
 
 
@@ -102,6 +136,22 @@ function vSetPassword(){
   </div>`;
 }
 
+
+// Programa Active Tester (paso 202): el pedido manda un reporte con tipo "active_tester" (ver
+// solicitar-active-tester en events.js) — sin lectura de `reportes` para no-admin, así que sólo
+// sabemos "ya lo pedí desde este dispositivo" (activeTesterRequested(), helpers.js), nunca si el
+// admin ya le dio la plaza o no (eso lo administra a mano desde el panel).
+function vActiveTesterCard(){
+  const requested = activeTesterRequested();
+  const sending = state.activeTesterStatus==="sending";
+  return `<div class="formcard">
+    <div class="ftitle">Programa Active Tester</div>
+    <div style="font-size:13px;line-height:1.55;margin-bottom:8px">${esc(ACTIVE_TESTER_NOTE)}</div>
+    <div class="hint" style="margin-bottom:10px">${esc(ACTIVE_TESTER_FINE_PRINT)}</div>
+    ${state.activeTesterError?`<div class="saveerr" style="margin-bottom:8px">${esc(state.activeTesterError)}</div>`:""}
+    <button class="chip ${requested?"on":""}" data-a="solicitar-active-tester" ${(requested||sending)?"disabled":""}>${requested?"Solicitud enviada ✓":sending?"Enviando…":"Solicitar mi plaza"}</button>
+  </div>`;
+}
 
 // Switch de recordatorios de cobro (Cuenta) + notificación del navegador — el permiso de
 // Notification API recién se pide al tocar el botón (ver toggle-notif-os en events.js), nunca
@@ -441,7 +491,8 @@ function vCuenta(){
       <div class="field"><div class="flabel">Nombre completo</div><input data-cf="docente-nombre" value="${esc(doc.nombre||"")}"></div>
       <div class="field"><div class="flabel">Teléfono</div><input data-cf="docente-telefono" value="${esc(doc.telefono||"")}"></div>
       <div class="field"><div class="flabel">DNI / CUIT (opcional)</div><input data-cf="docente-dni" value="${esc(doc.dni||"")}"></div>
-    </div>`)}
+    </div>
+    ${vActiveTesterCard()}`)}
   ${vCuentaGroup("cobros","Cobros","Tarifa, packs, alias, links de pago y QR — se muestran en el portal individual de cada alumno.",
     vCuentaSub("cobros","tarifa","Tarifa por defecto", vTarifaDefaultCard()) +
     vCuentaSub("cobros","packs","Packs de catálogo", vPacksCatalogoCard()) +

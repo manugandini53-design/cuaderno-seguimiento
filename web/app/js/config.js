@@ -47,6 +47,15 @@ const FEEDBACK_TIPOS = [
   {id:"idea", label:"Idea"},
   {id:"me_gusta", label:"Me gusta"},
 ];
+// Programa Active Tester (paso 202): reusa la tabla `reportes` con tipo propio ("active_tester")
+// en vez de sumar una tabla nueva — el panel admin (vReportes, views-admin.js) ya lista y filtra
+// por tipo, así que sirve tal cual para que el cupo de 20 se administre a mano marcando cada
+// solicitud. ACTIVE_TESTER_REQUESTED_KEY sólo evita mandar más de un pedido por cuenta desde este
+// dispositivo (namespaceada por uid, paso 194) — no hay lectura de `reportes` para no-admin, así
+// que no se puede confirmar server-side si ya se pidió antes desde otro dispositivo.
+const ACTIVE_TESTER_REQUESTED_KEY = "tutoria-active-tester-requested";
+const ACTIVE_TESTER_NOTE = "¿Querés ser Active Tester? Tras crear tu cuenta podrás solicitarlo desde Ajustes. Las primeras 20 plazas eligen: 30% permanente* o 1 año gratis tras beta, a cambio de 3 reportes/mes.";
+const ACTIVE_TESTER_FINE_PRINT = "* El 30% de descuento es permanente mientras el servicio se mantenga operativo. No constituye garantía de continuidad; si el proyecto se discontinúa, el descuento pierde su objeto conforme a la sección 6 de las Condiciones de la Beta.";
 // Biblioteca del portal (state.catalog.subjects[].materiales[].compartido + portales.publicado.biblioteca):
 // URLs firmadas de Storage con este vencimiento; se renuevan solas (ver maybeRenewPortalLibrary
 // en sync.js) cuando les queda menos de PORTAL_LINK_TTL_DAYS-PORTAL_LINK_RENEW_AFTER_DAYS de vida.

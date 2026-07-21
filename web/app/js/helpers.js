@@ -778,6 +778,18 @@ function feedbackBannerActive(){
 }
 function dismissFeedbackBanner(){ try{ const k=nsKey(FEEDBACK_BANNER_UNTIL_KEY); if(k) localStorage.removeItem(k); }catch(e){} }
 
+/* ============ Programa Active Tester (paso 202) ============
+   Sólo evita mandar más de un pedido por cuenta DESDE ESTE DISPOSITIVO — no hay lectura de
+   `reportes` para no-admin, así que si el docente pide desde otro dispositivo no hay forma de
+   saberlo acá; el admin igual ve todas las solicitudes reales en el panel. */
+function activeTesterRequested(){
+  try{ const k=nsKey(ACTIVE_TESTER_REQUESTED_KEY); return !!k && localStorage.getItem(k)==="1"; }
+  catch(e){ return false; }
+}
+function markActiveTesterRequested(){
+  try{ const k=nsKey(ACTIVE_TESTER_REQUESTED_KEY); if(k) localStorage.setItem(k, "1"); }catch(e){}
+}
+
 /* ============ alertas ============ */
 // cada alerta trae "wa": qué mensaje pre-armado de WhatsApp corresponde si el
 // profesor quiere escribirle al alumno directo desde acá (ver waMsgForAlert en views-core.js).

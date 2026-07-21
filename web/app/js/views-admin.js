@@ -19,7 +19,10 @@ function vPanel(){
 
 // Tipos de reporte (paso 147): feedback del docente (problema/idea/me_gusta, ver FEEDBACK_TIPOS
 // en config.js) más "error_js", que sólo escribe logClientError() (sync.js) — nunca a mano.
-const REPORTE_TIPO_LABELS = {problema:"Problema", idea:"Idea", me_gusta:"Me gusta", error_js:"Error"};
+// "active_tester" (paso 202): pedidos del programa Active Tester (ver solicitar-active-tester en
+// events.js) — reusa esta misma tabla en vez de sumar una nueva, así que el cupo de 20 plazas se
+// administra a mano acá, marcando cada solicitud (misma acción "Marcar resuelto"/toggle-reporte).
+const REPORTE_TIPO_LABELS = {problema:"Problema", idea:"Idea", me_gusta:"Me gusta", error_js:"Error", active_tester:"Active Tester"};
 
 function vReportes(){
   const filter = state.reportFilter||"pendiente";
@@ -27,6 +30,7 @@ function vReportes(){
   const list = (state.reportes||[])
     .filter(r=>filter==="todos"||r.estado===filter)
     .filter(r=>tipoFilter==="todos"||(r.tipo||"problema")===tipoFilter);
+  const testerPendientes = (state.reportes||[]).filter(r=>r.tipo==="active_tester" && r.estado!=="resuelto").length;
   let h = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
     ${["pendiente","resuelto","todos"].map(f=>
       `<button class="chip ${filter===f?"on":""}" data-a="reportes-filter" data-f="${f}">${f==="todos"?"Todos":f==="pendiente"?"Pendientes":"Resueltos"}</button>`
@@ -35,9 +39,10 @@ function vReportes(){
   <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
     <button class="chip ${tipoFilter==="todos"?"on":""}" data-a="reportes-tipo-filter" data-f="todos">Todos los tipos</button>
     ${Object.keys(REPORTE_TIPO_LABELS).map(t=>
-      `<button class="chip ${tipoFilter===t?"on":""}" data-a="reportes-tipo-filter" data-f="${t}">${REPORTE_TIPO_LABELS[t]}</button>`
+      `<button class="chip ${tipoFilter===t?"on":""}" data-a="reportes-tipo-filter" data-f="${t}">${REPORTE_TIPO_LABELS[t]}${t==="active_tester"&&testerPendientes?` (${testerPendientes})`:""}</button>`
     ).join("")}
   </div>`;
+  if(tipoFilter==="active_tester") h += `<div class="hint" style="margin-bottom:10px">Cupo total: 20 plazas — administralo a mano marcando cada solicitud (${testerPendientes} sin marcar).</div>`;
   if(state.reportesError) h += `<div class="saveerr">${esc(state.reportesError)}</div>`;
   else if(!state.reportesLoaded) h += skeletonRows(4);
   else if(list.length===0) h += `<div class="empty">No hay reportes en esta categoría.</div>`;
@@ -48,7 +53,7 @@ function vReportes(){
           <span class="hint">· ${esc(r.plataforma||"—")} · v${esc(r.version||"—")}${r.vista?" · "+esc(r.vista):""} · ${fmtDateTime(r.created_at)}</span></div>
         <div class="note">${esc(r.mensaje||"")}</div>
       </div>
-      <button class="chip ${r.estado==="resuelto"?"on":""}" data-a="toggle-reporte" data-id="${esc(r.id)}">${r.estado==="resuelto"?"Resuelto ✓":"Marcar resuelto"}</button>
+      <button class="chip ${r.estado==="resuelto"?"on":""}" data-a="toggle-reporte" data-id="${esc(r.id)}">${r.estado==="resuelto"?(r.tipo==="active_tester"?"Ya avisado ✓":"Resuelto ✓"):(r.tipo==="active_tester"?"Marcar avisado":"Marcar resuelto")}</button>
     </div>`).join("");
   return h;
 }

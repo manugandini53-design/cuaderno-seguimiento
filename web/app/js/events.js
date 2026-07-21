@@ -854,6 +854,27 @@ document.addEventListener("click", (e)=>{
   else if(a==="mat-del-confirm"){ deleteMaterial(el.dataset.id, el.dataset.name); return; }
   else if(a==="auth-mode-login"){ state.authMode="login"; }
   else if(a==="auth-mode-signup"){ state.authMode="signup"; }
+  else if(a==="auth-toggle-pass"){
+    // Sin render() a propósito (paso 202): un re-render acá perdería lo que ya se tipeó en
+    // #auth-pass, porque su value nunca se ató a `state` (nunca hizo falta antes de este toggle).
+    // Se toca el DOM directo, mismo criterio que new-career-inline (views-core.js/vModal).
+    const inp=document.getElementById("auth-pass"); if(!inp) return;
+    const showing = inp.type==="password";
+    inp.type = showing?"text":"password";
+    el.setAttribute("aria-label", showing?"Ocultar contraseña":"Mostrar contraseña");
+    el.innerHTML = showing?ICON_EYE_OFF:ICON_EYE;
+    return;
+  }
+  else if(a==="terminos-open"){
+    // Capturar el checkbox ANTES de abrir (paso 202): abrir la modal hace render() y reconstruye
+    // el formulario entero, así que sin esto se perdería si el usuario ya lo había tildado a mano.
+    const cb=document.getElementById("auth-accept-terms");
+    if(cb) state.authAcceptedTerms=cb.checked;
+    state.showTerminosModal=true;
+  }
+  else if(a==="terminos-close"){ state.showTerminosModal=false; }
+  else if(a==="terminos-modal-noop"){ return; }
+  else if(a==="terminos-accept"){ state.authAcceptedTerms=true; state.showTerminosModal=false; }
   else if(a==="auth-login"){
     const lockMs=loginLockRemainingMs();
     if(lockMs>0){ authMsgShow("Demasiados intentos. Probá de nuevo en "+fmtLockRemaining(lockMs)+"."); return; }
@@ -1211,6 +1232,19 @@ document.addEventListener("click", (e)=>{
     return;
   }
   else if(a==="feedback-banner-dismiss"){ dismissFeedbackBanner(); }
+  else if(a==="solicitar-active-tester"){
+    if(activeTesterRequested()) return;
+    if(!navigator.onLine){ state.activeTesterError="Se necesita conexión a internet para enviar la solicitud."; render(); return; }
+    state.activeTesterStatus="sending"; state.activeTesterError=""; render();
+    sendReport("Quiero ser Active Tester: 30% de descuento permanente o 1 año gratis tras la beta, a cambio de 3 reportes por mes.", "active_tester", "cuenta").then(()=>{
+      markActiveTesterRequested(); state.activeTesterStatus="ok"; render();
+    }).catch(()=>{
+      state.activeTesterStatus="error";
+      state.activeTesterError = !navigator.onLine ? "Se necesita conexión a internet para enviar la solicitud." : "No se pudo enviar la solicitud. Probá de nuevo.";
+      render();
+    });
+    return;
+  }
   else if(a==="auth-logout"){ setSes(null); clearAccountState(); state.view="tablero"; _navSnapshot=null; render(); return; }
   else if(a==="open"){
     state.view="detalle"; state.selId=el.dataset.id; state.tab=el.dataset.tab||"resumen"; state.confirmDel=false;
