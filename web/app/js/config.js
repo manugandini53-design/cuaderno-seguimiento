@@ -181,7 +181,7 @@ function tienePlan(feature){ return true; }
 const APP_VERSION = "2.4.2";
 // Modo demo (paso 82): ?demo=1 carga un cuaderno ficticio en memoria (ver buildDemoData() en
 // helpers.js), sin cuenta, sin sync y sin tocar localStorage ni el backend — ver el guard de
-// save() en helpers.js y el de ensureToken() en auth.js, y el gate de render() en views.js.
+// save() en helpers.js y el de ensureToken() en auth.js, y el gate de render() en views-core.js.
 const IS_DEMO = new URLSearchParams(location.search).get("demo")==="1";
 // Empaquetado nativo: Tauri inyecta window.__TAURI__, Capacitor inyecta window.Capacitor
 const IS_NATIVE = !!(window.__TAURI__ || window.Capacitor);
@@ -196,7 +196,7 @@ function detectPlatform(){
 // cualquiera de estos strings no toca el avance de ninguna unidad, nunca se derivó de acá.
 // Campos de "datos" de la ficha (Resumen/Pagos) que pasan por confirmación explícita en vez de
 // autosave al tocarlos (paso 136) — ver applyFichaDraftField/draftFor en helpers.js y la barra
-// fija "Tenés cambios sin guardar" en vDetalle (views.js). Todo lo demás (acciones como registrar
+// fija "Tenés cambios sin guardar" en vDetalle (views-ficha.js). Todo lo demás (acciones como registrar
 // clase/cobrar, y el resto de data-f/data-cf de la app) sigue guardando al instante como siempre.
 const FICHA_DRAFT_FIELDS = new Set(["name","career","subjectId","chair","phone","email","status","examDate","startDate","birthDate","notes","tarifa","modalidad","seniaTipo","seniaValor"]);
 const GENERIC_TOPICS = ["Ejercicios","Teoría","Nivelación","Repaso / parciales viejos"];
@@ -244,8 +244,8 @@ const SUBJECT_COLOR_LABELS = {
   rose:"Rosa", green:"Verde", indigo:"Índigo", slate:"Gris",
 };
 // Ayuda contextual (paso 74): textos cortos para el popover de los iconitos "?" junto a las
-// funciones menos obvias — ver helpTip() en views.js. Mismo criterio que TOPIC_META/STATUS_META:
-// contenido acá, presentación en views.js.
+// funciones menos obvias — ver helpTip() en views-core.js. Mismo criterio que TOPIC_META/STATUS_META:
+// contenido acá, presentación en views-core.js.
 const HELP_TEXTS = {
   senia: "Un adelanto que el alumno paga para reservar una clase puntual. Si cancela a tiempo (según tu política) se le devuelve; si no, se la queda el profesor.",
   cancelPolicy: "Define cuántas horas antes puede cancelar un alumno una clase puntual sin perder la seña. Se aplica sola al marcar una clase como cancelada.",
@@ -254,7 +254,7 @@ const HELP_TEXTS = {
   rentabilidad: "Cuánto te queda de cada materia o alumno después de restar los costos que le asignaste (fijos y variables). Los costos sin materia ni alumno sólo entran en el total del mes.",
 };
 // Mini centro de ayuda (Cuenta, paso 74): preguntas frecuentes en español claro — qué hace
-// cada sección, sin tecnicismos. Ver vCentroAyuda() en views.js.
+// cada sección, sin tecnicismos. Ver vCentroAyuda() en views-cuenta.js.
 const FAQ_ITEMS = [
   {q:"¿Cómo cargo un alumno nuevo?", a:"Desde Estudiantes tocá «+ Nuevo estudiante», o elegí una materia primero en Materias si todavía no la creaste. Podés cargar la fecha de examen y notas iniciales, o dejarlo para después."},
   {q:"¿Qué es el semáforo (verde/amarillo/rojo)?", a:"Tu evaluación de cómo llega el alumno a su objetivo: verde (encaminado), amarillo (en riesgo, hay que priorizar temas) o rojo (difícilmente llegue así). Se cambia tocando el círculo de color en la ficha o la lista."},
@@ -300,7 +300,7 @@ const AUSENCIA_MOTIVO_META = {
 };
 // Resultado del cierre de objetivo de clase (ver s.sessions[].objetivoResult en helpers.js).
 // pctDefault es el valor que toma el slider si el profesor no lo tocó antes de tocar el botón.
-// El ícono de cada uno (ICON_CHECK/ICON_HALF/ICON_X) vive en views.js — OBJETIVO_ICONS ahí — porque
+// El ícono de cada uno (ICON_CHECK/ICON_HALF/ICON_X) vive en views-core.js — OBJETIVO_ICONS ahí — porque
 // config.js carga antes que los SVG inline del set unificado (ver paso 73 en CHANGELOG.md).
 const OBJETIVO_META = {
   si:{label:"Sí",fg:"var(--tarea-hecha-fg)",bg:"var(--greenbg)",pctDefault:100},
@@ -357,7 +357,7 @@ function defaultDisponibilidad(){ return []; }
 function defaultCostos(){ return {fijos:[], variables:[]}; }
 // Datos del docente (state.catalog.docente) — mismo patrón que cancelPolicy/recordatorios/costos:
 // se cargan una sola vez en Cuenta y se reutilizan donde haga falta (por ahora, el generador de
-// contratos — ver docenteFor() en helpers.js y vContrato() en views.js).
+// contratos — ver docenteFor() en helpers.js y vContrato() en views-ficha.js).
 function defaultDocente(){ return {nombre:"", telefono:"", dni:""}; }
 // Cobros del docente (paso 141, state.catalog.cobrosDocente): alias/CVU + links de pago propios,
 // mostrados en el portal individual de cada alumno (nunca en la llave grupal/general — ver
@@ -366,7 +366,7 @@ function defaultDocente(){ return {nombre:"", telefono:"", dni:""}; }
 function defaultCobrosDocente(){ return {alias:"", linkMP:"", linkOtro:"", qr:null}; }
 // Plantillas de mensajes (paso 117, state.catalog.mensajes): centraliza TODOS los textos que la
 // app arma para WhatsApp (y el recibo, que se comparte igual por ahí) en un solo lugar editable
-// — Cuenta → "Mensajes" (ver vMensajesCard() en views.js). Cada entrada es la plantilla por
+// — Cuenta → "Mensajes" (ver vMensajesCard() en views-cuenta.js). Cada entrada es la plantilla por
 // defecto; el docente puede pisarla (mensajesFor() en helpers.js) y "Restaurar" vuelve sólo esa
 // plantilla puntual a este valor, sin tocar las demás. Variables con {llave}, reemplazadas al
 // armar el mensaje real (mensajeTexto() en helpers.js) — nunca HTML, siempre texto plano.
@@ -405,7 +405,7 @@ const MENSAJES_META = [
 function defaultMensajes(){ const o={}; MENSAJES_META.forEach(m=>{ o[m.key]=m.default; }); return o; }
 // Grupos acordeón de Cuenta → Mensajes (paso 175): sólo agrupan visualmente las MENSAJES_META de
 // arriba por contexto — no cambian storage ni claves. Cada plantilla arranca colapsada (sólo el
-// nombre) y se abre de a una para editar, ver vMensajesCard()/vMensajePlantillaRow() en views.js.
+// nombre) y se abre de a una para editar, ver vMensajesCard()/vMensajePlantillaRow() en views-cuenta.js.
 const MENSAJES_GRUPOS = [
   { id:"cobros", label:"Cobros", keys:["cobro","avisoDeuda","recibo"] },
   { id:"clases", label:"Clases y recordatorios", keys:["proximaClase","recordatorioClase","tarea","examen"] },
@@ -417,7 +417,7 @@ const MENSAJES_GRUPOS = [
 // de arriba, el docente puede crear las suyas con nombre + texto libre (mismas variables genéricas
 // que ya usan las plantillas de cobros/llaves — ver PLANTILLA_PROPIA_VARS). Aparecen junto a las
 // generales en todos los selectores de "mandar mensaje" (ficha, alertas, aviso de cobros) — ver
-// vPlantillasPropiasChips()/waMsgPropia() en views.js. Retrocompatible: un cuaderno sin ninguna
+// vPlantillasPropiasChips()/waMsgPropia() en views-core.js. Retrocompatible: un cuaderno sin ninguna
 // plantilla propia simplemente no tiene la clave (mensajesPropiasFor() en helpers.js devuelve []).
 const PLANTILLA_PROPIA_VARS = "{alumno}, {materia}, {monto}, {link_pago}, {alias}, {mail}";
 // 0=Lunes .. 6=Domingo — usado por los horarios habituales y la vista Agenda.
@@ -428,7 +428,7 @@ const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado",
 const DURATION_PRESETS = [60,90,120,150,180,240];
 // Alto fijo (px) de un bloque de una hora en la grilla semanal y en la vista día (paso 169) — antes
 // crecía con el contenido; ahora es constante y las clases ocupan su alto proporcional a la
-// duración dentro de él (ver vAgendaDayEvents en views.js). Debe coincidir con el período del
+// duración dentro de él (ver vAgendaDayEvents en views-agenda.js). Debe coincidir con el período del
 // repeating-linear-gradient de fondo en styles.css (.agenda-hour-bg).
 const AGENDA_ROW_H = 52;
 // Máximo de clases superpuestas que se muestran lado a lado en la agenda antes de comprimirlas en

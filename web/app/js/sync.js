@@ -363,7 +363,7 @@ async function restoreBackup(id){
 
 /* ============ reportar un problema / panel admin (reportes y usuarios) ============
    tipo (paso 147): "problema"/"idea"/"me_gusta" (feedback del docente, ver vFeedbackOverlay en
-   views.js) o "error_js" (capturado solo por logClientError() más abajo, nunca a mano). vista es
+   views-core.js) o "error_js" (capturado solo por logClientError() más abajo, nunca a mano). vista es
    el state.view en el momento de mandar el reporte — auto-adjunta, sin que el docente tenga que
    escribir dónde estaba. Columnas nuevas en `reportes`, ver migración 021 en cuaderno-supabase. */
 async function sendReport(msg, tipo, vista){
@@ -592,7 +592,7 @@ async function loadActividad(){
 }
 // metricas_horarias (migración 008): mismo shape que metricas_diarias pero por hora, con
 // retención de 14 días del lado del servidor. Usada por el modo "Por hora" de la sub-pestaña
-// Actividad del panel admin (ver vActividadHora en views.js).
+// Actividad del panel admin (ver vActividadHora en views-admin.js).
 async function loadMetricasHorarias(){
   try{
     const s=await ensureToken();
@@ -961,7 +961,7 @@ async function signMaterialUrl(s, path, expiresInSec){
 // alumno) y sólo llega a quien entra con SU llave individual — nunca a la llave grupal/general
 // (ver buildGrupoBlock, sin estos campos, y la migración de portal_publico() que tiene que
 // exponer "pendiente"/"cobros" nada más que ahí). Si se suma un dato nuevo compartible aparte de
-// éste, tiene que sumarse como checkbox explícito en la ficha (vPortalAlumnoCard, views.js).
+// éste, tiene que sumarse como checkbox explícito en la ficha (vPortalAlumnoCard, views-ficha.js).
 function buildAlumnoBlock(s, reservaModo){
   const share=portalShareFor(s);
   const block={

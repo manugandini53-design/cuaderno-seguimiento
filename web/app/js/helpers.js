@@ -363,7 +363,7 @@ function unitsFor(s){
   return Object.keys(s.topics||{}).map((nombre,i)=>({id:"legacy-"+i, nombre, orden:i, subunidades:[]}));
 }
 // Unidades + subunidades en un solo listado de texto, en orden (paso 127, ej. selector de
-// "tema principal" al registrar una clase, ver vFichaClases en views.js) — la subunidad no tiene
+// "tema principal" al registrar una clase, ver vFichaClases en views-ficha.js) — la subunidad no tiene
 // avance propio, así que acá es sólo una etiqueta más para elegir, con el nombre de su unidad
 // adelante para que no se confunda con otra materia.
 function flattenUnitLabels(units){
@@ -375,7 +375,7 @@ function flattenUnitLabels(units){
   return out;
 }
 // Opciones del <select> de "tema principal" al registrar una clase o editar una ya guardada
-// (paso 131, ver vFichaClases en views.js) — unidades/subunidades de la materia agrupadas en un
+// (paso 131, ver vFichaClases en views-ficha.js) — unidades/subunidades de la materia agrupadas en un
 // optgroup, más los genéricos de GENERIC_TOPICS (config.js) siempre disponibles en otro optgroup:
 // agrupar con <optgroup> es la única forma confiable entre navegadores de que se note que un tema
 // genérico no es una unidad real del catálogo (los estilos por <option> no son controlables).
@@ -423,15 +423,15 @@ function topicOptionsHtml(s, cur){
     + (cur && !known.has(cur) ? opt(cur) : "");
 }
 // Unidades de nivel superior en un formato {id,label} listo para un <select> (paso 128, ver el
-// selector de unidad de vMaterialRow en views.js) — a propósito sólo el nivel de unidad, sin
+// selector de unidad de vMaterialRow en views-materias.js) — a propósito sólo el nivel de unidad, sin
 // subunidades: un material se enlaza a la unidad entera, no hace falta la granularidad de
 // subunidad que sí tiene el avance por temas (unitsFor/flattenUnitLabels más arriba).
 function flattenUnitOptions(units){
   return (units||[]).map(u=>({id:u.id, label:u.nombre}));
 }
 // Materiales de una materia enlazados a una unidad puntual (chip de conteo en la lista de
-// unidades, ver vUnitRow en views.js) — materialesIndexFor vive en sync.js pero esto se llama
-// siempre después de que los seis scripts ya cargaron, así que el orden no importa (ver el
+// unidades, ver vUnitRow en views-materias.js) — materialesIndexFor vive en sync.js pero esto se llama
+// siempre después de que todos los scripts ya cargaron, así que el orden no importa (ver el
 // comentario de carga en CLAUDE.md).
 function materialesCountFor(subjectId, unitId){
   return materialesIndexFor(subjectId).filter(m=>m.unitId===unitId).length;
@@ -611,7 +611,7 @@ function applyFichaDraftField(s, field, value){
   render();
 }
 /* ============ ajuste de tarifas en lote (paso 112) ============
-   Aumento % o monto fijo a varias tarifas de una — ver vAjustarTarifas() en views.js para la
+   Aumento % o monto fijo a varias tarifas de una — ver vAjustarTarifas() en views-stats.js para la
    vista previa y quién queda incluido/excluido. Sólo toca s.tarifa hacia adelante: recibos ya
    emitidos guardan su monto propio (crearRecibo) y no se recalculan, así que una clase ya
    registrada y cobrada no cambia de precio con este ajuste. */
@@ -723,7 +723,7 @@ function shouldShowBackupReminder(){
    Se sugiere sola en meses de recambio típico (jul/ago, nov-dic-feb) cuando hay algún alumno
    activo sin clases hace rato — mismo patrón de descartar/reaparecer que el respaldo de arriba.
    Nunca borra ni fuerza nada: sólo junta en una lista a quién pausar (paso 114) o despedir, el
-   profesor decide caso por caso desde el overlay (ver vFinCuatrimestreOverlay en views.js). */
+   profesor decide caso por caso desde el overlay (ver vFinCuatrimestreOverlay en views-alumnos.js). */
 function finCuatrimestreTemporada(){
   const mes = Number(today().slice(5,7)); // 1=enero .. 12=diciembre
   return [7,8,11,12,2].includes(mes);
@@ -761,7 +761,7 @@ function dismissFeedbackBanner(){ try{ localStorage.removeItem(FEEDBACK_BANNER_U
 
 /* ============ alertas ============ */
 // cada alerta trae "wa": qué mensaje pre-armado de WhatsApp corresponde si el
-// profesor quiere escribirle al alumno directo desde acá (ver waMsgForAlert en views.js).
+// profesor quiere escribirle al alumno directo desde acá (ver waMsgForAlert en views-core.js).
 function studentAlerts(s){
   const out=[]; if(s.status!=="activo") return out;
   const d=daysTo(s.examDate);
@@ -820,7 +820,7 @@ function examResultCountsInMonth(mk){
 /* ============ objetivo de clase: cierre, racha y estadísticas ============
    s.sessions[].objetivo (string, opcional) se carga al registrar la clase; s.sessions[].objetivoResult
    ({estado:"si"|"medias"|"no", pct}) se completa después, desde la mini-tarjeta de cierre que aparece
-   al registrar la clase siguiente o al entrar a la ficha (ver vGoalClosure en views.js). Se identifica
+   al registrar la clase siguiente o al entrar a la ficha (ver vGoalClosure en views-ficha.js). Se identifica
    el objetivo pendiente más antiguo sin resolver para no acumular varias tarjetas a la vez. */
 function pendingGoalClosure(s){
   const withGoal=(s.sessions||[]).filter(c=>c.objetivo && !c.objetivoResult);
@@ -874,7 +874,7 @@ function goalCountsInMonth(mk){
 }
 
 // Tarifa habitual de la cuenta (paso 176, state.catalog.tarifaDefault): modalidad+monto+duración
-// típica que precarga el alta de alumno (modo simple) — ver vModal()/vCobrosCard() en views.js.
+// típica que precarga el alta de alumno (modo simple) — ver vModal() en views-core.js/vCobrosCard() en views-cuenta.js.
 // Nunca pisa la tarifa/modalidad ya cargada de un alumno existente; sólo sugiere en el alta.
 function tarifaDefaultFor(){ return {modalidad:"", monto:"", duracion:60, ...(state.catalog.tarifaDefault||{})}; }
 /* ============ pagos: opcional por alumno (tarifa + modalidad) ============
@@ -950,14 +950,14 @@ function pagoResumen(s, mk){
 }
 // Packs de catálogo (paso 176, state.catalog.packsCatalogo): armados de una vez por el docente
 // (nombre, cantidad de clases, precio, vigencia opcional en texto libre) — independientes de
-// materia, para elegir al vender un pack a un alumno (ver vPackClasesCard en views.js) en vez de
+// materia, para elegir al vender un pack a un alumno (ver vPackClasesCard en views-ficha.js) en vez de
 // cargar cantidad/precio "personalizados" cada vez. mostrarPortal (apagado por defecto) los suma
 // a publicado.promos al publicar (ver publicarPortal() en sync.js) — no vende nada solo, sólo
 // informa; el alumno sigue coordinando con el docente como siempre.
 function packsCatalogoFor(){ return Array.isArray(state.catalog.packsCatalogo) ? state.catalog.packsCatalogo : []; }
 /* ============ packs de clases prepagos (paso 158) ============
    s.packsClases guarda el historial de packs vendidos a un alumno con modalidad "clase" u "hora"
-   (nunca "mensual" — ver vPackClasesCard en views.js, que sólo se muestra ahí). Cada venta es
+   (nunca "mensual" — ver vPackClasesCard en views-ficha.js, que sólo se muestra ahí). Cada venta es
    TAMBIÉN un pago normal en s.pagos (tipo:"packClase", packId apuntando al pack) para reusar el
    mismo recibo/flujo de WhatsApp que cualquier otro cobro (ver save-pack-clases en events.js) —
    pagoResumen() de arriba ya sabe contar ese pago como ingreso el mes en que se cobró de verdad, sin
@@ -1270,7 +1270,7 @@ function parseScopeValue(v){
 }
 // Destino de un aviso del portal (paso 105) — mismo prefijo "m:"/"s:" que parseScopeValue()
 // arriba, sin valor = todos los alumnos. Ver vPortalAvisosCard()/avisoTargetOptionsHtml() en
-// views.js y saveAvisos() en sync.js.
+// views-cuenta.js y saveAvisos() en sync.js.
 function parseAvisoTarget(v){
   if(v && v.startsWith("m:")) return {tipo:"materia", subjectId:v.slice(2)};
   if(v && v.startsWith("s:")) return {tipo:"alumno", studentId:v.slice(2)};
@@ -2231,7 +2231,7 @@ function markOverlaps(events){
 // sea parcialmente (paso 169) — sweep clásico sobre startMin ordenado, uniendo en un cluster todo
 // lo que se toca transitivamente. Un cluster de 1 ocupa toda la columna; de 2 hasta AGENDA_MAX_COLS
 // (config.js), van lado a lado; más que eso, se comprimen en chips con popover — ver
-// vAgendaDayEvents/vAgendaCompressedCluster en views.js.
+// vAgendaDayEvents/vAgendaCompressedCluster en views-agenda.js.
 function clusterAgendaOverlaps(list){
   const sorted = [...list].sort((a,b)=>a.startMin-b.startMin);
   const clusters = []; let cur = [], curEnd = -Infinity;
@@ -2309,7 +2309,7 @@ function jwtSub(tok){
 
 /* ============ búsqueda global (paso 72): alumnos, materias y materiales por nombre, todo
    local sobre state (sin backend nuevo). Devuelve grupos ya recortados y con la acción de
-   navegación lista para data-a/data-id en el click delegado — ver vSearchOverlay en views.js. */
+   navegación lista para data-a/data-id en el click delegado — ver vSearchOverlay en views-core.js. */
 function globalSearchResults(query){
   const q = (query||"").trim().toLowerCase();
   if(!q) return {students:[], subjects:[], materiales:[], total:0};

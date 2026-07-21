@@ -144,7 +144,7 @@ function soundClase(){ playTone([660], 0.14, "sine"); }
 function soundCobro(){ playTone([880], 0.16, "triangle"); }
 function soundObjetivo(){ playTone([523.25,659.25,783.99], 0.32, "sine"); }
 // Hito de racha (paso 155) — reutilizado también para "Tu día" en cero (paso 179, ver
-// pendingTasksToday()/vTuDia() en helpers.js/views.js): ambos son "cerraste bien el día", un
+// pendingTasksToday()/vTuDia() en helpers.js/views-tablero.js): ambos son "cerraste bien el día", un
 // timbre nuevo aparte se sentía redundante — ver razonamiento completo en el reporte del paso 179.
 function soundHito(){ playTone([523.25,659.25,783.99,1046.5], 0.36, "sine"); }
 function soundPack(){ playTone([587.33,880], 0.2, "triangle"); } // venta de pack (paso 179): dos notas triangle, distinto de soundCobro (una sola nota)
@@ -367,7 +367,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="agenda-grid-add"){ state.agendaGridQuick={date:el.dataset.date, time:el.dataset.hour}; }
   else if(a==="agenda-grid-quick-cancel"){ state.agendaGridQuick=null; }
   // Popover de "modo lista" de un cluster comprimido de la agenda (paso 169, ver
-  // vAgendaCompressedCluster/vAgendaHourListOverlay en views.js) — data-items trae cada clase
+  // vAgendaCompressedCluster/vAgendaHourListOverlay en views-agenda.js) — data-items trae cada clase
   // codificada como "i|studentId|kind|sourceId|origDate" (individual) o "g|grupoId|kind|origDate"
   // (grupal), separadas por ";", ya que uid() sólo produce alfanumérico y nunca esos separadores.
   else if(a==="agenda-hour-list-open"){
@@ -1022,7 +1022,7 @@ document.addEventListener("click", (e)=>{
   }
   // Llaves a mano (paso 139): mini-modal de "Compartir acceso", disparable desde la ficha, una
   // materia (Materias) o la lista, sin pasar por Cuenta → Portal — ver openShareOverlay (sync.js)
-  // y vShareOverlay (views.js). Todo lee/escribe contra state.shareOverlay en vez de sel(), a
+  // y vShareOverlay (views-core.js). Todo lee/escribe contra state.shareOverlay en vez de sel(), a
   // propósito: a diferencia de las acciones "portal-alumno-*"/"portal-grupo-*" de más arriba
   // (pensadas sólo para la ficha/Cuenta), estas tienen que andar igual sin una ficha abierta.
   else if(a==="share-open"){ openShareOverlay(el.dataset.kind, el.dataset.id); return; }
@@ -1503,7 +1503,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="registrar-clase-back"){ state.registrarClaseTipo=null; render(); return; }
   // Formulario de clase grupal (paso 157) — un único state.grupalForm reusado desde tres
   // entradas (ficha, Agenda, "Registrar esta clase" sobre una ocurrencia ya agendada), ver el
-  // comentario grande de vGrupalForm()/vGrupalFormBody() en views.js.
+  // comentario grande de vGrupalForm()/vGrupalFormBody() en views-ficha.js.
   else if(a==="grupal-form-open-ficha"){
     if(!s) return;
     state.grupalForm={subjectId:s.subjectId||null, studentIds:s.subjectId?[s.id]:[], pinnedId:s.id,
@@ -2153,7 +2153,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="new-career-inline"){
     // Alta de alumno (vModal): crea la carrera sin re-renderizar el modal entero, para no perder
     // lo que ya se tipeó en nombre/materia/notas (esos inputs no están atados a state, ver el
-    // comentario de vModal en views.js) — se toca el input de carrera directo, igual que
+    // comentario de vModal en views-core.js) — se toca el input de carrera directo, igual que
     // n-subject-pick en handleFormChange.
     const v=(prompt("Nombre de la nueva carrera:")||"").trim(); if(!v) return;
     let c=state.catalog.careers.find(x=>normName(x.nombre)===normName(v));
@@ -2245,7 +2245,7 @@ document.addEventListener("keydown",(e)=>{
 
 // Atajos de teclado en escritorio (paso 75): "/" busca, "n" nuevo alumno, "c" nueva clase
 // (dentro de la ficha de un alumno, va a la pestaña "Clases"), Esc cierra diálogos/popovers.
-// Listados en el centro de ayuda (ver vCentroAyuda en views.js). Ninguno dispara si ya se está
+// Listados en el centro de ayuda (ver vCentroAyuda en views-cuenta.js). Ninguno dispara si ya se está
 // escribiendo en un campo, para no pisar lo que el profesor esté tipeando.
 document.addEventListener("keydown",(e)=>{
   const typing = /^(input|textarea|select)$/i.test(e.target.tagName);
@@ -2327,7 +2327,7 @@ document.addEventListener("change",(e)=>{
 });
 function handleFormChange(e){
   // Selector "Enlazar a una unidad" de un material puntual (paso 128, ver vMaterialRow en
-  // views.js) — no usa data-cf porque el valor depende del archivo (data-name), no de una clave
+  // views-materias.js) — no usa data-cf porque el valor depende del archivo (data-name), no de una clave
   // fija del switch de más abajo.
   const mu=e.target.closest("[data-matunit]");
   if(mu){ setMaterialUnit(mu.dataset.id, mu.dataset.name, mu.value); render(); return; }
@@ -2360,7 +2360,7 @@ function handleFormChange(e){
     state.agendaEditGrupalPending={...(state.agendaEditGrupalPending||{}), [field]:value};
     render(); return;
   }
-  // Formulario de clase grupal (paso 157, ver vGrupalForm en views.js) — campos comunes al grupo
+  // Formulario de clase grupal (paso 157, ver vGrupalForm en views-ficha.js) — campos comunes al grupo
   // (state.grupalForm) y asistencia por alumno (state.grupalForm.asistencias[studentId]).
   if(cf && (cf.dataset.cf==="grupal-form-date" || cf.dataset.cf==="grupal-form-time" || cf.dataset.cf==="grupal-form-duration"
       || cf.dataset.cf==="grupal-form-topic" || cf.dataset.cf==="grupal-form-link" || cf.dataset.cf==="grupal-form-note" || cf.dataset.cf==="grupal-form-nombre")){
@@ -2424,7 +2424,7 @@ function handleFormChange(e){
   if(cf && cf.dataset.cf==="docente-dni"){ state.catalog.docente={...docenteFor(), dni:cf.value}; touchCatalog(); return; }
   // Cobros del docente (paso 141): alias/CVU sin validar (texto libre); los dos links sí, sólo
   // https — se guardan igual si no cumplen (para no perder lo tipeado a medio escribir), pero
-  // avisa con un hint bajo el campo (ver vCobrosCard, views.js).
+  // avisa con un hint bajo el campo (ver vCobrosCard, views-cuenta.js).
   if(cf && cf.dataset.cf==="tarifa-default-modalidad"){ state.catalog.tarifaDefault={...tarifaDefaultFor(), modalidad:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="tarifa-default-monto"){ state.catalog.tarifaDefault={...tarifaDefaultFor(), monto:cf.value}; touchCatalog(); return; }
   if(cf && cf.dataset.cf==="tarifa-default-duracion"){ state.catalog.tarifaDefault={...tarifaDefaultFor(), duracion:parseInt(cf.value,10)||60}; touchCatalog(); return; }
@@ -2520,7 +2520,7 @@ function handleFormChange(e){
   const s=sel(); if(!s) return;
   // Campos de "datos" de la ficha (Resumen/Pagos, paso 136): en vez de guardar al toque, quedan
   // en un borrador (state.fichaDraft) hasta confirmarlos con "Guardar cambios" — ver
-  // applyFichaDraftField/draftFor en helpers.js y la barra fija en vDetalle (views.js). El resto
+  // applyFichaDraftField/draftFor en helpers.js y la barra fija en vDetalle (views-ficha.js). El resto
   // de los data-f de la app sigue con el autosave de siempre, más abajo.
   if(FICHA_DRAFT_FIELDS.has(el.dataset.f)){ applyFichaDraftField(s, el.dataset.f, el.value); return; }
   update(s.id,{[el.dataset.f]:el.value});
@@ -2583,7 +2583,7 @@ setInterval(()=>{
    del FAB, QR) pasa a sumar una entrada de history con un state chico y serializable
    ({v, id, rid, m, mx}): no hace falta guardar más que eso porque applyNavSnapshot() reconstruye
    el resto llamando a las mismas piezas de state que ya arma cualquier navegación normal.
-   syncHistory() se llama desde render() (views.js) en vez de desde cada acción: como CUALQUIER
+   syncHistory() se llama desde render() (views-core.js) en vez de desde cada acción: como CUALQUIER
    cambio de vista termina pasando por render(), ese es el único lugar que hace falta tocar para
    cubrir los ~40 sitios que hoy mutan state.view/selId directamente sin pasar por una función
    común de navegación.

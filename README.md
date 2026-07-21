@@ -18,7 +18,7 @@ web/
 └── app/               la app en sí (PWA)
     ├── index.html
     ├── styles.css
-    ├── js/            seis scripts clásicos (config, helpers, auth, sync, views, events)
+    ├── js/            config, helpers, auth, sync, views-*.js (9 archivos), events
     ├── sw.js          service worker
     └── manifest.webmanifest
 ```
@@ -27,9 +27,9 @@ web/
 push a `main` que toque `web/**` (landing en la raíz del sitio, app en
 `/app/`).
 
-Ver `CLAUDE.md` para el detalle de arquitectura (por qué el JS está separado
-en esos seis archivos, cómo funciona el render, el modelo de estado, etc.) y
-`SEGURIDAD.md` para la auditoría de seguridad del proyecto.
+Ver `ARQUITECTURA.md` para el mapa de qué archivo tiene qué vista/función, y
+`CLAUDE.md` para el resto (cómo funciona el render, el modelo de estado,
+etc.) y `SEGURIDAD.md` para la auditoría de seguridad del proyecto.
 
 ## Estructura completa del producto
 

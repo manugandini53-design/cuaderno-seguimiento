@@ -57,7 +57,7 @@ const TOPIC_BAR_META = {
 // campos que el docente tildó explícitamente en la ficha, más "pendiente" (paso 141, siempre
 // presente, es sólo la deuda propia de este alumno); nunca notas, señas ni comentarios privados
 // (eso ni siquiera sale de la app, ver el comentario en esa función).
-// Ícono de saludo, mismo set de línea que la app (ICON_WAVE en views.js) — duplicado acá
+// Ícono de saludo, mismo set de línea que la app (ICON_WAVE en views-core.js) — duplicado acá
 // porque portal.js es standalone y no carga ese archivo (ver el comentario de SUPA_URL arriba).
 const ICON_WAVE=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V6a1.8 1.8 0 0 1 3.6 0v5"/><path d="M11.6 11V4.6a1.8 1.8 0 0 1 3.6 0V11"/><path d="M15.2 11V6.4a1.8 1.8 0 0 1 3.6 0V15c0 4-2.5 7-6.8 7-3 0-4.6-1-6-2.7L3 15.4c-.6-.9-.4-2 .5-2.6.8-.5 1.8-.3 2.4.4L8 15.5"/></svg>`;
 // "No puedo ir" (paso 172): con llave individual, y sólo si el docente activó "Cancelar desde el
