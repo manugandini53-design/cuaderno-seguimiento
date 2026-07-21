@@ -10,24 +10,31 @@ function prefersReducedMotion(){
 // Números que cuentan hasta su valor (tablero Hoy / Estadísticas) — el texto ya arranca en el
 // valor final (ver countSpan() en helpers.js), así que si esto no corre el número visible
 // siempre es igual el correcto.
+// Montos (paso 179, moneySpan() en helpers.js): a diferencia de los demás .cnt (que siempre
+// arrancan en 0 y suben), un monto recuerda el último valor mostrado por su data-money-key
+// (_prevMoneyByKey) y anima DESDE ahí — así "pendiente" cuenta hacia abajo de verdad al bajar
+// tras un cobro, en vez de reiniciar en $0 y subir hasta el nuevo total (que es lo que hacía
+// antes de este fix, sea cual sea la dirección del cambio).
+let _prevMoneyByKey = {};
 function animateCounters(){
   const els = document.querySelectorAll(".cnt");
-  if(prefersReducedMotion()) return;
   const dur = 650; // paso 143: un toque más lenta que antes (era 600ms)
+  const reduced = prefersReducedMotion();
   els.forEach(el=>{
     const target = parseFloat(el.dataset.count);
     if(isNaN(target)) return;
     const decimals = parseInt(el.dataset.decimals||"0",10);
     const suffix = el.dataset.suffix||"";
-    // Montos (paso 179, ver moneySpan() en helpers.js): mismo mecanismo, pero cada cuadro se
-    // formatea con fmtMoney (signo "$" + separador de miles es-AR) en vez de un número pelado —
-    // así un total pendiente se ve contando hacia abajo con el mismo formato en cada instante.
     const isMoney = el.dataset.money==="1";
+    const moneyKey = el.dataset.moneyKey||"default";
+    const from = isMoney && _prevMoneyByKey[moneyKey]!=null ? _prevMoneyByKey[moneyKey] : (isMoney ? target : 0);
+    if(isMoney) _prevMoneyByKey[moneyKey]=target;
+    if(reduced || from===target) return;
     const start = performance.now();
     function step(now){
       const p = Math.min(1, (now-start)/dur);
       const eased = 1-Math.pow(1-p,3);
-      const val = target*eased;
+      const val = from+(target-from)*eased;
       el.textContent = isMoney ? fmtMoney(val) : (decimals>0 ? val.toFixed(decimals) : Math.round(val)) + suffix;
       if(p<1) requestAnimationFrame(step);
       else el.textContent = isMoney ? fmtMoney(target) : (decimals>0 ? target.toFixed(decimals) : Math.round(target)) + suffix;
@@ -429,7 +436,6 @@ document.addEventListener("click", (e)=>{
   else if(a==="agenda-edit-scope-solo"){
     const ev=findAgendaEditEvent(state.agendaEdit); if(!ev || !state.agendaEditPending) return;
     applyHorarioEdit(ev.studentId, ev.sourceId, ev.origDate, state.agendaEditPending, "solo");
-    if(state.agendaEditPending.date!=null) state.agendaEdit.origDate=state.agendaEditPending.date;
     state.agendaEditPending=null;
     toast("Clase movida");
   }
@@ -496,7 +502,6 @@ document.addEventListener("click", (e)=>{
   else if(a==="agenda-edit-grupal-scope-solo"){
     const ev=findAgendaEditEventGrupal(state.agendaEditGrupal); if(!ev || !state.agendaEditGrupalPending) return;
     applyHorarioEditGrupal(ev.grupoId, ev.origDate, state.agendaEditGrupalPending, "solo");
-    if(state.agendaEditGrupalPending.date!=null) state.agendaEditGrupal.origDate=state.agendaEditGrupalPending.date;
     state.agendaEditGrupalPending=null;
     toast("Clase movida");
   }

@@ -1289,7 +1289,8 @@ async function republishAlumnoBlock(studentId){
   try{
     const {uid_, h, row}=await fetchPortalRow("publicado");
     const alumnos={...((row.publicado&&row.publicado.alumnos)||{})};
-    alumnos[studentId]=buildAlumnoBlock(st);
+    const reservaModo=resolveReservaModo(row.publicado);
+    alumnos[studentId]=buildAlumnoBlock(st, reservaModo);
     const publicado={...(row.publicado||{}), alumnos};
     await patchPortalRow(uid_, h, {publicado});
     if(state.portal) state.portal.publicado=publicado;

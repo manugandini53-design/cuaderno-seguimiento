@@ -82,9 +82,9 @@ function fmtMoney(n){ return "$"+Math.round(n||0).toLocaleString("es-AR"); }
 // en events.js lo detecta por data-money="1"), pero formateando cada cuadro con fmtMoney (signo
 // "$" + separador de miles es-AR) en vez de un número pelado — para que un total pendiente se vea
 // contando hacia abajo con el mismo formato antes/durante/después de la animación.
-function moneySpan(value){
+function moneySpan(value, key){
   const v = Math.round(Number(value)||0);
-  return `<span class="cnt" data-count="${v}" data-money="1">${esc(fmtMoney(v))}</span>`;
+  return `<span class="cnt" data-count="${v}" data-money="1" data-money-key="${esc(key||"default")}">${esc(fmtMoney(v))}</span>`;
 }
 // como fmtMoney pero con el signo antes del "$" (fmtMoney(-500) da "$-500"; esto da "-$500") —
 // para ganancias que pueden dar negativas (rentabilidad).
