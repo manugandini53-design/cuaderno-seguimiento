@@ -19,14 +19,18 @@ function animateCounters(){
     if(isNaN(target)) return;
     const decimals = parseInt(el.dataset.decimals||"0",10);
     const suffix = el.dataset.suffix||"";
+    // Montos (paso 179, ver moneySpan() en helpers.js): mismo mecanismo, pero cada cuadro se
+    // formatea con fmtMoney (signo "$" + separador de miles es-AR) en vez de un número pelado —
+    // así un total pendiente se ve contando hacia abajo con el mismo formato en cada instante.
+    const isMoney = el.dataset.money==="1";
     const start = performance.now();
     function step(now){
       const p = Math.min(1, (now-start)/dur);
       const eased = 1-Math.pow(1-p,3);
       const val = target*eased;
-      el.textContent = (decimals>0 ? val.toFixed(decimals) : Math.round(val)) + suffix;
+      el.textContent = isMoney ? fmtMoney(val) : (decimals>0 ? val.toFixed(decimals) : Math.round(val)) + suffix;
       if(p<1) requestAnimationFrame(step);
-      else el.textContent = (decimals>0 ? target.toFixed(decimals) : Math.round(target)) + suffix;
+      else el.textContent = isMoney ? fmtMoney(target) : (decimals>0 ? target.toFixed(decimals) : Math.round(target)) + suffix;
     }
     requestAnimationFrame(step);
   });
@@ -50,22 +54,27 @@ function observeGrowBars(){
   bars.forEach(el=>_growBarObserver.observe(el));
 }
 
-/* ============ festejo + sonidos discretos (paso 143) ============
-   Sólo en MOMENTOS puntuales (registrar clase, cobrar una deuda hasta dejarla en $0, completar
-   un objetivo) — nunca en carga de página ni en navegación. Ambos respetan reduced-motion/apagado
-   por separado: el confetti se salta directo con prefersReducedMotion() (mismo criterio que el
-   resto de las animaciones de este archivo); el sonido además depende de soundsOn() (toggle de
-   Cuenta → Preferencias, config.js). Uno no depende del otro — con reduced-motion activado pero
-   sonidos encendidos, sigue sonando el "tin"/"ding"/acorde sin el confetti visual. */
-function fireConfetti(){
+/* ============ festejo + sonidos discretos (pasos 143 y 179) ============
+   Lista cerrada de MOMENTOS puntuales (ver CHANGELOG paso 179 para la lista completa) — nunca en
+   carga de página ni en navegación (la única excepción sonora a eso es soundWhoosh(), pensado
+   para el cambio de vista y con su propio gate, ver más abajo). Ambos respetan reduced-motion/
+   apagado por separado: el confetti se salta directo con prefersReducedMotion() (mismo criterio
+   que el resto de las animaciones de este archivo); el sonido además depende de soundsOn() (toggle
+   de Cuenta → Preferencias, config.js). Uno no depende del otro — con reduced-motion activado pero
+   sonidos encendidos, sigue sonando el "tin"/"ding"/acorde sin el confetti visual.
+   fireConfetti(opts) acepta un objeto opcional {colors,n,duration} (paso 179) para que cada
+   momento tenga su propia paleta/duración sin duplicar el canvas/física de partículas — las
+   paletas de cada momento nuevo están declaradas junto a sus sonidos, más abajo. */
+function fireConfetti(opts){
   if(prefersReducedMotion()) return;
+  opts = opts || {};
   const canvas=document.createElement("canvas");
   canvas.style.cssText="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999";
   canvas.width=window.innerWidth; canvas.height=window.innerHeight;
   document.body.appendChild(canvas);
   const ctx=canvas.getContext("2d");
-  const colors=["#ff6b6b","#4dabf7","#69db7c","#ffd43b","#da77f2"];
-  const N=54;
+  const colors=opts.colors || ["#ff6b6b","#4dabf7","#69db7c","#ffd43b","#da77f2"];
+  const N=opts.n || 54;
   const originY=canvas.height*0.3;
   const particles=Array.from({length:N},()=>({
     x:canvas.width/2+(Math.random()-0.5)*140,
@@ -79,7 +88,7 @@ function fireConfetti(){
   }));
   const gravity=0.25;
   const start=performance.now();
-  const DURATION=1000;
+  const DURATION=opts.duration || 1000;
   function step(now){
     const t=now-start;
     ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -98,6 +107,12 @@ function fireConfetti(){
   }
   requestAnimationFrame(step);
 }
+// Paletas por momento (paso 179) — mismo confetti/física de arriba, sólo cambian colores/cantidad/
+// duración para que cada festejo se sienta un poco distinto sin duplicar código.
+const PACK_CONFETTI = ["#22C55E","#84CC16","#FDE047","#4ADE80","#facc15"]; // venta de pack: verde/dorado ("plata")
+const RESERVA_CONFETTI = ["#3B82F6","#60A5FA","#93C5FD","#38BDF8","#A78BFA"]; // reserva del portal: azules fríos
+const TUDIA_CONFETTI = ["#F59E0B","#FBBF24","#FDE68A","#FCA5A5","#FDBA74"]; // "Tu día" en cero: cálido, sol
+const CUATRI_CONFETTI = ["#8B5CF6","#F43F5E","#3B82F6","#22C55E","#F59E0B"]; // cierre de cuatrimestre: multicolor, el más "finale"
 let _audioCtx=null;
 function getAudioCtx(){
   if(_audioCtx) return _audioCtx;
@@ -106,9 +121,10 @@ function getAudioCtx(){
   _audioCtx=new AC();
   return _audioCtx;
 }
-// freqs+dur cortos y volumen bajo a propósito (paso 143: "discretos, <200ms" salvo el acorde de
-// objetivo, un pelín más largo por tener 3 notas). Nunca se llama desde carga de página/nav —
-// sólo desde los tres triggers de más abajo.
+// freqs+dur cortos y volumen bajo a propósito (paso 143: "discretos, <200ms" salvo los acordes de
+// varias notas, un pelín más largos). Nunca se llama desde carga de página/nav — sólo desde los
+// triggers puntuales de más abajo (soundWhoosh() es la única excepción, con su propio volumen aún
+// más bajo y su propio gate de "sólo escritorio").
 function playTone(freqs, dur, type){
   if(prefersReducedMotion() || !soundsOn()) return;
   const ctx=getAudioCtx(); if(!ctx) return;
@@ -127,7 +143,45 @@ function playTone(freqs, dur, type){
 function soundClase(){ playTone([660], 0.14, "sine"); }
 function soundCobro(){ playTone([880], 0.16, "triangle"); }
 function soundObjetivo(){ playTone([523.25,659.25,783.99], 0.32, "sine"); }
-function soundHito(){ playTone([523.25,659.25,783.99,1046.5], 0.36, "sine"); } // hito de racha (paso 155)
+// Hito de racha (paso 155) — reutilizado también para "Tu día" en cero (paso 179, ver
+// pendingTasksToday()/vTuDia() en helpers.js/views.js): ambos son "cerraste bien el día", un
+// timbre nuevo aparte se sentía redundante — ver razonamiento completo en el reporte del paso 179.
+function soundHito(){ playTone([523.25,659.25,783.99,1046.5], 0.36, "sine"); }
+function soundPack(){ playTone([587.33,880], 0.2, "triangle"); } // venta de pack (paso 179): dos notas triangle, distinto de soundCobro (una sola nota)
+function soundReserva(){ playTone([1174.66], 0.1, "square"); } // reserva nueva del portal (paso 179): "pop" bien corto y brillante
+function soundCuatrimestre(){ playTone([392,523.25,659.25,783.99,987.77], 0.42, "sine"); } // cierre de cuatrimestre (paso 179): el acorde más largo, a propósito ("finale")
+// Tono de error (paso 179): intervalo descendente y grave, sine — a propósito lo más distinto
+// posible de los festejos de arriba (que suben en frecuencia) para que se aprenda a distinguir un
+// error de un logro sin mirar la pantalla. Enganchado en toast() (helpers.js) para toda tono="error".
+function soundError(){ playTone([392,349.23], 0.18, "sine"); }
+// Heurística "escritorio" para el whoosh de cambio de vista (paso 179, "MUY sutil y sólo en
+// desktop"): puntero preciso (mouse/trackpad), no táctil — así un tablet/celular con mouse
+// conectado entra igual, que es lo que importa (el whoosh molesta más en pantallas táctiles chicas
+// donde se navega todo el tiempo con el dedo, no por marca/tipo de dispositivo). IS_NATIVE queda
+// afuera aparte: Capacitor (Android) siempre es táctil, y Tauri, aunque es de escritorio, no pidió
+// este agregado — se prefiere no sumarle sonido nuevo sin pedido explícito ahí.
+function isDesktopLike(){
+  return !IS_NATIVE && !!(window.matchMedia && window.matchMedia("(pointer:fine)").matches);
+}
+// Whoosh de cambio de vista (paso 179): no usa playTone() porque necesita un barrido de frecuencia
+// (exponentialRampToValueAtTime), no un tono fijo — mismo gate de reduced-motion/soundsOn() que el
+// resto, más isDesktopLike(). Volumen a propósito bien por debajo del de playTone (0.035 vs 0.09):
+// es un acompañamiento de navegación, no un festejo, tiene que notarse apenas.
+function soundWhoosh(){
+  if(prefersReducedMotion() || !soundsOn() || !isDesktopLike()) return;
+  const ctx=getAudioCtx(); if(!ctx) return;
+  if(ctx.state==="suspended") ctx.resume().catch(()=>{});
+  const now=ctx.currentTime, dur=0.18;
+  const osc=ctx.createOscillator(), gain=ctx.createGain();
+  osc.type="sine";
+  osc.frequency.setValueAtTime(280, now);
+  osc.frequency.exponentialRampToValueAtTime(720, now+dur);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.035, now+0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now+dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(now); osc.stop(now+dur+0.02);
+}
 
 /* ============ aviso de versión nueva (apps nativas) ============ */
 // Compara por partes numéricas en vez de string-equality para no avisar de una "versión
@@ -1055,7 +1109,14 @@ document.addEventListener("click", (e)=>{
   else if(a==="toggle-animaciones"){ setAnimsOn(el.dataset.f==="si"); }
   else if(a==="toggle-fondo"){ setBgOn(el.dataset.f==="si"); }
   else if(a==="toggle-tu-dia"){ state.catalog.mostrarTuDia=el.dataset.f==="si"; touchCatalog(); return; }
-  else if(a==="marcar-recordatorio-examen"){ marcarExamRecordatorioEnviado(el.dataset.id); return; }
+  else if(a==="marcar-recordatorio-examen"){
+    // Festejo de "Tu día" en cero (paso 179): sólo si ESTA acción deja el checklist de vTuDia()
+    // sin pendientes reales — no en cada "Ya avisé" suelto (ver pendingTasksToday() en helpers.js).
+    const prevTareas=pendingTasksToday().length;
+    marcarExamRecordatorioEnviado(el.dataset.id);
+    if(prevTareas>0 && pendingTasksToday().length===0){ fireConfetti({colors:TUDIA_CONFETTI}); soundHito(); }
+    return;
+  }
   else if(a==="set-theme"){ setTheme(el.dataset.f); }
   else if(a==="set-density"){ setDensity(el.dataset.f); }
   else if(a==="set-accent"){ setAccent(el.dataset.f); }
@@ -1431,6 +1492,7 @@ document.addEventListener("click", (e)=>{
     const tag=getOrCreateTag(v);
     const ids=new Set(s.tagIds||[]);
     if(ids.has(tag.id)) return; // ya la tiene — no duplica
+    state.justAddedTagId=tag.id; // paso 179: pop-in del chip recién agregado (ver tagChip() en helpers.js)
     update(s.id,{tagIds:[...ids,tag.id]}); return;
   }
   else if(a==="tag-remove"){
@@ -1765,12 +1827,17 @@ document.addEventListener("click", (e)=>{
     const sessions = s.sessions.map(x=>x.id===el.dataset.id?{...x,cobrada:!x.cobrada}:x);
     if(!wasCobrada && sessionEl){
       const prevPendiente=pendienteTotalFor(s);
+      const prevTareas=pendingTasksToday().length; // festejo de "Tu día" (paso 179), ver abajo
       const r = crearRecibo(s,{tipo:"clase", concepto:`Clase del ${fmtDate(sessionEl.date)}`, monto:Number(s.tarifa)||0});
       update(s.id,{sessions, recibos:[...(s.recibos||[]), r]});
       toast("Clase marcada como cobrada", "ok", null, {label:"Ver recibo", run:()=>{ state.reciboId=r.id; state.view="recibo"; }});
+      if(typeof animateCounters==="function") animateCounters(); // paso 179: el total "pendiente" del mes cuenta hacia abajo (ver moneySpan en helpers.js)
       // Festejo (paso 143) sólo si esto deja al alumno sin nada pendiente — no en cada clase cobrada.
       const st2=state.students.find(x=>x.id===s.id);
       if(st2 && prevPendiente>0 && pendienteTotalFor(st2)<=0){ fireConfetti(); soundCobro(); }
+      // Festejo de "Tu día" en cero (paso 179) — sólo si no festejamos ya arriba por la deuda, para
+      // no disparar dos confettis/sonidos de golpe por el mismo click.
+      else if(prevTareas>0 && pendingTasksToday().length===0){ fireConfetti({colors:TUDIA_CONFETTI}); soundHito(); }
     }else{
       update(s.id,{sessions});
       toast("Clase marcada como pendiente");
@@ -1781,15 +1848,19 @@ document.addEventListener("click", (e)=>{
     const date=document.getElementById("pago-date").value; if(!date) return;
     const amount=parseFloat(document.getElementById("pago-amount").value); if(!amount) return;
     const prevPendiente=pendienteTotalFor(s);
+    const prevTareas=pendingTasksToday().length; // festejo de "Tu día" (paso 179), ver abajo
     const pagos=[...(s.pagos||[]),{id:uid(),date,amount}];
     const mk = monthKeyOf(date);
     const pendiente = pagoResumen({...s,pagos}, mk).pendiente;
     const r = crearRecibo(s,{tipo:"mensual", concepto:`Mensualidad ${monthLabel(mk)}`, monto:amount, date, saldo:pendiente});
     update(s.id,{pagos, recibos:[...(s.recibos||[]), r]});
     toast("Pago registrado", "ok", null, {label:"Ver recibo", run:()=>{ state.reciboId=r.id; state.view="recibo"; }});
+    if(typeof animateCounters==="function") animateCounters(); // paso 179: el total "pendiente" del mes cuenta hacia abajo (ver moneySpan en helpers.js)
     // Festejo (paso 143) sólo si esto deja al alumno sin nada pendiente.
     const st2=state.students.find(x=>x.id===s.id);
     if(st2 && prevPendiente>0 && pendienteTotalFor(st2)<=0){ fireConfetti(); soundCobro(); }
+    // Festejo de "Tu día" en cero (paso 179) — sólo si no festejamos ya arriba por la deuda.
+    else if(prevTareas>0 && pendingTasksToday().length===0){ fireConfetti({colors:TUDIA_CONFETTI}); soundHito(); }
     return;
   }
   else if(a==="del-pago" && s){
@@ -1829,6 +1900,7 @@ document.addEventListener("click", (e)=>{
     const r = crearRecibo(s, {tipo:"packClase", concepto:`Pack de ${cant} clases`, monto:precio, date});
     update(s.id,{pagos, packsClases, recibos:[...(s.recibos||[]), r]});
     toast("Pack vendido", "ok", null, {label:"Ver recibo", run:()=>{ state.reciboId=r.id; state.view="recibo"; }});
+    fireConfetti({colors:PACK_CONFETTI}); soundPack(); // festejo (paso 179): venta de pack de clases
     return;
   }
   else if(a==="pagos-tab"){ state.pagosTab=el.dataset.t; }
@@ -1942,8 +2014,18 @@ document.addEventListener("click", (e)=>{
   else if(a==="fincuatri-open"){
     state.finCuatrimestreOpen=true; state.finCuatrimestreSkipped=[];
     state.finCuatrimestreDays = state.finCuatrimestreDays || FIN_CUATRIMESTRE_DIAS_SIN_CLASE;
+    state.finCuatrimestreActed=false; // paso 179: se prende sólo si el docente pausa/despide a alguien en este paso, ver fincuatri-close
   }
-  else if(a==="fincuatri-close"){ state.finCuatrimestreOpen=false; }
+  else if(a==="fincuatri-close"){
+    state.finCuatrimestreOpen=false;
+    // Festejo de cierre de cuatrimestre (paso 179): sólo si de verdad se resolvió algo en este
+    // paso del asistente (pausar/despedir al menos un alumno) — cerrar el overlay sin tocar nada
+    // (por ej. clickeando afuera para mirar de nuevo más tarde) no cuenta como "terminaste".
+    if(state.finCuatrimestreActed){
+      fireConfetti({colors:CUATRI_CONFETTI, duration:1300}); soundCuatrimestre();
+      state.finCuatrimestreActed=false;
+    }
+  }
   else if(a==="fincuatri-modal-noop"){ return; }
   else if(a==="fincuatri-days"){ state.finCuatrimestreDays=parseInt(el.dataset.f,10); }
   else if(a==="fincuatri-skip"){
@@ -1952,6 +2034,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="fincuatri-pausar"){
     const id=el.dataset.id, st=state.students.find(x=>x.id===id); if(!st) return;
     update(id,{status:"pausado"});
+    state.finCuatrimestreActed=true; // paso 179: festejo al cerrar el asistente, ver fincuatri-close
     toast("Alumno en pausa", "ok", ()=>{
       const st2=state.students.find(x=>x.id===id); if(!st2) return;
       update(id,{status:"activo"});
@@ -1964,6 +2047,7 @@ document.addEventListener("click", (e)=>{
     const ids = alumnosSinClasesFinCuatrimestre(days).filter(x=>!skipped.includes(x.id)).map(x=>x.id);
     if(!ids.length) return;
     ids.forEach(id=>update(id,{status:"pausado"}));
+    state.finCuatrimestreActed=true; // paso 179
     toast(`${ids.length} alumno${ids.length===1?"":"s"} en pausa`, "ok", ()=>{
       ids.forEach(id=>{ const st2=state.students.find(x=>x.id===id); if(st2) update(id,{status:"activo"}); });
     });
@@ -1972,6 +2056,7 @@ document.addEventListener("click", (e)=>{
   else if(a==="fincuatri-despedir"){
     const id=el.dataset.id, st=state.students.find(x=>x.id===id); if(!st) return;
     update(id,{status:"dejo"});
+    state.finCuatrimestreActed=true; // paso 179
     if(hasPhone(st)) window.open(waLink(st,waMsgDespedida(st)),"_blank","noopener");
     toast("Alumno marcado como dejó", "ok", ()=>{
       const st2=state.students.find(x=>x.id===id); if(!st2) return;
@@ -2055,12 +2140,14 @@ document.addEventListener("click", (e)=>{
     return;
   }
   else if(a==="export"){
+    const prevTareas=pendingTasksToday().length; // festejo de "Tu día" (paso 179), ver marcar-recordatorio-examen arriba
     const blob=new Blob([JSON.stringify({students:state.students},null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const link=document.createElement("a");
     link.href=url; link.download=`seguimiento-estudiantes-${today()}.json`;
     link.click(); URL.revokeObjectURL(url);
     markExported();
+    if(prevTareas>0 && pendingTasksToday().length===0){ fireConfetti({colors:TUDIA_CONFETTI}); soundHito(); }
     toast("Copia descargada"); return;
   }
   else if(a==="new-career-inline"){

@@ -2694,7 +2694,7 @@ function vPagosResumen(){
     const totalClases = rows.reduce((a,x)=>a+x.r.clases,0);
     h += `<div class="stats">
       <div class="stat"><b>${fmtMoney(totalCobrado)}</b><span>cobrado</span></div>
-      <div class="stat ${totalPendiente?"warn":""}"><b>${fmtMoney(totalPendiente)}</b><span>pendiente</span></div>
+      <div class="stat ${totalPendiente?"warn":""}"><b>${moneySpan(totalPendiente)}</b><span>pendiente</span></div>
       <div class="stat"><b>${totalClases}</b><span>clases dadas</span></div>
     </div>`;
     if(rows.some(({s})=>(s.packsClases||[]).length>0)) h += `<div class="hint" style="margin-bottom:10px">Un pack de clases prepago cuenta como cobrado el día que se vendió, no clase por clase — algún alumno puede mostrar más "clases dadas" que cobros sueltos por eso.</div>`;
@@ -5831,6 +5831,10 @@ function syncStatusText(){
 // datos que cambian estando en la misma vista (buscador en vivo, cronómetro, sync…) — si
 // eso animara también, la app se sentiría con parpadeo constante en vez de fluida.
 let _prevViewKey = null;
+// Aparte de _prevViewKey (que arranca en null y por eso da "cambió" también en el primerísimo
+// render): este flag evita el whoosh (paso 179) en la carga inicial de la página — sólo debe sonar
+// en una navegación real, nunca al abrir la app.
+let _hasRenderedOnce = false;
 function render(){
   // el shell de navegación (sidebar/barra inferior) sólo existe con sesión activa, fuera de
   // recovery e informe/contrato (documentos pensados para imprimir/compartir, sin nav) — la
@@ -5935,6 +5939,10 @@ function render(){
   document.getElementById("app").innerHTML = navShell(isAdmin) + fabHtml() + `<main class="appmain${viewChanged?" view-enter":""}">${m}</main>` + toastWrap();
   if(typeof observeGrowBars==="function") observeGrowBars();
   if(viewChanged && typeof animateCounters==="function") animateCounters();
+  // Whoosh muy sutil de cambio de vista (paso 179) — sólo en una navegación real (viewChanged) y
+  // nunca en el primerísimo render (_hasRenderedOnce), ver soundWhoosh()/isDesktopLike() en events.js.
+  if(viewChanged && _hasRenderedOnce && typeof soundWhoosh==="function") soundWhoosh();
+  _hasRenderedOnce = true;
   // grilla semanal (paso 134): al recién entrar a la vista, centra el scroll horizontal en la
   // columna de hoy (mobile no entra en 360px con los 7 días, ver .week-scroll en styles.css) —
   // sólo al abrir la vista, para no pelearle el scroll al usuario en cada re-render.

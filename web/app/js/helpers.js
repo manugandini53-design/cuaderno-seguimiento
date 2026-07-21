@@ -78,6 +78,14 @@ function countSpan(value, opts){
   return `<span class="cnt" data-count="${value}" data-decimals="${decimals}" data-suffix="${esc(suffix)}">${esc(display)}${esc(suffix)}</span>`;
 }
 function fmtMoney(n){ return "$"+Math.round(n||0).toLocaleString("es-AR"); }
+// Versión "monto" de countSpan() (paso 179): mismo mecanismo de conteo animado (animateCounters()
+// en events.js lo detecta por data-money="1"), pero formateando cada cuadro con fmtMoney (signo
+// "$" + separador de miles es-AR) en vez de un número pelado — para que un total pendiente se vea
+// contando hacia abajo con el mismo formato antes/durante/después de la animación.
+function moneySpan(value){
+  const v = Math.round(Number(value)||0);
+  return `<span class="cnt" data-count="${v}" data-money="1">${esc(fmtMoney(v))}</span>`;
+}
 // como fmtMoney pero con el signo antes del "$" (fmtMoney(-500) da "$-500"; esto da "-$500") —
 // para ganancias que pueden dar negativas (rentabilidad).
 function fmtMoneySigned(n){ return (n||0)<0 ? "-"+fmtMoney(-n) : fmtMoney(n); }
@@ -281,7 +289,12 @@ function tagChip(tag, removableFor){
         title="Quitar etiqueta «${esc(tag.label)}»" aria-label="Quitar etiqueta «${esc(tag.label)}»"
         style="color:inherit;font-size:12px;margin-left:2px">×</button>`
     : "";
-  return `<span class="subj-chip" style="background:var(--subj-${tag.color}-bg);color:var(--subj-${tag.color}-fg)">${esc(tag.label)}${remove}</span>`;
+  // Pop-in (paso 179): sólo el chip recién agregado en esta ficha (removableFor=alumno, nunca en
+  // la lista informativa) — state.justAddedTagId lo pone "tag-add" en events.js y se consume acá
+  // mismo (se pone en null apenas se usa una vez), así que no vuelve a animar en el próximo render.
+  const justAdded = !!(removableFor && state.justAddedTagId===tag.id);
+  if(justAdded) state.justAddedTagId=null;
+  return `<span class="subj-chip${justAdded?" chip-pop":""}" style="background:var(--subj-${tag.color}-bg);color:var(--subj-${tag.color}-fg)">${esc(tag.label)}${remove}</span>`;
 }
 /* ============ unidades de una materia (paso 127): unidad = {id, nombre, orden, subunidades:
    [{id,nombre}]} — un nivel de subunidades, sin nietos. Los cuadernos viejos guardaban cada
@@ -493,6 +506,11 @@ function toast(text, tone, undo, action){
   const id = uid();
   state.toasts = [...state.toasts, {id, text, tone: tone||"ok", undo: undo||null, action: action||null}];
   render();
+  // Tono de error (paso 179): un único lugar para TODOS los toasts de tono "error" de la app
+  // (guardado fallido, copia fallida, feedback fallido, etc.) en vez de cablear soundError() en
+  // cada call site suelto — ver soundError() en events.js, gateado igual que el resto por
+  // prefersReducedMotion()/soundsOn().
+  if(tone==="error" && typeof soundError==="function") soundError();
   setTimeout(()=>{
     state.toasts = state.toasts.filter(t=>t.id!==id);
     render();

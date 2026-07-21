@@ -65,6 +65,10 @@ function bgOn(){ return localStorage.getItem(BG_KEY)!=="off"; }
 function applyBg(on){ document.body.classList.toggle("bg-off", !on); }
 function setBgOn(on){ localStorage.setItem(BG_KEY, on?"on":"off"); applyBg(on); }
 applyBg(bgOn()); // igual que el tema/densidad, aplicada de entrada para evitar parpadeo
+// Primera reserva directa recibida desde el portal (paso 179): flag de una sola vez, por
+// dispositivo — gatea el festejo (confetti + soundReserva) de la PRIMERA reserva que llega
+// alguna vez, no las siguientes. Ver el bloque agregado en refreshSolicitudesClase() en sync.js.
+const FIRST_RESERVA_KEY = "tutoria-primera-reserva-festejada";
 const THEME_KEY = "tutoria-theme"; // "light" | "dark" | "system" (default)
 function getTheme(){ return localStorage.getItem(THEME_KEY) || "system"; }
 function applyTheme(theme){

@@ -834,6 +834,15 @@ async function refreshSolicitudesClase(){
     if(r.ok){
       const rows=await r.json();
       state.reservasDirectas=rows.map(x=>({id:x.id, studentId:x.student_id, fecha:x.fecha, hora:x.hora, createdAt:x.created_at}));
+      // Festejo de la PRIMERA reserva directa recibida jamás (paso 179): flag de una sola vez en
+      // localStorage (no en catalog.updatedAt — no hace falta que viaje entre dispositivos, y así
+      // restaurar un respaldo viejo no lo revive). No es "la primera fila de este heartbeat" sino
+      // literalmente la primera vez que este dispositivo ve alguna reserva directa.
+      if(rows.length>0 && localStorage.getItem(FIRST_RESERVA_KEY)!=="1"){
+        localStorage.setItem(FIRST_RESERVA_KEY,"1");
+        if(typeof fireConfetti==="function") fireConfetti({colors:RESERVA_CONFETTI, n:36, duration:900});
+        if(typeof soundReserva==="function") soundReserva();
+      }
     }
   }catch(e){ /* silencioso, se reintenta en el próximo heartbeat */ }
   render();
